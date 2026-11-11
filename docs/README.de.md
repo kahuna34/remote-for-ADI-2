@@ -14,7 +14,7 @@ Remote for ADI-2 ist eine kostenlose Flutter-App zur direkten Steuerung kompatib
 
 Alle Dateien der aktuellen Version stehen auch auf der [Release-Seite](https://github.com/kahuna34/remote-for-ADI-2/releases/latest). Den Host braucht man nur, um den ADI-2 per WLAN über einen Computer zu steuern; für die direkte USB-Verbindung genügt die App. Eine iPhone-Version ist geplant.
 
-**App installieren (Android):** Die APK auf dem Smartphone öffnen und die Installation aus dieser Quelle erlauben, wenn Android nachfragt. Den ADI-2 mit einem datenfähigen USB-Kabel (USB-OTG) anschließen und am Gerät **MIDI Control** einschalten.
+**App installieren (Android):** Die APK auf dem Smartphone öffnen und die Installation aus dieser Quelle erlauben, wenn Android nachfragt. Warnt Google Play Protect, **Weitere Details → Trotzdem installieren** wählen. Blockiert Play Protect die Installation, die Funktion für die Installation ausschalten: im **Play Store** oben rechts auf das Profilbild tippen, dann **Play Protect → Einstellungen** (Zahnrad oben rechts) und **Apps mit Play Protect scannen** ausschalten. Nach der Installation wieder einschalten. Den ADI-2 mit einem datenfähigen USB-Kabel (USB-OTG) anschließen und am Gerät **MIDI Control** einschalten.
 
 **Host am Mac installieren:** Die Datei entpacken und **Remote for ADI-2 Host** in den Ordner Programme ziehen. Das Programm ist nicht von Apple signiert: Beim ersten Start blockiert macOS es. Dann **Systemeinstellungen → Datenschutz & Sicherheit** öffnen und **Dennoch öffnen** wählen. Danach erscheint das Symbol in der Menüleiste.
 
