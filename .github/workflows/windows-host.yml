@@ -1,0 +1,48 @@
+name: Windows-Host bauen
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.9
+          cache: true
+
+      - name: Pakete holen
+        run: |
+          flutter pub get
+          cd host
+          flutter pub get
+
+      - name: Tests Host
+        working-directory: host
+        run: flutter test
+
+      - name: Host bauen
+        working-directory: host
+        run: flutter build windows --release
+
+      - name: ZIP mit Visual-C++-Laufzeit packen
+        shell: pwsh
+        run: |
+          $src = "host/build/windows/x64/runner/Release"
+          $dst = "dist/Remote for ADI-2 Host"
+          New-Item -ItemType Directory -Force -Path $dst | Out-Null
+          Copy-Item "$src/*" $dst -Recurse
+          foreach ($dll in "msvcp140.dll", "vcruntime140.dll", "vcruntime140_1.dll") {
+            Copy-Item "C:/Windows/System32/$dll" $dst
+          }
+          Compress-Archive -Path $dst -DestinationPath "dist/Remote-for-ADI-2-Host-Windows-x64.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Remote-for-ADI-2-Host-Windows-x64
+          path: dist/Remote-for-ADI-2-Host-Windows-x64.zip
+          if-no-files-found: error

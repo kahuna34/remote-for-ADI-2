@@ -1,7 +1,9 @@
 package de.markus.adi2_remote
 
+import android.app.AppOpsManager
 import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.PackageInstaller
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.hardware.usb.UsbManager
@@ -147,6 +149,16 @@ class MainActivity : FlutterActivity() {
         MethodChannel(messenger, "adi2/media").setMethodCallHandler { call, result ->
             when (call.method) {
                 "hasAccess" -> result.success(hasAccess())
+                "restricted" -> result.success(accessRestricted())
+                "openAppDetails" -> {
+                    startActivity(
+                        Intent(
+                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            Uri.fromParts("package", packageName, null)
+                        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                    result.success(null)
+                }
                 "openAccessSettings" -> {
                     startActivity(
                         Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
@@ -255,6 +267,33 @@ class MainActivity : FlutterActivity() {
         val launch = packageManager.getLaunchIntentForPackage(c.packageName) ?: return false
         startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         return true
+    }
+
+    /**
+     * Android 13+: Bei Installation aus einer heruntergeladenen oder lokalen
+     * Datei sperrt Android den Benachrichtigungszugriff, bis der Nutzer in den
+     * App-Infos "Eingeschränkte Einstellungen zulassen" wählt.
+     */
+    private fun accessRestricted(): Boolean {
+        if (Build.VERSION.SDK_INT < 33) return false
+        val source = try {
+            packageManager.getInstallSourceInfo(packageName).packageSource
+        } catch (_: Exception) {
+            return false
+        }
+        if (source != PackageInstaller.PACKAGE_SOURCE_DOWNLOADED_FILE &&
+            source != PackageInstaller.PACKAGE_SOURCE_LOCAL_FILE
+        ) return false
+        return try {
+            val ops = getSystemService(APP_OPS_SERVICE) as AppOpsManager
+            ops.unsafeCheckOpNoThrow(
+                "android:access_restricted_settings",
+                applicationInfo.uid,
+                packageName
+            ) != AppOpsManager.MODE_ALLOWED
+        } catch (_: Exception) {
+            true
+        }
     }
 
     private fun hasAccess(): Boolean {

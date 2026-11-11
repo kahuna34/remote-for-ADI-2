@@ -802,8 +802,7 @@ class AnalyzerSelfTest extends ChangeNotifier {
   }
 
   List<String> get warnings => [
-    if (!bitPerfect)
-      'System-Klangeffekte können die Messung verfälschen',
+    if (!bitPerfect) 'System-Klangeffekte können die Messung verfälschen',
     if (!bitPerfect &&
         metadata['playback'] is Map &&
         (metadata['playback'] as Map)['mixerFallbackReason'] is String)

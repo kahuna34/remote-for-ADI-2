@@ -6,8 +6,9 @@ import 'theme.dart';
 /// dann über der bereits aufgebauten Startseite aus. Bei reduzierter
 /// Bewegung entfällt die Animation.
 class StartAnimation extends StatefulWidget {
-  const StartAnimation({super.key, required this.child});
+  const StartAnimation({super.key, required this.child, this.onComplete});
   final Widget child;
+  final VoidCallback? onComplete;
 
   static const duration = Duration(milliseconds: 1400);
 
@@ -26,8 +27,17 @@ class _StartAnimationState extends State<StartAnimation>
   @override
   void initState() {
     super.initState();
-    _c.forward().whenComplete(() {
-      if (mounted) setState(() => _done = true);
+    _c.addStatusListener((status) {
+      if (status == AnimationStatus.completed) _finish();
+    });
+    _c.forward();
+  }
+
+  void _finish() {
+    if (_done || !mounted) return;
+    setState(() => _done = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.onComplete?.call();
     });
   }
 
@@ -36,7 +46,7 @@ class _StartAnimationState extends State<StartAnimation>
     super.didChangeDependencies();
     if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) {
       _c.value = 1;
-      _done = true;
+      _finish();
     }
   }
 

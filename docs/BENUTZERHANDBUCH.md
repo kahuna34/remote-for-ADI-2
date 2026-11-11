@@ -1,6 +1,6 @@
 # Remote for ADI-2 — Benutzerhandbuch
 
-Version **1.1.0 (2)** · [Projektübersicht](README.de.md) · [English](USER_GUIDE.md)
+Version **1.1.1 (3)** · [Projektübersicht](README.de.md) · [English](USER_GUIDE.md)
 
 Dieses Handbuch beschreibt die aktuelle App. Die verfügbaren Regler hängen vom gewählten Modell und den vom Gerät gemeldeten Werten ab. Die Screenshots zeigen Android-Geräte mit englischer Oberfläche. Getestet ist die App mit allen unterstützten ADI-2-Modellen auf Android-Smartphone und Android-Tablet sowie mit dem ADI-2 DAC am Mac, auch über den Host. Eine iPhone-Version ist geplant. Die Player-Anbindung unterstützt derzeit nur Android.
 
@@ -30,6 +30,12 @@ Dieses Handbuch beschreibt die aktuelle App. Die verfügbaren Regler hängen vom
 ## Erste Schritte
 
 Hier verbinden Sie den ADI-2, wählen den richtigen Ausgang und bereiten die erste Bedienung vor.
+
+### Erster Start
+
+Nach der Startanimation erscheint einmalig der Einrichtungs-Assistent, auch beim ersten Start nach diesem Update. Er begleitet USB-OTG oder **Über Host verbinden**, die optionale Android-Player-Freigabe und die automatische Update-Prüfung. Erkannte Verbindungen und erteilte Freigaben werden mit einem Häkchen bestätigt. **Weiter** führt zum nächsten Schritt; **Überspringen** beendet die Einrichtung jederzeit. Gerätewerte und Lautstärkeschutz werden dabei nicht verändert. Kamera und Aufnahmeberechtigung werden erst beim QR-Scan bzw. Analyzer benötigt.
+
+Unter **App-Einstellungen → Einrichtung erneut starten** lässt sich der Assistent erneut öffnen. **Datenschutz** in den Einstellungen und **Datenschutzerklärung** am Ende des Assistenten zeigen die [Datenschutzerklärung](DATENSCHUTZ.md).
 
 ### Schnellstart
 
@@ -79,6 +85,10 @@ Auf dem Mac **Remote for ADI-2 Host** wie ein Programm öffnen. Es erscheint kei
 | Beenden | Beendet den Host. |
 
 Unter Windows muss der Host beim ersten Start im privaten Netzwerk durch die Firewall zugelassen werden.
+
+**Nach Updates suchen** ist standardmäßig an und lässt sich im Host-Menü abschalten. Beim Start und danach höchstens einmal täglich fragt der Host bei GitHub nach der neuesten Version, ohne Nutzerdaten zu senden. Bei einem Update erscheinen ein Hinweis am Symbol und **Update X laden…** im Menü; erst dieser Klick öffnet den passenden ZIP-Download im Browser. Es wird nichts automatisch heruntergeladen oder installiert.
+
+Datenschutz für **Remote for ADI-2 Host**, Kopplung und lokale Netzwerkverbindungen: [Datenschutzerklärung](DATENSCHUTZ.md).
 
 ### Koppeln und verbinden
 
@@ -196,6 +206,8 @@ Unter **App-Einstellungen → Anzeige unter der Kopfzeile** zwischen **Player**,
 
 
 **Erlauben** öffnet die Android-Einstellung für den Benachrichtigungszugriff. **Nicht mehr fragen** blendet die Nachfrage der App aus. Die Player-Leiste steuert eine andere Medien-App; sie ändert weder die ADI-2-Quelle noch die Kalibrierung. Für Analyzer oder Musikaufnahme müssen Wiedergabequelle und USB-Routing weiterhin zusammenpassen.
+
+Bei Android 13 oder neuer kann eine Installation aus einer heruntergeladenen APK den Zugriff als **Eingeschränkte Einstellungen** sperren. Einmal **Erlauben** versuchen, dann **App-Infos → ⋮ → Eingeschränkte Einstellungen zulassen** öffnen. Anschließend zurückkehren, erneut **Erlauben** wählen und den Benachrichtigungszugriff einschalten. Die App prüft beim Zurückkehren die Freigabe erneut.
 
 ## Eingang
 
@@ -811,6 +823,8 @@ Im Querformat liegt die Navigation links. Ausgänge belegt die linke Inhaltsspal
 
 ## App-Einstellungen
 
+**Automatisch nach Updates suchen** ist standardmäßig an. Die App fragt beim Start und danach höchstens einmal täglich nur bei GitHub nach der neuesten Version, ohne Nutzerdaten zu senden. Der Schalter schaltet die automatische Prüfung ab; **Jetzt nach Updates suchen** funktioniert weiterhin. Bei einem Update öffnet **Laden** den Download im externen Browser. **Später** unterdrückt den automatischen Hinweis für diese Version; in den Einstellungen bleibt **Laden** sichtbar. Es gibt keine automatischen Downloads oder Installationen.
+
 Hier passen Sie Sprache, Zusatzanzeigen und Bedienverhalten der App an.
 
 Das Zahnrad (**App**) in der Kopfzeile öffnet **App-Einstellungen**:
@@ -898,3 +912,5 @@ Hier finden Sie die Lizenzangabe und die Zuordnung der genannten Marken.
 Kostenlose freie Software unter **GPL-3.0**. © 2026 Markus Rass. [Lizenzhinweise des Projekts](README.de.md#lizenz-und-marken).
 
 RME ist eine eingetragene Marke von RME Intelligent Audio Solutions. ADI-2 Pro ist eine Marke von RME Intelligent Audio Solutions; ADI-2 und ADI-2 Remote sind Produktnamen von RME. Alesis und ADAT sind eingetragene Marken der Alesis Corp.; ADAT optical ist eine Marke der Alesis Corp. Apple, iPhone, Mac und macOS sind Marken der Apple Inc. Android ist eine Marke der Google LLC. Direct Stream Digital und DSD sind Marken der jeweiligen Inhaber (Sony / Philips). Alle weiteren Marken und Produktnamen gehören ihren jeweiligen Inhabern und werden nur zur Bezeichnung kompatibler Geräte und Funktionen verwendet.
+
+[Datenschutzerklärung](DATENSCHUTZ.md)

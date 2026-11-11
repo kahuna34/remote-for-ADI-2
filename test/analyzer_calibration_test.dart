@@ -502,13 +502,15 @@ void main() {
     return d;
   }
 
-  Map<String, dynamic> mediaCapture({int volume = 9, String host = 'Tablet'}) =>
-      {
-        ...capture(route: identity(host: host)),
-        'mediaStreamVolume': volume,
-        'mediaStreamMax': 15,
-        'availableEffects': ['Raumklang (Hersteller)', 'Klangprofil (Hersteller)'],
-      };
+  Map<String, dynamic> mediaCapture({
+    int volume = 9,
+    String host = 'Tablet',
+  }) => {
+    ...capture(route: identity(host: host)),
+    'mediaStreamVolume': volume,
+    'mediaStreamMax': 15,
+    'availableEffects': ['Raumklang (Hersteller)', 'Klangprofil (Hersteller)'],
+  };
 
   List<String> recordNativeCalls() {
     final calls = <String>[];

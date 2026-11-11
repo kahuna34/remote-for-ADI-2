@@ -2,7 +2,7 @@
 
 [English](../README.md)
 
-Remote for ADI-2 ist eine kostenlose Flutter-App zur direkten Steuerung kompatibler ADI-2-Audiointerfaces per USB-MIDI vom Smartphone oder Tablet. Sie bietet Ausgangs- und Geräteeinstellungen, einen EQ-Editor, Setups, Backups, ein anpassbares Bedienfeld und einen USB-Audio-Analyzer. Version **1.1.0 (2)**. © 2026 Markus Rass.
+Remote for ADI-2 ist eine kostenlose Flutter-App zur direkten Steuerung kompatibler ADI-2-Audiointerfaces per USB-MIDI vom Smartphone oder Tablet. Sie bietet Ausgangs- und Geräteeinstellungen, einen EQ-Editor, Setups, Backups, ein anpassbares Bedienfeld und einen USB-Audio-Analyzer. Version **1.1.1 (3)**. © 2026 Markus Rass.
 
 ## Download
 
@@ -14,7 +14,11 @@ Remote for ADI-2 ist eine kostenlose Flutter-App zur direkten Steuerung kompatib
 
 Alle Dateien der aktuellen Version stehen auch auf der [Release-Seite](https://github.com/kahuna34/remote-for-ADI-2/releases/latest). Den Host braucht man nur, um den ADI-2 per WLAN über einen Computer zu steuern; für die direkte USB-Verbindung genügt die App. Eine iPhone-Version ist geplant.
 
-**App installieren (Android):** Die APK direkt in Chrome herunterladen. Öffnet sich der Link in einer anderen App (zum Beispiel GitHub, Gmail oder einem Messenger), bleibt der Download bei 100 % hängen und die Datei lässt sich nicht öffnen: dann zuerst **⋮ → In Chrome öffnen** wählen. Danach die APK auf dem Smartphone öffnen und die Installation aus dieser Quelle erlauben, wenn Android nachfragt. Warnt Google Play Protect, **Weitere Details → Trotzdem installieren** wählen. Blockiert Play Protect die Installation, die Funktion für die Installation ausschalten: im **Play Store** oben rechts auf das Profilbild tippen, dann **Play Protect → Einstellungen** (Zahnrad oben rechts) und **Apps mit Play Protect scannen** ausschalten. Nach der Installation wieder einschalten. Den ADI-2 mit einem datenfähigen USB-Kabel (USB-OTG) anschließen und am Gerät **MIDI Control** einschalten.
+App und Host melden neue Versionen; die Prüfung ist abschaltbar und fragt nur bei GitHub nach der neuesten Version. Ein Download startet erst mit einem Klick auf Laden.
+
+**App installieren (Android):** Die APK direkt in Chrome herunterladen. Öffnet sich der Link in einer anderen App (zum Beispiel GitHub, Gmail oder einem Messenger), bleibt der Download bei 100 % hängen und die Datei lässt sich nicht öffnen: dann zuerst **⋮ → In Chrome öffnen** wählen. Danach die APK auf dem Smartphone öffnen und die Installation aus dieser Quelle erlauben, wenn Android nachfragt. Warnt Google Play Protect, **Weitere Details → Trotzdem installieren** wählen. Blockiert Play Protect die Installation, die Funktion für die Installation ausschalten: im **Play Store** oben rechts auf das Profilbild tippen, dann **Play Protect → Einstellungen** (Zahnrad oben rechts) und **Apps mit Play Protect scannen** ausschalten. Nach der Installation wieder einschalten. Den ADI-2 mit einem datenfähigen USB-Kabel (USB-OTG) anschließen und am Gerät **MIDI Control** einschalten. Beim ersten Start führt ein Assistent durch die Einrichtung, einschließlich der Freischaltung für die Player-Anzeige.
+
+[Datenschutzerklärung](DATENSCHUTZ.md)
 
 **Host am Mac installieren:** Die Datei entpacken und **Remote for ADI-2 Host** in den Ordner Programme ziehen. Das Programm ist nicht von Apple signiert: Beim ersten Start blockiert macOS es. Dann **Systemeinstellungen → Datenschutz & Sicherheit** öffnen und **Dennoch öffnen** wählen. Danach erscheint das Symbol in der Menüleiste.
 
@@ -111,3 +115,5 @@ Lautstärkegrenzen werden von der verbundenen App durchgesetzt. Sie sind keine d
 Kostenlose freie Software unter **GPL-3.0**. © 2026 Markus Rass. Lizenzbedingungen: [GNU GPL Version 3](https://www.gnu.org/licenses/gpl-3.0.html). Hinweise zu fremden Open-Source-Bestandteilen stehen unter **App-Einstellungen → Marken und Rechtliches → Open-Source-Lizenzen**.
 
 RME ist eine eingetragene Marke von RME Intelligent Audio Solutions. ADI-2 Pro ist eine Marke von RME Intelligent Audio Solutions; ADI-2 und ADI-2 Remote sind Produktnamen von RME. Alesis und ADAT sind eingetragene Marken der Alesis Corp.; ADAT optical ist eine Marke der Alesis Corp. Apple, iPhone, Mac und macOS sind Marken der Apple Inc. Android ist eine Marke der Google LLC. Direct Stream Digital und DSD sind Marken der jeweiligen Inhaber (Sony / Philips). Alle weiteren Marken und Produktnamen gehören ihren jeweiligen Inhabern und werden nur zur Bezeichnung kompatibler Geräte und Funktionen verwendet.
+
+[Datenschutzerklärung](DATENSCHUTZ.md)

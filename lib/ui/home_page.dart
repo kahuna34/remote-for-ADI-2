@@ -1,4 +1,9 @@
 import 'dart:math' as math;
+import 'dart:async';
+
+import '../app_info.dart';
+import '../update/app_updates.dart';
+import '../update/open_update.dart';
 
 import '../analyzer/analyzer_controller.dart';
 
@@ -28,9 +33,15 @@ import 'analyzer_panel.dart';
 import 'responsive_layout.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key, required this.ctrl, required this.np});
+  const HomePage({
+    super.key,
+    required this.ctrl,
+    required this.np,
+    this.updatesReady = true,
+  });
   final Adi2Controller ctrl;
   final NowPlaying np;
+  final bool updatesReady;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -129,8 +140,7 @@ Widget? connectionBadge(Adi2Controller controller) =>
     controller.offline && !controller.viaHost ? const _OfflineBadge() : null;
 
 class HostBadge extends StatelessWidget {
-  const HostBadge({super.key, required this.name});
-  final String name;
+  const HostBadge({super.key});
 
   /// Breite des Knopfs „Eigene Ansicht“: Beschriftung plus Innenabstand
   /// 2 × 8 und Rahmen 2 × 1, wie beim FilterChip daneben.
@@ -148,46 +158,24 @@ class HostBadge extends StatelessWidget {
     return painter.width + 18;
   }
 
+  // Gleiche Größe und Form wie der Knopf „Eigene Ansicht“ daneben.
   @override
-  Widget build(BuildContext context) => Tooltip(
-    message: name,
-    // Gleiche Größe und Form wie der Knopf „Eigene Ansicht“ daneben.
-    child: Container(
-      key: const ValueKey('host-badge'),
-      // Sichtbare Höhe des Knopfs „Eigene Ansicht“ einschließlich Rahmen
-      // (dessen 44 sind Tippfläche).
-      height: 34,
-      width: easyChipWidth(context),
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      decoration: BoxDecoration(
-        color: Palette.green,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            'HOST',
-            maxLines: 1,
-            style: ts(
-              11,
-              weight: 600,
-              color: Colors.white,
-            ).copyWith(height: 1.0),
-          ),
-          Text(
-            name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: ts(
-              11,
-              weight: 600,
-              color: Colors.white,
-            ).copyWith(height: 1.0),
-          ),
-        ],
-      ),
+  Widget build(BuildContext context) => Container(
+    key: const ValueKey('host-badge'),
+    // Sichtbare Höhe des Knopfs „Eigene Ansicht“ einschließlich Rahmen
+    // (dessen 44 sind Tippfläche).
+    height: 34,
+    width: easyChipWidth(context),
+    padding: const EdgeInsets.symmetric(horizontal: 4),
+    decoration: BoxDecoration(
+      color: Palette.green,
+      borderRadius: BorderRadius.circular(8),
+    ),
+    alignment: Alignment.center,
+    child: Text(
+      'HOST',
+      maxLines: 1,
+      style: ts(11, weight: 600, color: Colors.white).copyWith(height: 1.0),
     ),
   );
 }
@@ -223,15 +211,79 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// Eine Aufnahme für alle Ansichten: Beim Drehen des Tablets wechselt die
   /// Anzeige, die laufende USB-Aufnahme darf dabei nicht neu starten.
   final _analyzer = AnalyzerController();
+  Timer? _updateDialogTimer;
+  final Set<String> _announcedUpdates = {};
+
+  void _maybeShowUpdate() {
+    final service = AppUpdates.instance;
+    final result = service.result;
+    if (!mounted ||
+        !widget.updatesReady ||
+        !AppSettings.instance.updateCheck ||
+        WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed ||
+        ModalRoute.of(context)?.isCurrent != true ||
+        result == null ||
+        !service.checker!.resultWasAutomatic ||
+        !service.checker!.shouldNotify(result) ||
+        !_announcedUpdates.add(result.version!)) {
+      return;
+    }
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(tr('Update verfügbar')),
+        content: Text(
+          trf('Version {version} ist verfügbar (installiert: {installed}).', {
+            'version': result.version,
+            'installed': appVersion,
+          }),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              await service.checker!.skip(result.version!);
+              if (dialogContext.mounted) Navigator.pop(dialogContext);
+            },
+            child: Text(tr('Später')),
+          ),
+          TextButton(
+            onPressed: () async {
+              final opened = await openUpdate(result.url!);
+              if (!dialogContext.mounted) return;
+              Navigator.pop(dialogContext);
+              if (!opened && mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      tr('Download-Link konnte nicht geöffnet werden'),
+                    ),
+                  ),
+                );
+              }
+            },
+            child: Text(tr('Laden', context: 'update')),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _updateDialogTimer = Timer.periodic(
+      const Duration(seconds: 2),
+      (_) => _maybeShowUpdate(),
+    );
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      AppUpdates.instance.checker?.check();
+    }
     // Am Gerät kann sich im Hintergrund alles geändert haben.
     if (state == AppLifecycleState.resumed && widget.ctrl.isConnected) {
       widget.ctrl.requestAll();
@@ -240,6 +292,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _updateDialogTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _analyzer.dispose();
     super.dispose();
@@ -259,7 +312,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         final c = widget.ctrl;
         if (!c.isConnected || c.variant == null) {
           _tab = null;
-          return ConnectPage(ctrl: c);
+          return ConnectPage(ctrl: c, np: widget.np);
         }
         final v = c.variant!;
         final settings = AppSettings.instance;
@@ -432,7 +485,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     if (c.viaHost)
                       Padding(
                         padding: const EdgeInsets.only(left: 6),
-                        child: HostBadge(name: c.hostName ?? ''),
+                        child: const HostBadge(),
                       ),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -477,7 +530,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => AppSettingsPage(ctrl: c),
+                          builder: (_) =>
+                              AppSettingsPage(ctrl: c, np: widget.np),
                         ),
                       ),
                     ),
@@ -707,8 +761,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 // ---------------------------------------------------------------------------
 
 class ConnectPage extends StatelessWidget {
-  const ConnectPage({super.key, required this.ctrl});
+  const ConnectPage({super.key, required this.ctrl, this.np});
   final Adi2Controller ctrl;
+  final NowPlaying? np;
 
   @override
   Widget build(BuildContext context) {
@@ -737,7 +792,9 @@ class ConnectPage extends StatelessWidget {
             icon: const Icon(Icons.settings_outlined),
             onPressed: () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => AppSettingsPage(ctrl: c)),
+              MaterialPageRoute(
+                builder: (_) => AppSettingsPage(ctrl: c, np: np),
+              ),
             ),
           ),
         ],

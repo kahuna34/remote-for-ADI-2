@@ -13,11 +13,16 @@ import '../l10n/l10n.dart';
 import 'theme.dart';
 import 'header_content_picker.dart';
 import 'analyzer_controls.dart';
+import 'update_settings.dart';
+import 'setup_wizard.dart';
+import 'privacy_page.dart';
+import '../media/now_playing.dart';
 
 /// App-Menü: Einstellungen der App selbst (nicht des Geräts).
 class AppSettingsPage extends StatelessWidget {
-  const AppSettingsPage({super.key, this.ctrl});
+  const AppSettingsPage({super.key, this.ctrl, this.np});
   final Adi2Controller? ctrl;
+  final NowPlaying? np;
 
   @override
   Widget build(BuildContext context) {
@@ -114,6 +119,44 @@ class AppSettingsPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 20),
+              const Panel(
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: UpdateSettings(),
+                ),
+              ),
+              const SizedBox(height: 20),
+              ListTile(
+                title: Text(tr('Einrichtung erneut starten')),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () async {
+                  final player = np ?? NowPlaying();
+                  if (np == null) await player.start();
+                  if (!context.mounted) {
+                    if (np == null) player.dispose();
+                    return;
+                  }
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => SetupWizard(
+                        ctrl: ctrl,
+                        np: player,
+                        onDone: () => Navigator.pop(context),
+                      ),
+                    ),
+                  );
+                  if (np == null) player.dispose();
+                },
+              ),
+              ListTile(
+                title: Text(tr('Datenschutz')),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const PrivacyPage()),
+                ),
+              ),
               Panel(
                 key: const ValueKey('about-app-card'),
                 padding: const EdgeInsets.all(16),

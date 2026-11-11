@@ -15,6 +15,10 @@ import 'package:adi2_remote/host/host_protocol.dart';
 import 'package:adi2_remote/host/host_pairing.dart';
 import 'package:adi2_remote/l10n/l10n.dart';
 
+import 'package:adi2_remote/update/update_check.dart';
+import 'package:adi2_remote/update/open_update.dart';
+
+import 'host_info.dart';
 import 'autostart.dart';
 import 'desktop_midi.dart';
 import 'host_server.dart';
@@ -123,6 +127,9 @@ class HostApp extends StatefulWidget {
 class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
   late final HostAutostart _autostart;
   bool _automatic = false;
+  UpdateCheck? _updates;
+  UpdateResult? _availableUpdate;
+  String? _updateNotice;
   bool _pairing = true;
   String? _error;
   List<String> _addresses = [];
@@ -168,9 +175,93 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
           .toList();
       _address = _addresses.firstOrNull;
       await _menu();
+      try {
+        await _initializeUpdates();
+      } catch (_) {
+        // Automatic update failures stay silent.
+      }
       if (mounted) setState(() {});
     } catch (e) {
       await _showError(trf('Host-Fehler {fehler}', {'fehler': e}));
+    }
+  }
+
+  Future<void> _initializeUpdates() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    final cachedVersion = prefs.getString('host_available_update_version');
+    final cachedUrl = Uri.tryParse(
+      prefs.getString('host_available_update_url') ?? '',
+    );
+    if (cachedVersion != null &&
+        isNewerVersion(hostVersion, cachedVersion) &&
+        cachedUrl?.scheme == 'https' &&
+        cachedUrl!.host.isNotEmpty) {
+      _availableUpdate = UpdateResult(
+        UpdateStatus.available,
+        version: cachedVersion,
+        url: cachedUrl,
+      );
+    }
+    _updates = UpdateCheck(
+      installedVersion: hostVersion,
+      platform: Platform.isMacOS
+          ? UpdatePlatform.macos
+          : UpdatePlatform.windows,
+      enabled: prefs.getBool('host_update_check') ?? true,
+      lastCheck: DateTime.tryParse(
+        prefs.getString('host_last_update_check') ?? '',
+      ),
+      onState: () async {
+        final last = _updates?.lastCheck;
+        if (last != null) {
+          await prefs.setString(
+            'host_last_update_check',
+            last.toIso8601String(),
+          );
+        }
+      },
+      onResult: (result) {
+        if (!mounted) return;
+        if (result.status == UpdateStatus.available) {
+          _availableUpdate = result;
+          unawaited(_showUpdateNotice(result));
+        } else if (result.status == UpdateStatus.current) {
+          _availableUpdate = null;
+          unawaited(_clearUpdateNotice());
+        }
+      },
+    );
+    await _menu();
+    if (_availableUpdate != null) await _showUpdateNotice(_availableUpdate!);
+    _updates!.start();
+  }
+
+  Future<void> _clearUpdateNotice() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('host_available_update_version');
+      await prefs.remove('host_available_update_url');
+      _updateNotice = null;
+      await _menu();
+      await trayManager.setToolTip('Remote for ADI-2 Host');
+    } catch (_) {}
+  }
+
+  Future<void> _showUpdateNotice(UpdateResult result) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('host_available_update_version', result.version!);
+      await prefs.setString('host_available_update_url', result.url.toString());
+      await _menu();
+      if (_updateNotice != result.version) {
+        _updateNotice = result.version;
+        await trayManager.setToolTip(
+          'Remote for ADI-2 Host · ${trf('Version {version} verfügbar', {'version': result.version})}',
+        );
+      }
+    } catch (_) {
+      // Update hints never open a window or interrupt the host.
     }
   }
 
@@ -226,7 +317,19 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
                       : tr('Bei Anmeldung starten'),
                   checked: _automatic,
                 ),
+                MenuItem.checkbox(
+                  key: 'updates',
+                  label: tr('Nach Updates suchen'),
+                  checked: _updates?.enabled ?? true,
+                ),
                 MenuItem.separator(),
+                if (_availableUpdate != null)
+                  MenuItem(
+                    key: 'download-update',
+                    label: trf('Update {version} laden…', {
+                      'version': _availableUpdate!.version,
+                    }),
+                  ),
                 MenuItem(key: 'quit', label: tr('Beenden')),
               ],
             ),
@@ -279,6 +382,23 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
           );
         }
         await _menu();
+      case 'updates':
+        final updates = _updates;
+        if (updates == null) return;
+        updates.enabled = !updates.enabled;
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('host_update_check', updates.enabled);
+        await _menu();
+        if (updates.enabled) await updates.check();
+      case 'download-update':
+        final url = _availableUpdate?.url;
+        if (url != null && !await openUpdate(url)) {
+          try {
+            await trayManager.setToolTip(
+              tr('Download-Link konnte nicht geöffnet werden'),
+            );
+          } catch (_) {}
+        }
       case 'quit':
         await server.stop();
         if (widget.broadcast.isReady) await widget.broadcast.stop();
@@ -290,6 +410,7 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
 
   @override
   void dispose() {
+    _updates?.stop();
     _countdown?.cancel();
     _detectTimer?.cancel();
     server.removeListener(_changed);

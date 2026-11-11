@@ -2,7 +2,7 @@
 
 [Deutsch](docs/README.de.md)
 
-Remote for ADI-2 is a free Flutter app for controlling compatible ADI-2 audio interfaces directly over USB MIDI from a smartphone or tablet. It provides output and device controls, an EQ editor, setups, backups, a configurable control panel and a USB audio analyzer. Version **1.1.0 (2)**. © 2026 Markus Rass.
+Remote for ADI-2 is a free Flutter app for controlling compatible ADI-2 audio interfaces directly over USB MIDI from a smartphone or tablet. It provides output and device controls, an EQ editor, setups, backups, a configurable control panel and a USB audio analyzer. Version **1.1.1 (3)**. © 2026 Markus Rass.
 
 ## Download
 
@@ -14,7 +14,11 @@ Remote for ADI-2 is a free Flutter app for controlling compatible ADI-2 audio in
 
 All files of the current version are also on the [releases page](https://github.com/kahuna34/remote-for-ADI-2/releases/latest). The host is only needed to control the ADI-2 over Wi-Fi through a computer; for a direct USB connection the app is enough. An iPhone version is planned.
 
-**Install the app (Android):** Download the APK in Chrome itself. If the link opens inside another app (for example GitHub, Gmail or a messenger), the download stops at 100 % and the file cannot be opened: tap **⋮ → Open in Chrome** first. Then open the APK on the smartphone and allow installing from this source when Android asks. If Google Play Protect warns, choose **More details → Install anyway**. If Play Protect blocks the installation, turn it off for the installation: open the **Play Store**, tap your profile picture at the top right, then **Play Protect → Settings** (gear icon at the top right), and switch off **Scan apps with Play Protect**. Turn it back on after installing. Connect the ADI-2 with a data-capable USB cable (USB OTG) and switch on **MIDI Control** on the device.
+App and host report new versions; this can be disabled, and the check only asks GitHub for the latest version. Downloads start only when you choose Download.
+
+**Install the app (Android):** Download the APK in Chrome itself. If the link opens inside another app (for example GitHub, Gmail or a messenger), the download stops at 100 % and the file cannot be opened: tap **⋮ → Open in Chrome** first. Then open the APK on the smartphone and allow installing from this source when Android asks. If Google Play Protect warns, choose **More details → Install anyway**. If Play Protect blocks the installation, turn it off for the installation: open the **Play Store**, tap your profile picture at the top right, then **Play Protect → Settings** (gear icon at the top right), and switch off **Scan apps with Play Protect**. Turn it back on after installing. Connect the ADI-2 with a data-capable USB cable (USB OTG) and switch on **MIDI Control** on the device. On first launch, a wizard guides you through setup, including enabling the player display.
+
+[Privacy policy](PRIVACY.md)
 
 **Install the host on a Mac:** Unzip the file and move **Remote for ADI-2 Host** to Applications. The program is not signed by Apple: on first start, macOS blocks it. Open **System Settings → Privacy & Security** and choose **Open Anyway**. The icon then appears in the menu bar.
 
@@ -111,3 +115,5 @@ Volume limits are enforced by the app while it is connected; they are not a perm
 Free software under **GPL-3.0**. © 2026 Markus Rass. See the [GNU GPL version 3](https://www.gnu.org/licenses/gpl-3.0.html) for the license terms. Third-party open-source notices are accessible through **App settings → Trademarks and legal → Open-source licenses**.
 
 RME is a registered trademark of RME Intelligent Audio Solutions. ADI-2 Pro is a trademark of RME Intelligent Audio Solutions; ADI-2 and ADI-2 Remote are RME product names. Alesis and ADAT are registered trademarks of Alesis Corp.; ADAT optical is a trademark of Alesis Corp. Apple, iPhone, Mac and macOS are trademarks of Apple Inc. Android is a trademark of Google LLC. Direct Stream Digital and DSD are trademarks of their respective owners (Sony / Philips). All other trademarks and product names belong to their respective owners and are used only to identify compatible devices and functions.
+
+[Privacy policy](PRIVACY.md)

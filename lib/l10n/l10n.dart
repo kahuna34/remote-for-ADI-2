@@ -47,9 +47,11 @@ class AppLang extends ChangeNotifier {
 }
 
 /// Übersetzt einen deutschen Text in die gewählte Sprache.
-String tr(String de) {
+String tr(String de, {String? context}) {
   if (AppLang.instance.language == AppLanguage.de) return de;
-  return stringsEn[de] ?? de;
+  return (context == null ? null : stringsEn['$context:$de']) ??
+      stringsEn[de] ??
+      de;
 }
 
 /// Wie [tr], mit Platzhaltern: trf('Preset {n} gespeichert', {'n': 3}).

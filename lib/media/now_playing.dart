@@ -37,6 +37,10 @@ class NowPlaying extends ChangeNotifier {
   /// Zugriff erteilt (Android: Benachrichtigungszugriff).
   bool access = false;
 
+  /// Android sperrt den Zugriff als „eingeschränkte Einstellung“
+  /// (App aus heruntergeladener Datei installiert, noch nicht freigegeben).
+  bool restricted = false;
+
   /// Nutzer hat den Hinweis zur Freigabe ausgeblendet.
   bool promptDismissed = false;
 
@@ -52,6 +56,7 @@ class NowPlaying extends ChangeNotifier {
     _sub = _ev.receiveBroadcastStream().listen((e) {
       final m = Map<String, dynamic>.from(e as Map);
       access = m['access'] == true;
+      if (!access) unawaited(_checkRestricted());
       final incomingArt = m['art'] as Uint8List?;
       final art = listEquals(info?.art, incomingArt) ? info?.art : incomingArt;
       info = access && m['title'] != null
@@ -68,7 +73,35 @@ class NowPlaying extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Re-read permission after returning from Android settings.
+  Future<void> refreshAccess() async {
+    if (!supported) return;
+    try {
+      access = await _ch.invokeMethod<bool>('hasAccess') == true;
+      if (access) {
+        restricted = false;
+      } else {
+        await _checkRestricted();
+        info = null;
+      }
+      notifyListeners();
+    } catch (_) {}
+  }
+
   Future<void> openAccessSettings() => _ch.invokeMethod('openAccessSettings');
+
+  /// App-Infos öffnen (dort über ⋮ „Eingeschränkte Einstellungen zulassen“).
+  Future<void> openAppDetails() => _ch.invokeMethod('openAppDetails');
+
+  Future<void> _checkRestricted() async {
+    try {
+      final r = await _ch.invokeMethod<bool>('restricted') == true;
+      if (r != restricted) {
+        restricted = r;
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
 
   Future<void> dismissPrompt() async {
     promptDismissed = true;

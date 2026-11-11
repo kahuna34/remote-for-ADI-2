@@ -20,6 +20,46 @@ class AppSettings extends ChangeNotifier {
   /// (z. B. beim Einstecken eines Kopfhörers). Wie im Original: Standard an.
   bool autoSwitchOutput = true;
 
+  bool updateCheck = true;
+  DateTime? lastUpdateCheck;
+  String? skippedUpdateVersion;
+  String? availableUpdateVersion;
+  String? availableUpdateUrl;
+
+  Future<void> setUpdateCheck(bool value) {
+    updateCheck = value;
+    notifyListeners();
+    return _persistEasy((prefs) => prefs.setBool('update_check', value));
+  }
+
+  Future<void> saveUpdateState(
+    DateTime? last,
+    String? skipped, {
+    String? version,
+    String? url,
+  }) {
+    availableUpdateVersion = version;
+    availableUpdateUrl = url;
+    lastUpdateCheck = last;
+    skippedUpdateVersion = skipped;
+    return _persistEasy((prefs) async {
+      if (last != null) {
+        await prefs.setString('last_update_check', last.toIso8601String());
+      }
+      if (skipped != null) {
+        await prefs.setString('skipped_update_version', skipped);
+      }
+      if (version != null && url != null) {
+        await prefs.setString('available_update_version', version);
+        await prefs.setString('available_update_url', url);
+      } else {
+        await prefs.remove('available_update_version');
+        await prefs.remove('available_update_url');
+      }
+      return true;
+    });
+  }
+
   /// Status-Seite: Lautstärke als Ausgangspegel in dBu statt dBFS.
   bool statusInDbu = false;
 
@@ -413,6 +453,13 @@ class AppSettings extends ChangeNotifier {
               )
               .firstOrNull ??
           TabletExtraContent.eq;
+      updateCheck = prefs.getBool('update_check') ?? true;
+      lastUpdateCheck = DateTime.tryParse(
+        prefs.getString('last_update_check') ?? '',
+      );
+      skippedUpdateVersion = prefs.getString('skipped_update_version');
+      availableUpdateVersion = prefs.getString('available_update_version');
+      availableUpdateUrl = prefs.getString('available_update_url');
       easyMode = prefs.getBool('easy_mode') ?? false;
       _easySlots.clear();
       for (final variant in Adi2Variant.values) {

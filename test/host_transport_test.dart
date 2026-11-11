@@ -167,7 +167,7 @@ void main() {
                   key: const Key('actions'),
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    HostBadge(name: controller.hostName ?? ''),
+                    const HostBadge(),
                     const SizedBox(width: 164, height: 44),
                   ],
                 ),
@@ -185,7 +185,7 @@ void main() {
         greaterThanOrEqualTo(tester.getRect(find.text('ADI-2')).right),
       );
       expect(find.text('HOST'), findsOneWidget);
-      expect(find.text('Computer'), findsOneWidget);
+      expect(find.text('Computer'), findsNothing);
       expect(badge.height, 34);
       expect(tester.takeException(), isNull);
       controller.dispose();

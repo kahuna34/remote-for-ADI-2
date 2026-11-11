@@ -1,6 +1,6 @@
 # Remote for ADI-2 — User guide
 
-Version **1.1.0 (2)** · [Project overview](../README.md) · [Deutsch](BENUTZERHANDBUCH.md)
+Version **1.1.1 (3)** · [Project overview](../README.md) · [Deutsch](BENUTZERHANDBUCH.md)
 
 This guide describes the current app. Controls depend on the selected model and values reported by the device. Screenshots show Android devices and the English interface. The app has been tested with all supported ADI-2 models on an Android smartphone and an Android tablet, and with the ADI-2 DAC on a Mac, also through the host. An iPhone version is planned. The Player integration currently supports Android only.
 
@@ -30,6 +30,12 @@ This guide describes the current app. Controls depend on the selected model and 
 ## First steps
 
 Use this chapter to connect the ADI-2, select the correct output and prepare for your first adjustments.
+
+### First launch
+
+After the startup animation, the setup wizard appears once, including on the first launch after this update. It guides you through USB OTG or **Connect via host**, optional Android player access and automatic update checks. Detected connections and granted access are confirmed with a checkmark. **Next** advances; **Skip** ends setup at any time. It does not change device values or volume protection. Camera and recording permissions are needed only for QR scanning and the analyzer respectively.
+
+Open **App settings → Restart setup** to run it again. **Privacy** in settings and **Privacy policy** on the final wizard step show the [privacy policy](../PRIVACY.md).
 
 ### Quick start
 
@@ -79,6 +85,10 @@ On a Mac, open **Remote for ADI-2 Host** like any program. No window appears; an
 | Exit | Quits the host. |
 
 On Windows, allow the host through the firewall for private networks on first start.
+
+**Check for updates** is enabled by default and can be disabled in the host menu. At startup and then at most once a day, the host asks GitHub for the latest version without sending user data. An available update adds a tooltip hint and **Download update X…** to the menu; only clicking this opens the ZIP download for your platform in the browser. Nothing is downloaded or installed automatically.
+
+For **Remote for ADI-2 Host**, pairing and local network privacy, see the [privacy policy](../PRIVACY.md).
 
 ### Pairing and connecting
 
@@ -196,6 +206,8 @@ In **App settings → Display below the header**, choose **Player**, **Status**,
 
 
 **Allow** opens Android notification-access settings. **Do not ask again** dismisses the app's prompt. The player bar controls another media app; it changes neither ADI-2 Source nor calibration. Analyzer or music recording still requires matching playback source and USB routing.
+
+On Android 13 or later, installing a downloaded APK may block access as **Restricted settings**. Try **Allow** once, then open **App info → ⋮ → Allow restricted settings**. Return, choose **Allow** again and enable notification access. The app checks access again when you return.
 
 ## Input
 
@@ -811,6 +823,8 @@ In landscape, navigation moves to the left. Outputs occupies the left content co
 
 ## App settings
 
+**Check for updates automatically** is enabled by default. At startup and then at most once a day, the app only asks GitHub for the latest version without sending user data. The switch disables automatic checks; **Check for updates now** still works. When an update is available, **Download** opens the download in the external browser. **Later** suppresses the automatic dialog for that version; **Download** remains available in settings. Downloads and installations are never automatic.
+
 Use these settings to customize the app language, additional displays and interaction.
 
 Open the gear icon (**App**) in the header. **App settings** provides:
@@ -898,3 +912,5 @@ This section identifies the software license and owners of the named trademarks.
 Free software under **GPL-3.0**. © 2026 Markus Rass. [Project license information](../README.md#license-and-trademarks).
 
 RME is a registered trademark of RME Intelligent Audio Solutions. ADI-2 Pro is a trademark of RME Intelligent Audio Solutions; ADI-2 and ADI-2 Remote are RME product names. Alesis and ADAT are registered trademarks of Alesis Corp.; ADAT optical is a trademark of Alesis Corp. Apple, iPhone, Mac and macOS are trademarks of Apple Inc. Android is a trademark of Google LLC. Direct Stream Digital and DSD are trademarks of their respective owners (Sony / Philips). All other trademarks and product names belong to their respective owners and are used only to identify compatible devices and functions.
+
+[Privacy policy](../PRIVACY.md)

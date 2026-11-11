@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 
-import 'app_settings.dart';
+import 'update/app_updates.dart';
 import 'device/adi2_controller.dart';
 import 'l10n/l10n.dart';
 import 'media/now_playing.dart';
 import 'ui/start_animation.dart';
+import 'ui/setup_wizard.dart';
 import 'ui/home_page.dart';
 import 'ui/eq_display_mode.dart';
 import 'ui/theme.dart';
@@ -31,12 +32,13 @@ class _Adi2RemoteAppState extends State<Adi2RemoteApp> {
   final Adi2Controller _ctrl = Adi2Controller();
   final NowPlaying _np = NowPlaying();
   late final AppLifecycleListener _life;
+  bool _animationDone = false;
 
   @override
   void initState() {
     super.initState();
     AppLang.instance.load();
-    AppSettings.instance.load();
+    AppUpdates.instance.initialize();
     _ctrl.start();
     _np.start();
     // Sicherheit: Sobald die App nicht mehr im Vordergrund ist, wird jede
@@ -51,6 +53,7 @@ class _Adi2RemoteAppState extends State<Adi2RemoteApp> {
 
   @override
   void dispose() {
+    AppUpdates.instance.checker?.stop();
     _life.dispose();
     _np.dispose();
     _ctrl.dispose();
@@ -67,7 +70,16 @@ class _Adi2RemoteAppState extends State<Adi2RemoteApp> {
         theme: buildTheme(),
         builder: (context, child) => TabletOrientation(child: child!),
         home: StartAnimation(
-          child: HomePage(ctrl: _ctrl, np: _np),
+          onComplete: () {
+            if (mounted) setState(() => _animationDone = true);
+          },
+          child: _animationDone
+              ? SetupGate(
+                  ctrl: _ctrl,
+                  np: _np,
+                  child: HomePage(ctrl: _ctrl, np: _np),
+                )
+              : const Scaffold(),
         ),
       ),
     );

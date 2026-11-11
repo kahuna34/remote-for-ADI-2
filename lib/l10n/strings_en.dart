@@ -2,6 +2,21 @@
 // Platzhalter wie {n} müssen in beiden Sprachen gleich heißen.
 
 const Map<String, String> stringsEn = {
+  'update:Laden': 'Download',
+  'Download-Link konnte nicht geöffnet werden': 'Could not open download link',
+  'Update {version} laden…': 'Download update {version}…',
+  'Nach Updates suchen': 'Check for updates',
+  'Später': 'Later',
+  'Version {version} ist verfügbar (installiert: {installed}).':
+      'Version {version} is available (installed: {installed}).',
+  'Update verfügbar': 'Update available',
+  'Keine Verbindung zu GitHub': 'Cannot connect to GitHub',
+  'Die App ist aktuell': 'The app is up to date',
+  'Version {version} verfügbar': 'Version {version} available',
+  'Jetzt nach Updates suchen': 'Check for updates now',
+  'Fragt einmal täglich bei GitHub nach einer neuen Version.':
+      'Asks GitHub once a day for a new version.',
+  'Automatisch nach Updates suchen': 'Check for updates automatically',
   'Die Kamera wird zum Scannen des Kopplungs-QR-Codes verwendet.':
       'The camera is used to scan the pairing QR code.',
   'Über Host verbinden': 'Connect via host',
@@ -912,4 +927,45 @@ const Map<String, String> stringsEn = {
   'ADI-2 mit einem USB-Kabel direkt ans Handy anschließen.':
       'Connect the ADI-2 directly to your phone with a USB cable.',
   'Das Handy steuert den ADI-2 dabei wie ein Computer (bei Android heißt das „OTG“). Passt das Kabel nicht direkt, hilft ein kleiner USB-C-Adapter (OTG-Adapter). iPhone mit Lightning: Lightning-auf-USB-Kamera-Adapter. Findet die App nichts: Kabel neu einstecken und prüfen, ob OTG in den Handy-Einstellungen eingeschaltet ist.': 'Your phone then controls the ADI-2 like a computer would (on Android this is called “OTG”). If the cable doesn\'t fit directly, a small USB-C adapter (OTG adapter) helps. iPhone with Lightning: Lightning to USB Camera Adapter. If the app finds nothing: reconnect the cable and check that OTG is enabled in your phone\'s settings.',
+  'Android sperrt den Benachrichtigungszugriff für heruntergeladene Apps. Einmal „Erlauben“ antippen, dann in den App-Infos oben rechts über ⋮ „Eingeschränkte Einstellungen zulassen“ wählen und erneut erlauben.': 'Android blocks notification access for downloaded apps. Tap “Allow” once, then in App info choose ⋮ at the top right → “Allow restricted settings” and allow again.',
+  'App-Infos': 'App info',
+  'Einrichtung': 'Setup',
+  'ADI-2 anschließen': 'Connect your ADI-2',
+  'Verbinde den ADI-2 per USB-OTG-Kabel. Aktiviere MIDI Control → ON: DAC: SETUP → Options → Remap Keys / Diag; Pro und ADI-2/4 Pro: SETUP → Options → Device Mode / DSD.': 'Connect the ADI-2 using a USB OTG cable. Enable MIDI Control → ON: DAC: SETUP → Options → Remap Keys / Diag; Pro and ADI-2/4 Pro: SETUP → Options → Device Mode / DSD.',
+  'Du kannst das Gerät auch später anschließen.':
+      'You can also connect your device later.',
+  'Laufenden Titel anzeigen (optional)': 'Show the current track (optional)',
+  'Zeige Titel, Interpret und Cover des laufenden Android-Players und steuere die Wiedergabe.': 'Show the title, artist and cover from your Android player and control playback.',
+  '1. Einmal „Erlauben“ versuchen. Dann App-Infos → ⋮ → „Eingeschränkte Einstellungen zulassen“.':
+      '1. Try Allow once. Then open App info → ⋮ → Allow restricted settings.',
+  '2. Zurückkehren und den Benachrichtigungszugriff mit „Erlauben“ freigeben.':
+      '2. Return and grant notification access using Allow.',
+  'Zugriff erteilt': 'Access granted',
+  'Fertig': 'Done',
+  'Los geht\'s': 'Get started',
+  'Die Einrichtung ist abgeschlossen. Alle Optionen bleiben in den App-Einstellungen erreichbar.':
+      'Setup is complete. All options remain available in app settings.',
+  'Einrichtung erneut starten': 'Restart setup',
+  'Datenschutz': 'Privacy',
+  'Datenschutzerklärung': 'Privacy policy',
+  'Einmal täglich wird api.github.com nach der neuesten Version gefragt; GitHub sieht dabei deine IP-Adresse.': 'Once a day, api.github.com is asked for the latest version; GitHub sees your IP address.',
+  'Einrichtung konnte nicht gespeichert werden. Bitte erneut versuchen.':
+      'Setup could not be saved. Please try again.',
+  'Remote for ADI-2 und Remote for ADI-2 Host':
+      'Remote for ADI-2 and Remote for ADI-2 Host',
+  'Stand: 2026-11-11. Verantwortlich: Markus Rass':
+      'Last updated: 2026-11-11. Responsible: Markus Rass',
+  'Kein Konto, keine Werbung, keine Analyse- oder Tracking-Dienste. Die Software übermittelt keine Daten an den Entwickler.': 'No account, advertising, analytics or tracking services. The software does not send data to the developer.',
+  'USB-MIDI: Steuerdaten werden nur zwischen App bzw. Host und ADI-2 ausgetauscht.': 'USB MIDI: Control data is exchanged only between the app or host and the ADI-2.',
+  'Host: Für die Verbindung im lokalen Netzwerk werden WebSockets verwendet (Standardport 47321, bei Belegung ein anderer Port). mDNS macht Computername, Host-ID und Port im Netz sichtbar. Kopplung erfolgt per Code und gespeichertem Schlüssel. Steuerdaten bleiben bei dieser Nutzung im lokalen Netz. Die Verbindung ist unverschlüsselt; nutze ein vertrauenswürdiges Netz und gib den Host-Port nicht ins Internet frei.': 'Host: Local network connections use WebSockets (default port 47321, another port if occupied). mDNS exposes the computer name, host ID and port on the network. Pairing uses a code and a saved key. Control data stays on the local network in this use. The connection is unencrypted; use a trusted network and do not expose the host port to the internet.',
+  'Updates: Die automatische Prüfung ist abschaltbar und fragt höchstens einmal täglich api.github.com nach dem neuesten Release. Manuelle Prüfungen sind zusätzlich möglich. GitHub erhält die IP-Adresse und technische HTTP-Anfragedaten (unter anderem den App-User-Agent), keine Gerätewerte oder Kopplungsschlüssel. Ein Download öffnet sich nur auf Knopfdruck im Browser. GitHub-Datenschutzerklärung: https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement': 'Updates: Automatic checks can be disabled and ask api.github.com for the latest release at most once a day. Additional manual checks are possible. GitHub receives the IP address and technical HTTP request data (including the app user agent), no device values or pairing keys. Downloads open in the browser only when requested. GitHub privacy statement: https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement',
+  'Kamera: Nur zum Scannen des Kopplungs-QR-Codes. Die App speichert keine Kamerabilder. Die Berechtigung wird erst beim Scannen benötigt.': 'Camera: Used only to scan the pairing QR code. The app does not save camera images. Permission is needed only when scanning.',
+  'Aufnahmeberechtigung: Nur für den Analyzer mit USB-Audio des ADI-2. Audiodaten werden lokal ausgewertet, nicht gespeichert oder gesendet. Während der USB-Routenprüfung können kurz Daten des Android-Standardeingangs anfallen; sie werden verworfen und nicht ausgewertet. Die Berechtigung wird erst bei Nutzung des Analyzers benötigt.': 'Recording permission: Used only for the analyzer with ADI-2 USB audio. Audio is processed locally, never saved or sent. During USB route verification, Android default input data may briefly occur; it is discarded without analysis. Permission is needed only when using the analyzer.',
+  'Benachrichtigungszugriff (Android): Für Titel, Interpret, Cover, Player-Name und die Steuerung der aktiven Mediensitzung. Medieninformationen werden nur im Arbeitsspeicher angezeigt, nicht dauerhaft gespeichert oder an den Host oder Entwickler gesendet. Liefert der Player eine HTTP(S)-Cover-Adresse, wird das Bild von dieser Adresse geladen; der Bildanbieter erhält dabei IP-Adresse und Anfragedaten. Lokale Cover werden über Android gelesen.': 'Notification access (Android): Used for title, artist, cover, player name and control of the active media session. Media information is displayed in memory only, never saved persistently or sent to the host or developer. If the player supplies an HTTP(S) cover URL, the image is fetched from that URL; the image provider receives the IP address and request data. Local covers are read through Android.',
+  'Lokale Speicherung: SharedPreferences enthält Sprache, Ansichten und Layouts, Bedien- und Lautstärkeschutzoptionen, Offline-Gerätewerte, Analyzer-Einstellungen und Kalibrierungen, Seriennummer-Merker für den SD-LD-Test, Freigabehinweise, Einrichtungsstatus, Update-Zeitpunkt und Versionshinweise sowie Host-Adressen, Namen, IDs und Kopplungsschlüssel. Der Host speichert Host-ID, gekoppelte Smartphone-Namen, IDs und Schlüssel sowie Sprache und Update-Einstellungen. Die EQ-Bibliothek liegt als lokale JSON-Datei im App-Speicher. Gerätebackups liegen dort als JSON im Unterordner backups. Ein aktivierter Host-Autostart speichert den Programmpfad in einem macOS-LaunchAgent bzw. der Windows-Benutzerregistrierung. Der manuell gestartete Analyzer-Selbsttest speichert lokale Diagnoseberichte (höchstens fünf) und ein Wiederherstellungsjournal mit Gerätewerten, jedoch keine Audioaufnahmen. Bewusst exportierte oder geteilte EQ-Presets und Backups enthalten Gerätewerte und bleiben am gewählten Ziel.': 'Local storage: SharedPreferences stores language, views and layouts, control and volume protection options, offline device values, analyzer settings and calibrations, serial number markers for the SD-LD test, permission prompts, setup status, update time and version notices, plus host addresses, names, IDs and pairing keys. The host stores its ID, paired smartphone names, IDs and keys, language and update settings. The EQ library is a local JSON file in app storage. Device backups are stored there as JSON in the backups subfolder. Enabled host autostart stores the executable path in a macOS LaunchAgent or the Windows user registry. The manually started analyzer self-test stores local diagnostic reports (at most five) and a recovery journal with device values, but no audio recordings. Deliberately exported or shared EQ presets and backups contain device values and remain at the selected destination.',
+  'Löschen und Sicherung: App-Daten löschen oder Deinstallation entfernt die lokalen App-Daten. Exportierte Dateien, Kopplungen auf dem anderen Gerät und Sicherungskopien müssen separat gelöscht werden. Android-Backup ist im Manifest nicht ausdrücklich deaktiviert; Android kann App-Daten einschließlich gespeicherter Kopplungen in die Gerätesicherung aufnehmen und wiederherstellen. Beim Desktop-Host können Einstellungsdateien nach der Deinstallation verbleiben.': 'Deletion and backup: Clearing app data or uninstalling removes local app data. Exported files, pairings on the other device and backup copies must be removed separately. Android backup is not explicitly disabled in the manifest; Android may include app data, including saved pairings, in device backups and restore it. Desktop host preference files may remain after uninstalling.',
+  'Kontakt: Issues im Projekt https://github.com/kahuna34/remote-for-ADI-2/issues': 'Contact: Project issues at https://github.com/kahuna34/remote-for-ADI-2/issues',
+  'Updates': 'Updates',
+  'Überspringen': 'Skip',
+  'Weiter': 'Next',
 };

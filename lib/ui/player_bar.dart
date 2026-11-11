@@ -199,7 +199,69 @@ class PlayerBar extends StatelessWidget {
     ),
   );
 
-  Widget _prompt() => Padding(
+  Widget _prompt() => np.restricted ? _restrictedPrompt() : _accessPrompt();
+
+  /// Android sperrt den Benachrichtigungszugriff für Apps aus einer
+  /// heruntergeladenen Datei; Freigabe nur über die App-Infos.
+  Widget _restrictedPrompt() => Padding(
+    padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+    child: Panel(
+      padding: const EdgeInsets.fromLTRB(12, 8, 4, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(top: 2),
+                child: Icon(Icons.lock_outline, color: Palette.muted, size: 20),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  tr(
+                    'Android sperrt den Benachrichtigungszugriff für '
+                    'heruntergeladene Apps. Einmal „Erlauben“ antippen, dann '
+                    'in den App-Infos oben rechts über ⋮ „Eingeschränkte '
+                    'Einstellungen zulassen“ wählen und erneut erlauben.',
+                  ),
+                  style: ts(13, weight: 500, color: Palette.muted),
+                ),
+              ),
+              IconButton(
+                tooltip: tr('Nicht mehr fragen'),
+                onPressed: np.dismissPrompt,
+                icon: const Icon(Icons.close, size: 18, color: Palette.muted),
+              ),
+            ],
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                key: const ValueKey('player-app-details'),
+                onPressed: np.openAppDetails,
+                child: Text(
+                  tr('App-Infos'),
+                  style: ts(14, weight: 600, color: Palette.amber),
+                ),
+              ),
+              TextButton(
+                onPressed: np.openAccessSettings,
+                child: Text(
+                  tr('Erlauben'),
+                  style: ts(14, weight: 600, color: Palette.amber),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Widget _accessPrompt() => Padding(
     padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
     child: Panel(
       padding: const EdgeInsets.fromLTRB(12, 6, 4, 6),
