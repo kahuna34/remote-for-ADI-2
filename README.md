@@ -6,7 +6,7 @@ Remote for ADI-2 is a free Flutter app for controlling compatible ADI-2 audio in
 
 ## Screenshots
 
-Android smartphone and tablet; the screenshots show the English interface. Layouts and available controls depend on the device model.
+Android smartphone and tablet, plus the host on a Mac; the screenshots show the English interface. Layouts and available controls depend on the device model.
 
 | Smartphone: Outputs | Smartphone: EQ | Smartphone: Custom Mode |
 | --- | --- | --- |
@@ -16,13 +16,13 @@ Android smartphone and tablet; the screenshots show the English interface. Layou
 | --- | --- | --- |
 | ![Tablet output controls in portrait](docs/screenshots/tablet/outputs.png) | ![Tablet landscape analyzer panel](docs/screenshots/tablet/land_outputs_analyzer_bars.png) | ![Tablet landscape EQ panel](docs/screenshots/tablet/land_outputs_eq.png) |
 
-| Mac: host in the menu bar | Mac: host menu |
-| --- | --- |
-| ![Host icon in the macOS menu bar](docs/screenshots/host/menubar.png) | ![Host menu on macOS](docs/screenshots/host/menu.png) |
-
 | Smartphone: analyzer fullscreen | Smartphone: EQ fullscreen |
 | --- | --- |
 | ![Smartphone analyzer in fullscreen](docs/screenshots/phone/analyzer_bars_landscape.png) | ![Smartphone EQ graph in fullscreen](docs/screenshots/phone/eq_fullscreen_preset.png) |
+
+| Mac: host in the menu bar | Mac: host menu |
+| --- | --- |
+| <img src="docs/screenshots/host/menubar.png" alt="Host icon in the macOS menu bar" width="200"> | <img src="docs/screenshots/host/menu.png" alt="Host menu on macOS" width="170"> |
 
 ## Features
 

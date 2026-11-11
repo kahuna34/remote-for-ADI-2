@@ -6,7 +6,7 @@ Remote for ADI-2 ist eine kostenlose Flutter-App zur direkten Steuerung kompatib
 
 ## Screenshots
 
-Android-Smartphone und -Tablet; die Bilder zeigen die englische Oberfläche. Aufbau und verfügbare Regler hängen vom Gerätemodell ab.
+Android-Smartphone und -Tablet sowie der Host am Mac; die Bilder zeigen die englische Oberfläche. Aufbau und verfügbare Regler hängen vom Gerätemodell ab.
 
 | Smartphone: Ausgänge | Smartphone: EQ | Smartphone: Eigene Ansicht |
 | --- | --- | --- |
@@ -16,13 +16,13 @@ Android-Smartphone und -Tablet; die Bilder zeigen die englische Oberfläche. Auf
 | --- | --- | --- |
 | ![Ausgänge am Tablet im Hochformat](screenshots/tablet/outputs.png) | ![Analyzer-Zusatzbereich im Querformat](screenshots/tablet/land_outputs_analyzer_bars.png) | ![EQ-Zusatzbereich im Querformat](screenshots/tablet/land_outputs_eq.png) |
 
-| Mac: Host in der Menüleiste | Mac: Menü des Hosts |
-| --- | --- |
-| ![Host-Symbol in der Menüleiste des Mac](screenshots/host/menubar.png) | ![Menü des Hosts am Mac](screenshots/host/menu.png) |
-
 | Smartphone: Analyzer im Vollbild | Smartphone: EQ im Vollbild |
 | --- | --- |
 | ![Analyzer im Vollbild am Smartphone](screenshots/phone/analyzer_bars_landscape.png) | ![EQ-Graph im Vollbild am Smartphone](screenshots/phone/eq_fullscreen_preset.png) |
+
+| Mac: Host in der Menüleiste | Mac: Menü des Hosts |
+| --- | --- |
+| <img src="screenshots/host/menubar.png" alt="Host-Symbol in der Menüleiste des Mac" width="200"> | <img src="screenshots/host/menu.png" alt="Menü des Hosts am Mac" width="170"> |
 
 ## Funktionen
 
