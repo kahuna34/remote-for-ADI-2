@@ -32,6 +32,7 @@ Android smartphone and tablet; the screenshots show the English interface. Layou
 - USB analyzer with lines or bars, octave resolutions, Peak hold, ballistics and level calibration.
 - English and German interface; tablet landscape navigation with an Additional panel.
 - Android player controls through notification access, when an active media session is available.
+- Wi-Fi control through the background host for Mac and Windows, with pairing by code or QR code.
 
 ## Devices and verification
 
@@ -48,7 +49,7 @@ Enable **MIDI Control → ON** on the ADI-2:
 - DAC: **SETUP → Options → Remap Keys / Diag → MIDI Control**.
 - ADI-2 Pro / ADI-2/4 Pro: **SETUP → Options → Device Mode / DSD → MIDI Control**.
 
-Confirm the USB permission dialog. The app searches automatically; use **Search again** or select the device in **MIDI devices** if needed. Current control uses a direct USB connection. The [Wi-Fi host concept](docs/HOST_PLAN.md) is planned and not implemented.
+Confirm the USB permission dialog. The app searches automatically; use **Search again** or select the device in **MIDI devices** if needed. Alternatively, the smartphone can control the ADI-2 over Wi-Fi through a Mac or Windows PC running the background program **Remote for ADI-2 Host**; see [Control through a computer (host)](docs/USER_GUIDE.md#control-through-a-computer-host).
 
 ## Build and install from source
 
@@ -77,7 +78,7 @@ The build produces `build/app/outputs/flutter-apk/app-release.apk`. No prebuilt 
 ## Documentation and limits
 
 - [User guide](docs/USER_GUIDE.md) / [Benutzerhandbuch](docs/BENUTZERHANDBUCH.md)
-- [Planned Windows/macOS host](docs/HOST_PLAN.md) / [Host-Plan auf Deutsch](docs/HOST_PLAN.de.md)
+- [Windows/macOS host: technical notes](docs/HOST_PLAN.md) / [Host auf Deutsch](docs/HOST_PLAN.de.md)
 
 Android sound effects can change audio played over USB. The app cannot switch them off. Analyzer calibration helps correct a level offset, but cannot undo frequency-dependent processing. Readings follow the selected tap; use **post FX** for comparison with the device.
 

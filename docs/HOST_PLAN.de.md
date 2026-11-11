@@ -1,6 +1,6 @@
 # Windows-/macOS-Host
 
-**Stufe 1 umgesetzt, auf Hardware ungeprüft.** [English](HOST_PLAN.md)
+**Stufe 1 umgesetzt und am Mac mit Android-Smartphone und ADI-2 DAC geprüft; Windows noch ungeprüft.** [English](HOST_PLAN.md)
 
 ## Verbindung und Desktop-Programm
 

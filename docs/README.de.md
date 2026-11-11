@@ -32,6 +32,7 @@ Android-Smartphone und -Tablet; die Bilder zeigen die englische Oberfläche. Auf
 - USB-Analyzer mit Linien oder Balken, Oktavauflösungen, Peak hold, Ballistik und Pegelkalibrierung.
 - Deutsche und englische Oberfläche; seitliche Navigation und Zusatzbereich am Tablet im Querformat.
 - Android-Player-Steuerung über Benachrichtigungszugriff bei verfügbarer aktiver Mediensitzung.
+- Steuerung per WLAN über den Hintergrund-Host für Mac und Windows, Kopplung per Code oder QR-Code.
 
 ## Geräte und Teststand
 
@@ -48,7 +49,7 @@ Am ADI-2 **MIDI Control → ON** einstellen:
 - DAC: **SETUP → Options → Remap Keys / Diag → MIDI Control**.
 - ADI-2 Pro / ADI-2/4 Pro: **SETUP → Options → Device Mode / DSD → MIDI Control**.
 
-USB-Berechtigungsdialog bestätigen. Die App sucht automatisch; bei Bedarf **Erneut suchen** antippen oder das Gerät unter **MIDI-Geräte** auswählen. Die aktuelle Steuerung verwendet eine direkte USB-Verbindung. Der [WLAN-Host](HOST_PLAN.de.md) ist geplant und noch nicht umgesetzt.
+USB-Berechtigungsdialog bestätigen. Die App sucht automatisch; bei Bedarf **Erneut suchen** antippen oder das Gerät unter **MIDI-Geräte** auswählen. Alternativ steuert das Smartphone den ADI-2 per WLAN über einen Mac oder Windows-PC mit dem Hintergrundprogramm **Remote for ADI-2 Host**, siehe [Steuerung über einen Computer (Host)](BENUTZERHANDBUCH.md#steuerung-über-einen-computer-host).
 
 ## Aus dem Quellcode bauen und installieren
 
@@ -77,7 +78,7 @@ Die APK entsteht unter `build/app/outputs/flutter-apk/app-release.apk`. Hier wir
 ## Dokumentation und Grenzen
 
 - [Benutzerhandbuch](BENUTZERHANDBUCH.md) / [User guide](USER_GUIDE.md)
-- [Geplanter Windows/macOS-Host](HOST_PLAN.de.md) / [Host plan in English](HOST_PLAN.md)
+- [Windows/macOS-Host: technische Notizen](HOST_PLAN.de.md) / [Host in English](HOST_PLAN.md)
 
 Android-Klangeffekte können über USB abgespieltes Audio verändern. Die App kann diese Effekte nicht abschalten. Die Analyzer-Kalibrierung kann einen Pegelversatz korrigieren, aber keinen veränderten Frequenzgang rückgängig machen. Die Anzeige folgt dem gewählten Abgriff; für den Vergleich mit dem Gerät **post FX** verwenden.
 

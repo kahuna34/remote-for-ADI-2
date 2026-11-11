@@ -1,6 +1,6 @@
 # Windows/macOS host
 
-**Stage 1 implemented, unverified on hardware.** [Deutsch](HOST_PLAN.de.md)
+**Stage 1 implemented and checked on a Mac with an Android smartphone and an ADI-2 DAC; Windows not yet verified.** [Deutsch](HOST_PLAN.de.md)
 
 ## Connection and desktop application
 
