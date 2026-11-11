@@ -16,6 +16,10 @@ Android-Smartphone und -Tablet; die Bilder zeigen die englische Oberfläche. Auf
 | --- | --- | --- |
 | ![Ausgänge am Tablet im Hochformat](screenshots/tablet/outputs.png) | ![Analyzer-Zusatzbereich im Querformat](screenshots/tablet/land_outputs_analyzer_bars.png) | ![EQ-Zusatzbereich im Querformat](screenshots/tablet/land_outputs_eq.png) |
 
+| Mac: Host in der Menüleiste | Mac: Menü des Hosts |
+| --- | --- |
+| ![Host-Symbol in der Menüleiste des Mac](screenshots/host/menubar.png) | ![Menü des Hosts am Mac](screenshots/host/menu.png) |
+
 | Smartphone: Analyzer im Vollbild | Smartphone: EQ im Vollbild |
 | --- | --- |
 | ![Analyzer im Vollbild am Smartphone](screenshots/phone/analyzer_bars_landscape.png) | ![EQ-Graph im Vollbild am Smartphone](screenshots/phone/eq_fullscreen_preset.png) |

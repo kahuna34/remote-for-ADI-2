@@ -65,6 +65,10 @@ When the ADI-2 is connected by USB to a Mac or Windows PC, the smartphone can co
 
 On a Mac, open **Remote for ADI-2 Host** like any program. No window appears; an icon appears in the menu bar. On Windows the icon sits in the notification area of the taskbar; the Windows version is prepared but not yet verified on real hardware. Clicking the icon opens the menu:
 
+| Mac: host in the menu bar | Mac: host menu |
+| --- | --- |
+| ![Mac: host in the menu bar](screenshots/host/menubar.png) | ![Mac: host menu](screenshots/host/menu.png) |
+
 | Item | Effect |
 | --- | --- |
 | Status | Shows whether the host is ready, a smartphone is connected, no ADI-2 was found or USB MIDI is busy. |

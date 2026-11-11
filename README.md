@@ -16,6 +16,10 @@ Android smartphone and tablet; the screenshots show the English interface. Layou
 | --- | --- | --- |
 | ![Tablet output controls in portrait](docs/screenshots/tablet/outputs.png) | ![Tablet landscape analyzer panel](docs/screenshots/tablet/land_outputs_analyzer_bars.png) | ![Tablet landscape EQ panel](docs/screenshots/tablet/land_outputs_eq.png) |
 
+| Mac: host in the menu bar | Mac: host menu |
+| --- | --- |
+| ![Host icon in the macOS menu bar](docs/screenshots/host/menubar.png) | ![Host menu on macOS](docs/screenshots/host/menu.png) |
+
 | Smartphone: analyzer fullscreen | Smartphone: EQ fullscreen |
 | --- | --- |
 | ![Smartphone analyzer in fullscreen](docs/screenshots/phone/analyzer_bars_landscape.png) | ![Smartphone EQ graph in fullscreen](docs/screenshots/phone/eq_fullscreen_preset.png) |
