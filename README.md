@@ -22,7 +22,7 @@ App and host report new versions; this can be disabled, and the check only asks 
 
 **Install the host on a Mac:** Unzip the file and move **Remote for ADI-2 Host** to Applications. The program is not signed by Apple: on first start, macOS blocks it. Open **System Settings → Privacy & Security** and choose **Open Anyway**. The icon then appears in the menu bar.
 
-**Install the host on Windows:** Extract the ZIP completely and start **adi2_host.exe** in the folder **Remote for ADI-2 Host**. If SmartScreen warns, choose **More info → Run anyway**, and allow access for private networks when the firewall asks. The icon appears in the notification area of the taskbar, possibly behind the arrow (^).
+**Install the host on Windows:** Extract the ZIP completely and start **adi2_host.exe** in the folder **Remote for ADI-2 Host**. If SmartScreen warns, choose **More info → Run anyway**, and allow access for private networks when the firewall asks. The icon appears in the notification area of the taskbar, possibly behind the arrow (^). If the host does not detect the ADI-2, download the [Windows diagnosis tool](https://github.com/kahuna34/remote-for-ADI-2/releases/latest/download/Remote-for-ADI-2-Windows-Diagnose.zip), extract it and double-click **Diagnose.cmd**. It only reads information (MIDI ports, devices, host status), changes nothing and saves **ADI-2-Diagnose.txt** on the desktop; attach this file to an issue. It may contain the device serial number.
 
 **Connect smartphone and host:** Choose **Pair smartphone…** in the host menu, then **Connect via host** in the app and scan the QR code or enter the code. Details are in the [user guide](docs/USER_GUIDE.md#control-through-a-computer-host).
 

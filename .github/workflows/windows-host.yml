@@ -41,6 +41,19 @@ jobs:
           }
           Compress-Archive -Path $dst -DestinationPath "dist/Remote-for-ADI-2-Host-Windows-x64.zip"
 
+      - name: Diagnosetool testen und packen
+        shell: pwsh
+        run: |
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/windows/diagnose.ps1 -NoOpen
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Compress-Archive -Path tools/windows/Diagnose.cmd, tools/windows/diagnose.ps1 -DestinationPath "dist/Remote-for-ADI-2-Windows-Diagnose.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Remote-for-ADI-2-Windows-Diagnose
+          path: dist/Remote-for-ADI-2-Windows-Diagnose.zip
+          if-no-files-found: error
+
       - uses: actions/upload-artifact@v4
         with:
           name: Remote-for-ADI-2-Host-Windows-x64
