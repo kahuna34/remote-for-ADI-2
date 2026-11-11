@@ -20,9 +20,9 @@ Android smartphone and tablet, plus the host on a Mac; the screenshots show the 
 | --- | --- |
 | ![Smartphone analyzer in fullscreen](docs/screenshots/phone/analyzer_bars_landscape.png) | ![Smartphone EQ graph in fullscreen](docs/screenshots/phone/eq_fullscreen_preset.png) |
 
-| Mac: host in the menu bar | Mac: host menu |
-| --- | --- |
-| <img src="docs/screenshots/host/menubar.png" alt="Host icon in the macOS menu bar" width="200"> | <img src="docs/screenshots/host/menu.png" alt="Host menu on macOS" width="170"> |
+| Mac: host menu |
+| --- |
+| <img src="docs/screenshots/host/menu.png" alt="Host menu on macOS" width="170"> |
 
 ## Features
 

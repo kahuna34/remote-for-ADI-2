@@ -89,11 +89,11 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "de.markus" "\0"
+            VALUE "CompanyName", "Markus Rass" "\0"
             VALUE "FileDescription", "Remote for ADI-2 Host" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "adi2_host" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 de.markus. All rights reserved." "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 Markus Rass. GPL-3.0." "\0"
             VALUE "OriginalFilename", "adi2_host.exe" "\0"
             VALUE "ProductName", "Remote for ADI-2 Host" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"

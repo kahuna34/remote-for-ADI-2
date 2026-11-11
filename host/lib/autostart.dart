@@ -27,7 +27,7 @@ class HostAutostart {
         'query',
         registry,
         '/v',
-        'Adi2RemoteHost',
+        'Remote for ADI-2 Host',
       ]);
       return result.exitCode == 0;
     }
@@ -43,14 +43,14 @@ class HostAutostart {
                 'add',
                 registry,
                 '/v',
-                'Adi2RemoteHost',
+                'Remote for ADI-2 Host',
                 '/t',
                 'REG_SZ',
                 '/d',
                 '"$executable"',
                 '/f',
               ]
-            : ['delete', registry, '/v', 'Adi2RemoteHost', '/f'],
+            : ['delete', registry, '/v', 'Remote for ADI-2 Host', '/f'],
       );
       if (result.exitCode != 0) {
         throw ProcessException(

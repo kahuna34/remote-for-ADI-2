@@ -21,7 +21,7 @@ void main() {
       'add',
       HostAutostart.registry,
       '/v',
-      'Adi2RemoteHost',
+      'Remote for ADI-2 Host',
       '/t',
       'REG_SZ',
       '/d',

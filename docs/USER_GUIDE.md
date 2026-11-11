@@ -65,9 +65,9 @@ When the ADI-2 is connected by USB to a Mac or Windows PC, the smartphone can co
 
 On a Mac, open **Remote for ADI-2 Host** like any program. No window appears; an icon appears in the menu bar. On Windows the icon sits in the notification area of the taskbar; the Windows version is prepared but not yet verified on real hardware. Clicking the icon opens the menu:
 
-| Mac: host in the menu bar | Mac: host menu |
-| --- | --- |
-| ![Mac: host in the menu bar](screenshots/host/menubar.png) | ![Mac: host menu](screenshots/host/menu.png) |
+| Mac: host menu |
+| --- |
+| ![Mac: host menu](screenshots/host/menu.png) |
 
 | Item | Effect |
 | --- | --- |

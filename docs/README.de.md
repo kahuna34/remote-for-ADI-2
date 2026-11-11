@@ -20,9 +20,9 @@ Android-Smartphone und -Tablet sowie der Host am Mac; die Bilder zeigen die engl
 | --- | --- |
 | ![Analyzer im Vollbild am Smartphone](screenshots/phone/analyzer_bars_landscape.png) | ![EQ-Graph im Vollbild am Smartphone](screenshots/phone/eq_fullscreen_preset.png) |
 
-| Mac: Host in der Menüleiste | Mac: Menü des Hosts |
-| --- | --- |
-| <img src="screenshots/host/menubar.png" alt="Host-Symbol in der Menüleiste des Mac" width="200"> | <img src="screenshots/host/menu.png" alt="Menü des Hosts am Mac" width="170"> |
+| Mac: Menü des Hosts |
+| --- |
+| <img src="screenshots/host/menu.png" alt="Menü des Hosts am Mac" width="170"> |
 
 ## Funktionen
 

@@ -65,9 +65,9 @@ Hängt der ADI-2 per USB an einem Mac oder Windows-PC, kann das Smartphone ihn �
 
 Auf dem Mac **Remote for ADI-2 Host** wie ein Programm öffnen. Es erscheint kein Fenster, sondern ein Symbol in der Menüleiste. Unter Windows sitzt das Symbol im Infobereich der Taskleiste; die Windows-Version ist vorbereitet, aber auf echter Hardware noch ungeprüft. Ein Klick auf das Symbol öffnet das Menü:
 
-| Mac: Host in der Menüleiste | Mac: Menü des Hosts |
-| --- | --- |
-| ![Mac: Host in der Menüleiste](screenshots/host/menubar.png) | ![Mac: Menü des Hosts](screenshots/host/menu.png) |
+| Mac: Menü des Hosts |
+| --- |
+| ![Mac: Menü des Hosts](screenshots/host/menu.png) |
 
 | Eintrag | Wirkung |
 | --- | --- |
