@@ -22,6 +22,8 @@ Iterable<File> _dartFiles() =>
     Directory('lib')
         .listSync(recursive: true)
         .whereType<File>()
+        // Unter Windows liefert listSync Backslashes; Pfade vereinheitlichen.
+        .map((f) => File(f.path.replaceAll(r'\', '/')))
         .where((f) => f.path.endsWith('.dart'))
         // Temporary, explicitly German-only developer calibration UI.
         .where((f) => !f.path.startsWith('lib/dev/analyzer_selftest'));

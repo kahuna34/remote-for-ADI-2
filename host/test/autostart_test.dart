@@ -45,6 +45,25 @@ void main() {
       autostart.setEnabled(true),
       throwsA(isA<ProcessException>()),
     );
+    await expectLater(
+      autostart.setEnabled(false),
+      throwsA(isA<ProcessException>()),
+    );
+    expect(await autostart.enabled(), isFalse);
+  });
+
+  test('Windows: Startfehler von reg.exe wird weitergegeben', () async {
+    final autostart = HostAutostart(
+      platform: 'windows',
+      executable: r'C:\Example App\Host.exe',
+      home: '',
+      run: (_, _) async => throw const ProcessException('reg.exe', []),
+    );
+    await expectLater(
+      autostart.setEnabled(true),
+      throwsA(isA<ProcessException>()),
+    );
+    await expectLater(autostart.enabled(), throwsA(isA<ProcessException>()));
   });
 
   test(

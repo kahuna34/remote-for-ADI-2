@@ -63,15 +63,16 @@ Hängt der ADI-2 per USB an einem Mac oder Windows-PC, kann das Smartphone ihn �
 
 ### Host starten
 
-Auf dem Mac **Remote for ADI-2 Host** wie ein Programm öffnen. Es erscheint kein Fenster, sondern ein Symbol in der Menüleiste. Unter Windows sitzt das Symbol im Infobereich der Taskleiste; die Windows-Version ist vorbereitet, aber auf echter Hardware noch ungeprüft. Ein Klick auf das Symbol öffnet das Menü:
+Auf dem Mac **Remote for ADI-2 Host** wie ein Programm öffnen. Es erscheint kein Fenster, sondern ein Symbol in der Menüleiste. Unter Windows sitzt das Symbol im Infobereich der Taskleiste, bei Windows 11 zunächst im aufklappbaren Bereich (Pfeil ^). Ein Klick auf das Symbol öffnet das Menü:
 
-| Mac: Menü des Hosts |
-| --- |
-| ![Mac: Menü des Hosts](screenshots/host/menu.png) |
+| Mac: Menü des Hosts | Windows: Menü des Hosts |
+| --- | --- |
+| ![Mac: Menü des Hosts](screenshots/host/menu.png) | ![Windows: Menü des Hosts](screenshots/host/windows_menu.png) |
 
 | Eintrag | Wirkung |
 | --- | --- |
 | Status | Zeigt, ob der Host bereit ist, ein Smartphone verbunden ist, kein ADI-2 gefunden wurde oder USB-MIDI belegt ist. |
+| ADI-2 erkannt | Zeigt Modell und Seriennummer des angeschlossenen ADI-2, etwa **ADI-2 DAC** oder **ADI-2 Pro EX**, oder **Kein ADI-2 erkannt**. Die Erkennung liest nur die Geräteliste und öffnet den MIDI-Port nicht. |
 | Smartphone koppeln… | Zeigt einen 6-stelligen Code und einen QR-Code. Der Code gilt 2 Minuten und nur einmal. |
 | Gekoppelte Geräte… | Listet gekoppelte Smartphones; **Widerrufen** entzieht einem Smartphone den Zugriff. |
 | Bei Anmeldung starten / Mit Windows starten | Startet den Host automatisch nach der Anmeldung am Computer. |

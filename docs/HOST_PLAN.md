@@ -1,6 +1,6 @@
 # Windows/macOS host
 
-**Stage 1 implemented and checked on a Mac with an Android smartphone and an ADI-2 DAC; Windows not yet verified.** [Deutsch](HOST_PLAN.de.md)
+**Stage 1 checked on a Mac with an Android smartphone and an ADI-2 DAC; Windows host builds and starts; smartphone test on Windows still pending.** [Deutsch](HOST_PLAN.de.md)
 
 ## Connection and desktop application
 
@@ -8,7 +8,21 @@ The mobile app controls the ADI-2 through Wi-Fi and the separate Flutter project
 
 The tray menu provides status, code/QR pairing, paired smartphones, start at login and quit. The icon comes from the main project. Windows autostart uses `reg.exe` and the current user's Run registry key. macOS writes a LaunchAgent with `RunAtLoad` for the next login. Failures appear in the host window. The separate macOS host is configured without App Sandbox so it can write the LaunchAgent. Network client and server entitlements are present.
 
-USB MIDI opens only after a paired smartphone authenticates. It closes three seconds after the session ends. A new session during this grace period can reuse the port. Missing and busy devices are reported. The host originates no device settings or read requests. Requests and settings come from the app. Coexistence with the RME software requires hardware validation.
+USB MIDI opens only after a paired smartphone authenticates. It closes three seconds after the session ends. A new session during this grace period can reuse the port. Missing and busy devices are reported. The host originates no device settings. During a session it also polls the device state to forward changes made by other software to the smartphone. Coexistence with the RME software requires hardware validation.
+
+## Windows: device names and background launch
+
+Every five seconds, the menu's device row checks the MIDI device list without opening a port. Detection and connection use the same Windows name resolution. The PowerShell/PnP result is cached while the names and IDs of ADI-2 candidate ports remain unchanged; reordering the candidates or changing unrelated ports does not trigger a query. Changed candidates or an empty or failed result trigger a new query. With no candidates, the cache is cleared and “No ADI-2 detected” is shown without a PnP call, so unplugging becomes visible at the next check. The menu removes the port suffix and still recognizes Pro EX by serial number. The macOS path through `ioreg` is unchanged.
+
+The WinMM MIDI port is named `ADI-2 DAC Midi Port 1` (Babyface: `Babyface Midi Port 1`); like the PnP name `RME ADI-2 DAC`, it contains no serial number. `autoConnectCandidates` already recognizes the latter. The attached ADI-2 DAC reports its model and serial number through `DEVPKEY_Device_BusReportedDeviceDesc` on the `MEDIA` device. Its hexadecimal instance identifier is a Windows identifier, not the RME serial number. The host queries this bus-reported name on the MEDIA device and, if different, its physical USB ancestor. Numeric values from `DEVPKEY_Device_SerialNumber` or a purely numeric USB instance suffix remain fallbacks; conflicting serial numbers are rejected.
+
+The parser produces `Model (serial number)` only from consistent data, preferring the bus-reported name. It replaces a MIDI port name only when exactly one ADI-2 is present and its model matches. Multiple MEDIA entries for the same USB device count once; multiple ADI-2 devices, incomplete data, process errors or a three-second timeout preserve the port name. Babyface ports are never renamed. The resolved name also survives reuse of an open USB connection within the closing grace period.
+
+The Windows runner holds a named mutex throughout the process lifetime. A second launch in the same Windows session exits before creating another Flutter engine or server. The fallback port remains available when other software occupies the default port. If binding the fallback port also fails, the application remains accessible through the tray menu with an error status.
+
+The runner creates the main window without a visibility flag and with `WS_EX_TOOLWINDOW`, so an open pairing window also needs no taskbar button. Startup does not call `Show`; `ForceRedraw` requests a Flutter frame. Dart additionally enables `skipTaskbar` and `preventClose`; closing hides the window. Checked on the release build: the program starts without a visible window or taskbar entry, the server listens, and a second launch exits immediately.
+
+Autostart passes separate arguments to `reg.exe` and quotes the executable path, including paths containing spaces. Tests use process substitutes; no real Run entry was set. Login remains a manual test.
 
 ## Protocol and access
 
@@ -44,6 +58,8 @@ Android adds camera and multicast permissions and a multicast lock during discov
 ## Verification and remaining work
 
 Protocol, pairing, controller, badge, volume-filter and autostart tests have been added. Stage 1 was checked on a Mac with an Android smartphone and an ADI-2 DAC; Windows, autostart and a Wi-Fi drop during a volume increase remain to be verified.
+
+Windows verification (Flutter stable, VS Build Tools 2022): `flutter analyze` clean and `flutter test` green in the main project and host, `flutter build windows --release` succeeds. On the attached ADI-2 DAC the name parser returns `ADI-2 DAC (<serial number>)`. Still to check manually: coexistence with RME ADI-2 Remote, smartphone test, autostart after sign-in, firewall prompt.
 
 Hardware validation remains for the Windows notification area, macOS menu bar and hidden launch, actual login autostart, Android/iPhone camera and mDNS, Wi-Fi changes and sleep/resume, USB busy detection, actual level/reference readbacks across models, and parallel RME software use. Windows must allow incoming connections for the host on private networks. TCP 47321 or the displayed fallback port and mDNS over UDP 5353 must be reachable.
 

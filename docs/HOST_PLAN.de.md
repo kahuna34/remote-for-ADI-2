@@ -1,6 +1,6 @@
 # Windows-/macOS-Host
 
-**Stufe 1 umgesetzt und am Mac mit Android-Smartphone und ADI-2 DAC geprüft; Windows noch ungeprüft.** [English](HOST_PLAN.md)
+**Stufe 1 am Mac mit Android-Smartphone und ADI-2 DAC geprüft; Windows-Host baut und startet; Smartphone-Test unter Windows noch offen.** [English](HOST_PLAN.md)
 
 ## Verbindung und Desktop-Programm
 
@@ -8,7 +8,21 @@ Die mobile App steuert den ADI-2 über WLAN und das eigenständige Flutter-Proje
 
 Der Host besitzt eine Statusanzeige, Kopplung mit Code und QR-Code, eine Liste gekoppelter Smartphones, Autostart und Beenden. Das App-Symbol stammt aus dem Hauptprojekt. Autostart verwendet unter Windows `reg.exe` und den Run-Schlüssel des aktuellen Benutzers. Unter macOS wird ein LaunchAgent mit `RunAtLoad` geschrieben. Er startet bei der nächsten Anmeldung. Fehler werden im Host-Fenster angezeigt. Für das Schreiben des LaunchAgents ist der separate macOS-Host unsandboxed konfiguriert. Netzwerk-Client- und Server-Entitlements sind gesetzt.
 
-Der Host öffnet USB-MIDI erst nach erfolgreicher Smartphone-Anmeldung. Drei Sekunden nach Sitzungsende wird der Port geschlossen. Eine neue Sitzung innerhalb dieser Frist kann den Port wiederverwenden. Belegte und fehlende USB-Geräte werden gemeldet. Der Host erzeugt keine eigenen Geräteeinstellungen und führt keine Geräteabfrage selbst aus. Abfragen und Einstellungen stammen aus der App. Das Verhalten beim parallelen Betrieb der RME-Software muss auf Hardware geprüft werden.
+Der Host öffnet USB-MIDI erst nach erfolgreicher Smartphone-Anmeldung. Drei Sekunden nach Sitzungsende wird der Port geschlossen. Eine neue Sitzung innerhalb dieser Frist kann den Port wiederverwenden. Belegte und fehlende USB-Geräte werden gemeldet. Der Host erzeugt keine eigenen Geräteeinstellungen. Während einer Sitzung fragt er zusätzlich den Gerätestand ab, um Änderungen anderer Software an das Smartphone weiterzugeben. Das Verhalten beim parallelen Betrieb der RME-Software muss auf Hardware geprüft werden.
+
+## Windows: Gerätename und Hintergrundstart
+
+Die Gerätezeile im Menü prüft alle fünf Sekunden die MIDI-Geräteliste, ohne einen Port zu öffnen. Erkennung und Verbindungsaufbau verwenden dieselbe Windows-Namensauflösung. Das Ergebnis der PowerShell-/PnP-Abfrage wird zwischengespeichert, solange Namen und IDs der ADI-2-Kandidatenports gleich bleiben; eine andere Reihenfolge oder Änderungen fremder Ports lösen keine Abfrage aus. Bei geänderten Kandidaten oder einem leeren beziehungsweise fehlgeschlagenen Ergebnis wird erneut abgefragt. Ohne Kandidaten wird der Cache verworfen und ohne PnP-Aufruf „Kein ADI-2 erkannt“ angezeigt; Abziehen wird somit bei der nächsten Prüfung sichtbar. Die Menüanzeige entfernt den Portzusatz und erkennt Pro EX weiterhin an der Seriennummer. Der macOS-Pfad über `ioreg` bleibt unverändert.
+
+Der WinMM-MIDI-Port heißt `ADI-2 DAC Midi Port 1` (Babyface: `Babyface Midi Port 1`); wie die PnP-Namen `RME ADI-2 DAC` enthält er keine Seriennummer. Der zweite Name wird bereits von `autoConnectCandidates` erkannt. Der angeschlossene ADI-2 DAC meldet Modell und Seriennummer über `DEVPKEY_Device_BusReportedDeviceDesc` am `MEDIA`-Gerät. Seine hexadezimale Instanzkennung ist eine Windows-Kennung, keine RME-Seriennummer. Der Host fragt den vom Bus gemeldeten Namen am MEDIA-Gerät und, falls verschieden, an dessen physischem USB-Vorfahren ab. Rein numerische Werte aus `DEVPKEY_Device_SerialNumber` oder dem USB-Instanzsuffix bleiben Rückfälle; widersprüchliche Seriennummern werden verworfen.
+
+Der Parser erzeugt `Modell (Seriennummer)` nur bei widerspruchsfreien Daten und bevorzugt den vom Bus gemeldeten Namen. Er ersetzt den MIDI-Portnamen nur bei genau einem ADI-2 mit passendem Modell. Mehrere MEDIA-Einträge desselben USB-Geräts zählen einmal; mehrere ADI-2, unvollständige Daten, Prozessfehler oder ein Timeout nach drei Sekunden behalten den Portnamen bei. Babyface-Ports werden nicht umbenannt. Der ergänzte Name bleibt auch bei einer innerhalb der USB-Schließfrist wiederverwendeten Verbindung erhalten.
+
+Der Windows-Runner hält einen benannten Mutex für die gesamte Prozesslaufzeit. Ein zweiter Start in derselben Windows-Sitzung beendet sich vor dem Start einer weiteren Flutter-Engine oder eines Servers. Ein durch andere Software belegter Standardport verwendet weiterhin den Ausweichport. Scheitert auch dessen Bindung, bleibt das Programm mit Fehlerstatus über das Tray-Menü bedienbar.
+
+Der Runner erzeugt das Hauptfenster ohne Sichtbarkeitsflag und mit `WS_EX_TOOLWINDOW`, sodass auch ein geöffnetes Kopplungsfenster keinen Taskleistenknopf benötigt. Er ruft beim Start kein `Show` auf und fordert einen Flutter-Frame mit `ForceRedraw` an. Dart setzt zusätzlich `skipTaskbar` und `preventClose`; Schließen verbirgt das Fenster. An der Release-Version geprüft: Das Programm startet ohne sichtbares Fenster und ohne Taskleisten-Eintrag, der Server lauscht, ein zweiter Start beendet sich sofort.
+
+Autostart übergibt `reg.exe` getrennte Argumente und einen in Anführungszeichen eingeschlossenen Programmpfad, auch bei Leerzeichen. Die Tests verwenden Prozessersatzfunktionen; ein echter Run-Eintrag wurde nicht gesetzt. Die Anmeldung bleibt ein manueller Test.
 
 ## Protokoll und Zugriff
 
@@ -44,6 +58,8 @@ Android erhält Kamera- und Multicast-Rechte sowie einen während der Suche geha
 ## Prüfstand und offene Punkte
 
 Protokoll-, Kopplungs-, Controller-, Abzeichen-, Filter- und Autostart-Tests sind ergänzt. Stufe 1 wurde am Mac mit einem Android-Smartphone und einem ADI-2 DAC geprüft; Windows, Autostart und ein WLAN-Abbruch während einer Anhebung sind noch zu prüfen.
+
+Windows-Prüfung (Flutter stable, VS Build Tools 2022): `flutter analyze` ohne Befund und `flutter test` grün in Hauptprojekt und Host, `flutter build windows --release` erfolgreich. Der Namensparser liefert am angeschlossenen ADI-2 DAC `ADI-2 DAC (<Seriennummer>)`. Noch manuell zu prüfen: Zusammenspiel mit RME ADI-2 Remote, Smartphone-Test, Autostart nach Neuanmeldung, Firewall-Abfrage.
 
 Auf echter Hardware offen sind Windows-Infobereich, macOS-Menüleiste und verborgener Start, Autostart bei Anmeldung, QR-Kamera und mDNS auf Android/iPhone, WLAN-Wechsel und Ruhezustand, USB-Belegt-Erkennung, tatsächliche Pegel-/Ref-Level-Rückmeldungen aller Modelle sowie paralleler Betrieb mit der RME-Software. Windows muss eingehende Verbindungen für den Host im privaten Netzwerk erlauben. TCP-Port 47321 beziehungsweise der angezeigte Ausweichport und mDNS über UDP 5353 müssen erreichbar sein.
 

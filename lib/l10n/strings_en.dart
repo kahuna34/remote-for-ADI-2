@@ -37,6 +37,8 @@ const Map<String, String> stringsEn = {
       'Network discovery failed. Use a manual address.',
   'Host-Fehler {fehler}': 'Host error {fehler}',
   'Smartphone koppeln…': 'Pair smartphone…',
+  'Kein ADI-2 erkannt': 'No ADI-2 detected',
+  'ADI-2 erkannt: {name}': 'Detected: {name}',
   'Gekoppelte Geräte…': 'Paired devices…',
   'Mit Windows starten': 'Start with Windows',
   'Bei Anmeldung starten': 'Start at login',

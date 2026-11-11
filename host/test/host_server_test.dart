@@ -120,6 +120,30 @@ void main() {
     connectSocket: connectSocket,
   );
 
+  test('Belegter TCP-Port erhält einen erreichbaren Ausweichport', () async {
+    final occupied = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => occupied.close(force: true));
+    await server.start(
+      address: InternetAddress.loopbackIPv4,
+      port: occupied.port,
+    );
+    expect(server.port, greaterThan(0));
+    expect(server.port, isNot(occupied.port));
+    final client = HttpClient();
+    addTearDown(() => client.close(force: true));
+    final request = await client.getUrl(
+      Uri(
+        scheme: 'http',
+        host: InternetAddress.loopbackIPv4.address,
+        port: server.port,
+        path: '/missing',
+      ),
+    );
+    final response = await request.close();
+    expect(response.statusCode, HttpStatus.notFound);
+    await response.drain<void>();
+  });
+
   test(
     'Ungekoppelter Client erhält keine MIDI-Weiterleitung und kein USB',
     () async {
@@ -325,5 +349,25 @@ void main() {
     expect(HostServer.pollDue(ms(500), ms(400), ms(450)), isFalse);
     // In der Statuspause nie.
     expect(HostServer.pollDue(ms(9000), ms(0), ms(0)), isFalse);
+  });
+
+  test('Menüname des erkannten ADI-2', () {
+    expect(
+      DesktopMidi.displayName('ADI-2 DAC (52000001)'),
+      'ADI-2 DAC (52000001)',
+    );
+    expect(
+      DesktopMidi.displayName('ADI-2 Pro (56010042)'),
+      'ADI-2 Pro EX (56010042)',
+    );
+    expect(
+      DesktopMidi.displayName('ADI-2 Pro (53000001)'),
+      'ADI-2 Pro (53000001)',
+    );
+    expect(
+      DesktopMidi.displayName('ADI-2/4 Pro SE (55000001) Port 1'),
+      'ADI-2/4 Pro SE (55000001)',
+    );
+    expect(DesktopMidi.displayName('Port 1'), 'ADI-2');
   });
 }

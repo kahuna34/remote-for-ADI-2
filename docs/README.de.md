@@ -4,6 +4,24 @@
 
 Remote for ADI-2 ist eine kostenlose Flutter-App zur direkten Steuerung kompatibler ADI-2-Audiointerfaces per USB-MIDI vom Smartphone oder Tablet. Sie bietet Ausgangs- und Geräteeinstellungen, einen EQ-Editor, Setups, Backups, ein anpassbares Bedienfeld und einen USB-Audio-Analyzer. Version **1.1.0 (2)**. © 2026 Markus Rass.
 
+## Download
+
+| Was | Datei | Für |
+| --- | --- | --- |
+| **App** | [Remote-for-ADI-2-Android.apk](https://github.com/kahuna34/remote-for-ADI-2/releases/latest/download/Remote-for-ADI-2-Android.apk) | Android-Smartphone oder -Tablet |
+| **Host für Mac** | [Remote-for-ADI-2-Host-macOS.zip](https://github.com/kahuna34/remote-for-ADI-2/releases/latest/download/Remote-for-ADI-2-Host-macOS.zip) | Mac, an dem der ADI-2 per USB hängt |
+| **Host für Windows** | [Remote-for-ADI-2-Host-Windows-x64.zip](https://github.com/kahuna34/remote-for-ADI-2/releases/latest/download/Remote-for-ADI-2-Host-Windows-x64.zip) | Windows-PC (64 Bit), an dem der ADI-2 per USB hängt |
+
+Alle Dateien der aktuellen Version stehen auch auf der [Release-Seite](https://github.com/kahuna34/remote-for-ADI-2/releases/latest). Den Host braucht man nur, um den ADI-2 per WLAN über einen Computer zu steuern; für die direkte USB-Verbindung genügt die App. Eine iPhone-Version ist geplant.
+
+**App installieren (Android):** Die APK auf dem Smartphone öffnen und die Installation aus dieser Quelle erlauben, wenn Android nachfragt. Den ADI-2 mit einem datenfähigen USB-Kabel (USB-OTG) anschließen und am Gerät **MIDI Control** einschalten.
+
+**Host am Mac installieren:** Die Datei entpacken und **Remote for ADI-2 Host** in den Ordner Programme ziehen. Das Programm ist nicht von Apple signiert: Beim ersten Start blockiert macOS es. Dann **Systemeinstellungen → Datenschutz & Sicherheit** öffnen und **Dennoch öffnen** wählen. Danach erscheint das Symbol in der Menüleiste.
+
+**Host unter Windows installieren:** Die ZIP-Datei vollständig entpacken und im Ordner **Remote for ADI-2 Host** die Datei **adi2_host.exe** starten. Warnt SmartScreen, **Weitere Informationen → Trotzdem ausführen** wählen und bei der Firewall-Abfrage private Netzwerke zulassen. Das Symbol erscheint im Infobereich der Taskleiste, eventuell hinter dem Pfeil (^).
+
+**Smartphone und Host verbinden:** Im Menü des Hosts **Smartphone koppeln…** wählen, in der App **Über Host verbinden** öffnen und den QR-Code scannen oder den Code eingeben. Einzelheiten stehen im [Benutzerhandbuch](BENUTZERHANDBUCH.md#steuerung-über-einen-computer-host).
+
 ## Screenshots
 
 Android-Smartphone und -Tablet sowie der Host am Mac; die Bilder zeigen die englische Oberfläche. Aufbau und verfügbare Regler hängen vom Gerätemodell ab.

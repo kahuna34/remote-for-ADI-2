@@ -50,7 +50,15 @@ Future<void> main() async {
     },
   );
   midi.onLost = server.usbLost;
-  await server.start();
+  String? discoveryError;
+  try {
+    await server.start();
+  } on SocketException catch (error) {
+    // Auch wenn der Ausweichport nicht gebunden werden kann, bleibt das
+    // Tray-Menü zum Anzeigen des Fehlers und zum Beenden verfügbar.
+    discoveryError = trf('Host-Fehler {fehler}', {'fehler': error});
+    server.status = discoveryError;
+  }
   final broadcast = BonsoirBroadcast(
     printLogs: false,
     service: BonsoirService(
@@ -60,18 +68,20 @@ Future<void> main() async {
       attributes: {'id': id, 'version': '1'},
     ),
   );
-  String? discoveryError;
-  try {
-    await broadcast.initialize().timeout(const Duration(seconds: 5));
-    await broadcast.start().timeout(const Duration(seconds: 5));
-  } catch (_) {
-    discoveryError = tr(
-      'Netzwerksuche fehlgeschlagen. Manuelle Adresse verwenden.',
-    );
+  if (server.port != 0) {
+    try {
+      await broadcast.initialize().timeout(const Duration(seconds: 5));
+      await broadcast.start().timeout(const Duration(seconds: 5));
+    } catch (_) {
+      discoveryError = tr(
+        'Netzwerksuche fehlgeschlagen. Manuelle Adresse verwenden.',
+      );
+    }
   }
   runApp(
     HostApp(
       server: server,
+      midi: midi,
       broadcast: broadcast,
       discoveryError: discoveryError,
     ),
@@ -98,10 +108,12 @@ class HostApp extends StatefulWidget {
   const HostApp({
     super.key,
     required this.server,
+    required this.midi,
     required this.broadcast,
     this.discoveryError,
   });
   final HostServer server;
+  final DesktopMidi midi;
   final BonsoirBroadcast broadcast;
   final String? discoveryError;
   @override
@@ -116,6 +128,9 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
   List<String> _addresses = [];
   String? _address;
   Timer? _countdown;
+  Timer? _detectTimer;
+  String? _adi2;
+  bool _detected = false;
   Future<void> _menuWork = Future.value();
   HostServer get server => widget.server;
 
@@ -131,6 +146,11 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
     trayManager.addListener(this);
     windowManager.addListener(this);
     server.addListener(_changed);
+    unawaited(_detect());
+    _detectTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => unawaited(_detect()),
+    );
     unawaited(_initialize());
   }
 
@@ -154,6 +174,20 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
     }
   }
 
+  /// Prüft regelmäßig, ob und welcher ADI-2 angeschlossen ist.
+  Future<void> _detect() async {
+    String? found;
+    try {
+      found = await widget.midi.detect();
+    } catch (_) {
+      found = null;
+    }
+    if (_detected && found == _adi2) return;
+    _detected = true;
+    _adi2 = found;
+    if (mounted) unawaited(_menu());
+  }
+
   void _changed() {
     if (mounted) setState(() {});
     unawaited(_menu());
@@ -170,7 +204,17 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
                   label: server.connectedName == null
                       ? tr(server.status)
                       : '${tr(server.status)} · ${server.connectedName}',
-                  disabled: true,
+                  // Ohne Aktion, aber nicht deaktiviert: sonst stellt das
+                  // System die Zeile grau dar.
+                ),
+                MenuItem(
+                  label: !_detected
+                      ? tr('Suche ADI-2 …')
+                      : _adi2 == null
+                      ? tr('Kein ADI-2 erkannt')
+                      : trf('ADI-2 erkannt: {name}', {'name': _adi2!}),
+                  // Ohne Aktion, aber nicht deaktiviert: sonst stellt das
+                  // System die Zeile grau dar.
                 ),
                 MenuItem.separator(),
                 MenuItem(key: 'pair', label: tr('Smartphone koppeln…')),
@@ -247,6 +291,7 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
   @override
   void dispose() {
     _countdown?.cancel();
+    _detectTimer?.cancel();
     server.removeListener(_changed);
     trayManager.removeListener(this);
     windowManager.removeListener(this);

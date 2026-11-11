@@ -4,6 +4,24 @@
 
 Remote for ADI-2 is a free Flutter app for controlling compatible ADI-2 audio interfaces directly over USB MIDI from a smartphone or tablet. It provides output and device controls, an EQ editor, setups, backups, a configurable control panel and a USB audio analyzer. Version **1.1.0 (2)**. © 2026 Markus Rass.
 
+## Download
+
+| What | File | For |
+| --- | --- | --- |
+| **App** | [Remote-for-ADI-2-Android.apk](https://github.com/kahuna34/remote-for-ADI-2/releases/latest/download/Remote-for-ADI-2-Android.apk) | Android smartphone or tablet |
+| **Host for Mac** | [Remote-for-ADI-2-Host-macOS.zip](https://github.com/kahuna34/remote-for-ADI-2/releases/latest/download/Remote-for-ADI-2-Host-macOS.zip) | Mac with the ADI-2 connected by USB |
+| **Host for Windows** | [Remote-for-ADI-2-Host-Windows-x64.zip](https://github.com/kahuna34/remote-for-ADI-2/releases/latest/download/Remote-for-ADI-2-Host-Windows-x64.zip) | Windows PC (64-bit) with the ADI-2 connected by USB |
+
+All files of the current version are also on the [releases page](https://github.com/kahuna34/remote-for-ADI-2/releases/latest). The host is only needed to control the ADI-2 over Wi-Fi through a computer; for a direct USB connection the app is enough. An iPhone version is planned.
+
+**Install the app (Android):** Open the APK on the smartphone and allow installing from this source when Android asks. Connect the ADI-2 with a data-capable USB cable (USB OTG) and switch on **MIDI Control** on the device.
+
+**Install the host on a Mac:** Unzip the file and move **Remote for ADI-2 Host** to Applications. The program is not signed by Apple: on first start, macOS blocks it. Open **System Settings → Privacy & Security** and choose **Open Anyway**. The icon then appears in the menu bar.
+
+**Install the host on Windows:** Extract the ZIP completely and start **adi2_host.exe** in the folder **Remote for ADI-2 Host**. If SmartScreen warns, choose **More info → Run anyway**, and allow access for private networks when the firewall asks. The icon appears in the notification area of the taskbar, possibly behind the arrow (^).
+
+**Connect smartphone and host:** Choose **Pair smartphone…** in the host menu, then **Connect via host** in the app and scan the QR code or enter the code. Details are in the [user guide](docs/USER_GUIDE.md#control-through-a-computer-host).
+
 ## Screenshots
 
 Android smartphone and tablet, plus the host on a Mac; the screenshots show the English interface. Layouts and available controls depend on the device model.

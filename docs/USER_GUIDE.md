@@ -63,15 +63,16 @@ When the ADI-2 is connected by USB to a Mac or Windows PC, the smartphone can co
 
 ### Starting the host
 
-On a Mac, open **Remote for ADI-2 Host** like any program. No window appears; an icon appears in the menu bar. On Windows the icon sits in the notification area of the taskbar; the Windows version is prepared but not yet verified on real hardware. Clicking the icon opens the menu:
+On a Mac, open **Remote for ADI-2 Host** like any program. No window appears; an icon appears in the menu bar. On Windows the icon sits in the notification area of the taskbar; on Windows 11 it first appears in the hidden-icons area (^ arrow). Clicking the icon opens the menu:
 
-| Mac: host menu |
-| --- |
-| ![Mac: host menu](screenshots/host/menu.png) |
+| Mac: host menu | Windows: host menu |
+| --- | --- |
+| ![Mac: host menu](screenshots/host/menu.png) | ![Windows: host menu](screenshots/host/windows_menu.png) |
 
 | Item | Effect |
 | --- | --- |
 | Status | Shows whether the host is ready, a smartphone is connected, no ADI-2 was found or USB MIDI is busy. |
+| Detected | Shows model and serial number of the connected ADI-2, such as **ADI-2 DAC** or **ADI-2 Pro EX**, or **No ADI-2 detected**. Detection only reads the device list and does not open the MIDI port. |
 | Pair smartphone… | Shows a 6-digit code and a QR code. The code is valid for 2 minutes and only once. |
 | Paired devices… | Lists paired smartphones; **Revoke** removes a smartphone's access. |
 | Start at login / Start with Windows | Starts the host automatically after signing in to the computer. |
