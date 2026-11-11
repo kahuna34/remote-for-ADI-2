@@ -1,0 +1,219 @@
+Letzter Test: 09.11.2026 00:04:00
+Status: Abweichung · Wiederhergestellt: ja
+Wiedergabe: normal + Effekte
+Pegelbewertung: relativ (Breitband-RMS + 3,01 dB)
+Oktave   OK   Abw. Offen
+1/3       0    30     0
+1/6       5    54     0
+1/12     26    91     0
+1/3 25.1 Hz: -34.9 dBFS, Δ absolut -14.9 dB; Δ relativ -1.3 dB; Nachb. -46.8 dBFS; 1166.7 ms; Breitband-RMS L/R -36.6/-36.6 dBFS; Messfenster ungültig
+1/3 31.6 Hz: -25.3 dBFS, Δ absolut -5.3 dB; Δ relativ -1.1 dB; Nachb. -37.6/-37.6 dBFS; 550.0 ms; Breitband-RMS L/R -27.2/-27.2 dBFS; Messfenster ungültig
+1/3 39.8 Hz: -17.7 dBFS, Δ absolut 2.3 dB; Δ relativ -0.8 dB; Nachb. -30.0/-29.8 dBFS; 433.3 ms; Breitband-RMS L/R -19.9/-19.9 dBFS; Messfenster ungültig
+1/3 50.1 Hz: -9.7 dBFS, Δ absolut 10.3 dB; Δ relativ -0.3 dB; Nachb. -21.9/-22.0 dBFS; 383.3 ms; Breitband-RMS L/R -12.4/-12.4 dBFS; Messfenster ungültig
+1/3 63.1 Hz: -7.7 dBFS, Δ absolut 12.3 dB; Δ relativ 0.1 dB; Nachb. -20.3/-20.2 dBFS; 183.3 ms; Breitband-RMS L/R -10.8/-10.8 dBFS; Messfenster ungültig
+1/3 79.4 Hz: -7.8 dBFS, Δ absolut 12.2 dB; Δ relativ 0.1 dB; Nachb. -20.3/-20.3 dBFS; 216.7 ms; Breitband-RMS L/R -10.8/-10.9 dBFS; Messfenster ungültig
+1/3 100.0 Hz: -8.1 dBFS, Δ absolut 11.9 dB; Δ relativ -0.0 dB; Nachb. -20.5/-20.5 dBFS; 300.0 ms; Breitband-RMS L/R -11.1/-11.1 dBFS; Messfenster ungültig
+1/3 125.9 Hz: -5.1 dBFS, Δ absolut 14.9 dB; Δ relativ -0.0 dB; Nachb. -17.5/-17.5 dBFS; 233.3 ms; Breitband-RMS L/R -8.1/-8.1 dBFS; Messfenster ungültig
+1/3 158.5 Hz: -4.9 dBFS, Δ absolut 15.1 dB; Δ relativ -0.0 dB; Nachb. -17.3/-17.3 dBFS; 233.3 ms; Breitband-RMS L/R -7.9/-7.9 dBFS; Messfenster ungültig
+1/3 199.5 Hz: -4.8 dBFS, Δ absolut 15.2 dB; Δ relativ -0.0 dB; Nachb. -17.2/-17.2 dBFS; 250.0 ms; Breitband-RMS L/R -7.8/-7.8 dBFS; Messfenster ungültig
+1/3 251.2 Hz: -6.0 dBFS, Δ absolut 14.0 dB; Δ relativ -0.0 dB; Nachb. -18.4/-18.4 dBFS; 333.3 ms; Breitband-RMS L/R -9.0/-9.0 dBFS; Messfenster ungültig
+1/3 316.2 Hz: -4.5 dBFS, Δ absolut 15.5 dB; Δ relativ -0.0 dB; Nachb. -16.9/-16.9 dBFS; 300.0 ms; Breitband-RMS L/R -7.6/-7.5 dBFS; Messfenster ungültig
+1/3 398.1 Hz: -4.6 dBFS, Δ absolut 15.4 dB; Δ relativ -0.0 dB; Nachb. -17.0/-17.0 dBFS; 300.0 ms; Breitband-RMS L/R -7.6/-7.6 dBFS; Messfenster ungültig
+1/3 501.2 Hz: -3.1 dBFS, Δ absolut 16.9 dB; Δ relativ -0.0 dB; Nachb. -15.5/-15.5 dBFS; 283.3 ms; Breitband-RMS L/R -6.1/-6.1 dBFS; Messfenster ungültig
+1/3 631.0 Hz: -2.9 dBFS, Δ absolut 17.1 dB; Δ relativ -0.0 dB; Nachb. -15.3/-15.3 dBFS; 283.3 ms; Breitband-RMS L/R -5.9/-6.1 dBFS; Messfenster ungültig
+1/3 794.3 Hz: -3.1 dBFS, Δ absolut 16.9 dB; Δ relativ 0.0 dB; Nachb. -15.5/-15.5 dBFS; 300.0 ms; Breitband-RMS L/R -6.1/-6.5 dBFS; Messfenster ungültig
+1/3 1000.0 Hz: -4.9 dBFS, Δ absolut 15.1 dB; Δ relativ 0.0 dB; Nachb. -17.3/-17.3 dBFS; 266.7 ms; Breitband-RMS L/R -7.9/-8.2 dBFS; Messfenster ungültig
+1/3 1258.9 Hz: -3.0 dBFS, Δ absolut 17.0 dB; Δ relativ 0.0 dB; Nachb. -15.5/-15.4 dBFS; 283.3 ms; Breitband-RMS L/R -6.2/-6.0 dBFS; Messfenster ungültig
+1/3 1584.9 Hz: -5.9 dBFS, Δ absolut 14.1 dB; Δ relativ 0.0 dB; Nachb. -18.4/-18.3 dBFS; 283.3 ms; Breitband-RMS L/R -9.3/-9.0 dBFS; Messfenster ungültig
+1/3 1995.3 Hz: -6.1 dBFS, Δ absolut 13.9 dB; Δ relativ 0.0 dB; Nachb. -18.6/-18.5 dBFS; 283.3 ms; Breitband-RMS L/R -9.2/-9.8 dBFS; Messfenster ungültig
+1/3 2511.9 Hz: -6.4 dBFS, Δ absolut 13.6 dB; Δ relativ 0.0 dB; Nachb. -18.8/-18.7 dBFS; 250.0 ms; Breitband-RMS L/R -9.5/-9.4 dBFS; Messfenster ungültig
+1/3 3162.3 Hz: -5.5 dBFS, Δ absolut 14.5 dB; Δ relativ 0.0 dB; Nachb. -18.0/-17.8 dBFS; 333.3 ms; Breitband-RMS L/R -8.5/-8.6 dBFS; Messfenster ungültig
+1/3 3981.1 Hz: -6.1 dBFS, Δ absolut 13.9 dB; Δ relativ 0.0 dB; Nachb. -18.7/-18.4 dBFS; 283.3 ms; Breitband-RMS L/R -9.1/-9.3 dBFS; Messfenster ungültig
+1/3 5011.9 Hz: -5.5 dBFS, Δ absolut 14.5 dB; Δ relativ 0.0 dB; Nachb. -18.2/-17.7 dBFS; 333.3 ms; Breitband-RMS L/R -8.6/-8.5 dBFS; Messfenster ungültig
+1/3 6309.6 Hz: -9.9 dBFS, Δ absolut 10.1 dB; Δ relativ 0.0 dB; Nachb. -22.8/-22.1 dBFS; 283.3 ms; Breitband-RMS L/R -13.9/-12.9 dBFS; Messfenster ungültig
+1/3 7943.3 Hz: -11.5 dBFS, Δ absolut 8.5 dB; Δ relativ 0.0 dB; Nachb. -24.7/-23.5 dBFS; 316.7 ms; Breitband-RMS L/R -14.5/-14.5 dBFS; Messfenster ungültig
+1/3 10000.0 Hz: -11.5 dBFS, Δ absolut 8.5 dB; Δ relativ -0.0 dB; Nachb. -25.3/-23.3 dBFS; 250.0 ms; Breitband-RMS L/R -15.4/-14.6 dBFS; Messfenster ungültig
+1/3 12589.3 Hz: -4.4 dBFS, Δ absolut 15.6 dB; Δ relativ 0.0 dB; Nachb. -19.0/-15.7 dBFS; 266.7 ms; Breitband-RMS L/R -7.4/-7.5 dBFS; Messfenster ungültig
+1/3 15848.9 Hz: -11.1 dBFS, Δ absolut 8.9 dB; Δ relativ 0.0 dB; Nachb. -27.6/-21.6 dBFS; 433.3 ms; Breitband-RMS L/R -14.1/-14.1 dBFS; Messfenster ungültig
+1/3 19952.6 Hz: -9.5 dBFS, Δ absolut 10.5 dB; Δ relativ 0.0 dB; Nachb. -31.2 dBFS; 366.7 ms; Breitband-RMS L/R -12.5/-12.8 dBFS; Messfenster ungültig
+1/6 25.1 Hz: -33.6 dBFS, Δ absolut -13.6 dB; Δ relativ -0.8 dB; Nachb. -45.9 dBFS; 1250.0 ms; Breitband-RMS L/R -35.9/-35.8 dBFS; Messfenster ungültig
+1/6 28.2 Hz: -28.5 dBFS, Δ absolut -8.5 dB; Δ relativ -0.9 dB; Nachb. -40.8/-40.8 dBFS; 950.0 ms; Breitband-RMS L/R -30.6/-30.6 dBFS; Messfenster ungültig
+1/6 31.6 Hz: -24.8 dBFS, Δ absolut -4.8 dB; Δ relativ -1.1 dB; Nachb. -37.0/-37.1 dBFS; 250.0 ms; Breitband-RMS L/R -26.7/-26.7 dBFS; Messfenster ungültig
+1/6 44.7 Hz: -12.7 dBFS, Δ absolut 7.3 dB; Δ relativ -0.5 dB; Nachb. -24.9/-24.8 dBFS; 550.0 ms; Breitband-RMS L/R -15.2/-15.2 dBFS; Messfenster ungültig
+1/6 50.1 Hz: -8.8 dBFS, Δ absolut 11.2 dB; Δ relativ -0.1 dB; Nachb. -21.1/-21.2 dBFS; 533.3 ms; Breitband-RMS L/R -11.7/-11.7 dBFS; Messfenster ungültig
+1/6 63.1 Hz: -8.7 dBFS, Δ absolut 11.3 dB; Δ relativ 0.1 dB; Nachb. -21.0/-21.0 dBFS; 366.7 ms; Breitband-RMS L/R -11.7/-11.7 dBFS; Messfenster ungültig
+1/6 79.4 Hz: -8.8 dBFS, Δ absolut 11.2 dB; Δ relativ 0.0 dB; Nachb. -21.2/-21.2 dBFS; 116.7 ms; Breitband-RMS L/R -11.8/-11.8 dBFS; Messfenster ungültig
+1/6 89.1 Hz: -8.7 dBFS, Δ absolut 11.3 dB; Δ relativ -0.1 dB; Nachb. -21.0/-21.0 dBFS; 400.0 ms; Breitband-RMS L/R -11.6/-11.7 dBFS; Messfenster ungültig
+1/6 100.0 Hz: -9.1 dBFS, Δ absolut 10.9 dB; Δ relativ -0.2 dB; Nachb. -21.3/-21.3 dBFS; 400.0 ms; Breitband-RMS L/R -12.0/-12.0 dBFS; Messfenster ungültig
+1/6 112.2 Hz: -6.8 dBFS, Δ absolut 13.2 dB; Δ relativ -0.0 dB; Nachb. -19.1/-19.1 dBFS; 233.3 ms; Breitband-RMS L/R -9.8/-9.8 dBFS; Messfenster ungültig
+1/6 125.9 Hz: -5.4 dBFS, Δ absolut 14.6 dB; Δ relativ -0.1 dB; Nachb. -17.7/-17.7 dBFS; 250.0 ms; Breitband-RMS L/R -8.4/-8.4 dBFS; Messfenster ungültig
+1/6 141.3 Hz: -4.4 dBFS, Δ absolut 15.6 dB; Δ relativ -0.1 dB; Nachb. -16.7/-16.7 dBFS; 283.3 ms; Breitband-RMS L/R -7.4/-7.4 dBFS; Messfenster ungültig
+1/6 158.5 Hz: -4.5 dBFS, Δ absolut 15.5 dB; Δ relativ -0.1 dB; Nachb. -16.8/-16.8 dBFS; 266.7 ms; Breitband-RMS L/R -7.5/-7.5 dBFS; Messfenster ungültig
+1/6 177.8 Hz: -7.1 dBFS, Δ absolut 12.9 dB; Δ relativ -0.1 dB; Nachb. -19.3/-19.3 dBFS; 366.7 ms; Breitband-RMS L/R -10.0/-10.0 dBFS; Messfenster ungültig
+1/6 199.5 Hz: -4.6 dBFS, Δ absolut 15.4 dB; Δ relativ -0.0 dB; Nachb. -16.9/-16.9 dBFS; 233.3 ms; Breitband-RMS L/R -7.6/-7.6 dBFS; Messfenster ungültig
+1/6 223.9 Hz: -4.0 dBFS, Δ absolut 16.0 dB; Δ relativ -0.0 dB; Nachb. -16.2/-16.2 dBFS; 266.7 ms; Breitband-RMS L/R -6.9/-6.9 dBFS; Messfenster ungültig
+1/6 251.2 Hz: -5.3 dBFS, Δ absolut 14.7 dB; Δ relativ -0.1 dB; Nachb. -17.6/-17.6 dBFS; 300.0 ms; Breitband-RMS L/R -8.3/-8.3 dBFS; Messfenster ungültig
+1/6 281.8 Hz: -6.1 dBFS, Δ absolut 13.9 dB; Δ relativ -0.0 dB; Nachb. -18.4/-18.4 dBFS; 316.7 ms; Breitband-RMS L/R -9.1/-9.2 dBFS; Messfenster ungültig
+1/6 316.2 Hz: -4.6 dBFS, Δ absolut 15.4 dB; Δ relativ -0.0 dB; Nachb. -16.9/-16.9 dBFS; 300.0 ms; Breitband-RMS L/R -7.6/-7.6 dBFS; Messfenster ungültig
+1/6 354.8 Hz: -5.7 dBFS, Δ absolut 14.3 dB; Δ relativ -0.0 dB; Nachb. -18.0/-18.0 dBFS; 300.0 ms; Breitband-RMS L/R -8.7/-8.7 dBFS; Messfenster ungültig
+1/6 398.1 Hz: -4.7 dBFS, Δ absolut 15.3 dB; Δ relativ -0.0 dB; Nachb. -17.0/-17.0 dBFS; 300.0 ms; Breitband-RMS L/R -7.7/-7.7 dBFS; Messfenster ungültig
+1/6 446.7 Hz: -3.7 dBFS, Δ absolut 16.3 dB; Δ relativ -0.0 dB; Nachb. -16.0/-16.0 dBFS; 300.0 ms; Breitband-RMS L/R -6.8/-6.7 dBFS; Messfenster ungültig
+1/6 501.2 Hz: -3.3 dBFS, Δ absolut 16.7 dB; Δ relativ -0.0 dB; Nachb. -15.6/-15.6 dBFS; 300.0 ms; Breitband-RMS L/R -6.3/-6.3 dBFS; Messfenster ungültig
+1/6 562.3 Hz: -4.0 dBFS, Δ absolut 16.0 dB; Δ relativ -0.0 dB; Nachb. -16.3/-16.3 dBFS; 300.0 ms; Breitband-RMS L/R -7.0/-7.0 dBFS; Messfenster ungültig
+1/6 631.0 Hz: -2.9 dBFS, Δ absolut 17.1 dB; Δ relativ -0.0 dB; Nachb. -15.2/-15.2 dBFS; 300.0 ms; Breitband-RMS L/R -5.9/-6.2 dBFS; Messfenster ungültig
+1/6 707.9 Hz: -3.2 dBFS, Δ absolut 16.8 dB; Δ relativ -0.0 dB; Nachb. -15.5/-15.5 dBFS; 300.0 ms; Breitband-RMS L/R -6.2/-6.4 dBFS; Messfenster ungültig
+1/6 794.3 Hz: -3.1 dBFS, Δ absolut 16.9 dB; Δ relativ -0.0 dB; Nachb. -15.4/-15.4 dBFS; 300.0 ms; Breitband-RMS L/R -6.1/-6.5 dBFS; Messfenster ungültig
+1/6 891.3 Hz: -2.9 dBFS, Δ absolut 17.1 dB; Δ relativ -0.0 dB; Nachb. -15.2/-15.2 dBFS; 283.3 ms; Breitband-RMS L/R -5.9/-6.2 dBFS; Messfenster ungültig
+1/6 1000.0 Hz: -4.9 dBFS, Δ absolut 15.1 dB; Δ relativ -0.0 dB; Nachb. -17.2/-17.2 dBFS; 266.7 ms; Breitband-RMS L/R -7.9/-8.1 dBFS; Messfenster ungültig
+1/6 1122.0 Hz: -5.8 dBFS, Δ absolut 14.2 dB; Δ relativ 0.0 dB; Nachb. -18.1/-18.1 dBFS; 283.3 ms; Breitband-RMS L/R -8.8/-8.9 dBFS; Messfenster ungültig
+1/6 1258.9 Hz: -3.1 dBFS, Δ absolut 16.9 dB; Δ relativ 0.0 dB; Nachb. -15.4/-15.4 dBFS; 283.3 ms; Breitband-RMS L/R -6.3/-6.1 dBFS; Messfenster ungültig
+1/6 1412.5 Hz: -5.8 dBFS, Δ absolut 14.2 dB; Δ relativ 0.0 dB; Nachb. -18.1/-18.1 dBFS; 283.3 ms; Breitband-RMS L/R -9.5/-8.8 dBFS; Messfenster ungültig
+1/6 1584.9 Hz: -6.5 dBFS, Δ absolut 13.5 dB; Δ relativ 0.0 dB; Nachb. -18.9/-18.8 dBFS; 283.3 ms; Breitband-RMS L/R -9.9/-9.5 dBFS; Messfenster ungültig
+1/6 1778.3 Hz: -7.1 dBFS, Δ absolut 12.9 dB; Δ relativ 0.0 dB; Nachb. -19.4/-19.4 dBFS; 283.3 ms; Breitband-RMS L/R -10.4/-10.1 dBFS; Messfenster ungültig
+1/6 1995.3 Hz: -6.7 dBFS, Δ absolut 13.3 dB; Δ relativ 0.0 dB; Nachb. -19.0/-19.0 dBFS; 266.7 ms; Breitband-RMS L/R -9.7/-10.3 dBFS; Messfenster ungültig
+1/6 2238.7 Hz: -5.0 dBFS, Δ absolut 15.0 dB; Δ relativ 0.0 dB; Nachb. -17.3/-17.3 dBFS; 333.3 ms; Breitband-RMS L/R -8.0/-8.0 dBFS; Messfenster ungültig
+1/6 2511.9 Hz: -6.7 dBFS, Δ absolut 13.3 dB; Δ relativ 0.0 dB; Nachb. -19.1/-19.0 dBFS; 266.7 ms; Breitband-RMS L/R -9.8/-9.7 dBFS; Messfenster ungültig
+1/6 2818.4 Hz: -5.7 dBFS, Δ absolut 14.3 dB; Δ relativ 0.0 dB; Nachb. -18.1/-18.0 dBFS; 283.3 ms; Breitband-RMS L/R -8.7/-8.7 dBFS; Messfenster ungültig
+1/6 3162.3 Hz: -5.5 dBFS, Δ absolut 14.5 dB; Δ relativ 0.0 dB; Nachb. -17.9/-17.8 dBFS; 333.3 ms; Breitband-RMS L/R -8.5/-8.6 dBFS; Messfenster ungültig
+1/6 3548.1 Hz: -5.8 dBFS, Δ absolut 14.2 dB; Δ relativ 0.0 dB; Nachb. -18.2/-18.1 dBFS; 300.0 ms; Breitband-RMS L/R -8.8/-9.2 dBFS; Messfenster ungültig
+1/6 3981.1 Hz: -6.4 dBFS, Δ absolut 13.6 dB; Δ relativ 0.0 dB; Nachb. -18.8/-18.7 dBFS; 283.3 ms; Breitband-RMS L/R -9.4/-9.6 dBFS; Messfenster ungültig
+1/6 4466.8 Hz: -5.1 dBFS, Δ absolut 14.9 dB; Δ relativ 0.0 dB; Nachb. -17.6/-17.4 dBFS; 350.0 ms; Breitband-RMS L/R -8.1/-8.3 dBFS; Messfenster ungültig
+1/6 5011.9 Hz: -5.8 dBFS, Δ absolut 14.2 dB; Δ relativ 0.0 dB; Nachb. -18.3/-18.1 dBFS; 333.3 ms; Breitband-RMS L/R -9.0/-8.8 dBFS; Messfenster ungültig
+1/6 5623.4 Hz: -6.3 dBFS, Δ absolut 13.7 dB; Δ relativ 0.0 dB; Nachb. -18.9/-18.6 dBFS; 366.7 ms; Breitband-RMS L/R -9.3/-10.0 dBFS; Messfenster ungültig
+1/6 6309.6 Hz: -10.0 dBFS, Δ absolut 10.0 dB; Δ relativ 0.0 dB; Nachb. -22.6/-22.2 dBFS; 300.0 ms; Breitband-RMS L/R -13.9/-13.0 dBFS; Messfenster ungültig
+1/6 7079.5 Hz: -7.1 dBFS, Δ absolut 12.9 dB; Δ relativ 0.0 dB; Nachb. -19.8/-19.3 dBFS; 366.7 ms; Breitband-RMS L/R -10.7/-10.1 dBFS; Messfenster ungültig
+1/6 7943.3 Hz: -9.8 dBFS, Δ absolut 10.2 dB; Δ relativ 0.0 dB; Nachb. -22.6/-22.0 dBFS; 283.3 ms; Breitband-RMS L/R -12.9/-12.8 dBFS; Messfenster ungültig
+1/6 8912.5 Hz: -5.6 dBFS, Δ absolut 14.4 dB; Δ relativ 0.0 dB; Nachb. -18.6/-17.7 dBFS; 350.0 ms; Breitband-RMS L/R -8.7/-9.2 dBFS; Messfenster ungültig
+1/6 10000.0 Hz: -9.0 dBFS, Δ absolut 11.0 dB; Δ relativ 0.0 dB; Nachb. -22.1/-21.0 dBFS; 266.7 ms; Breitband-RMS L/R -12.7/-12.0 dBFS; Messfenster ungültig
+1/6 11220.2 Hz: -4.3 dBFS, Δ absolut 15.7 dB; Δ relativ 0.0 dB; Nachb. -17.6/-16.2 dBFS; 316.7 ms; Breitband-RMS L/R -7.9/-7.3 dBFS; Messfenster ungültig
+1/6 14125.4 Hz: -2.7 dBFS, Δ absolut 17.3 dB; Δ relativ 0.0 dB; Nachb. -16.8/-14.3 dBFS; 283.3 ms; Breitband-RMS L/R -5.7/-6.1 dBFS; Messfenster ungültig
+1/6 15848.9 Hz: -4.4 dBFS, Δ absolut 15.6 dB; Δ relativ 0.0 dB; Nachb. -19.2/-15.7 dBFS; 350.0 ms; Breitband-RMS L/R -7.4/-7.4 dBFS; Messfenster ungültig
+1/6 17782.8 Hz: -6.4 dBFS, Δ absolut 13.6 dB; Δ relativ 0.0 dB; Nachb. -22.3/-17.3 dBFS; 400.0 ms; Breitband-RMS L/R -9.9/-9.4 dBFS; Messfenster ungültig
+1/6 19952.6 Hz: -8.8 dBFS, Δ absolut 11.2 dB; Δ relativ 0.0 dB; Nachb. -26.8 dBFS; 383.3 ms; Breitband-RMS L/R -11.8/-11.8 dBFS; Messfenster ungültig
+1/12 39.8 Hz: -16.1 dBFS, Δ absolut 3.9 dB; Δ relativ -0.7 dB; Nachb. -28.3/-28.4 dBFS; 400.0 ms; Breitband-RMS L/R -18.4/-18.4 dBFS; Messfenster ungültig
+1/12 50.1 Hz: -9.3 dBFS, Δ absolut 10.7 dB; Δ relativ -0.0 dB; Nachb. -21.6/-21.8 dBFS; 333.3 ms; Breitband-RMS L/R -12.3/-12.3 dBFS; Messfenster ungültig
+1/12 70.8 Hz: -20.0 dBFS, Δ absolut 0.0 dB; Δ relativ 0.2 dB; Nachb. -32.4/-32.4 dBFS; 183.3 ms; Breitband-RMS L/R -23.1/-23.2 dBFS; Messfenster ungültig
+1/12 75.0 Hz: -18.8 dBFS, Δ absolut 1.2 dB; Δ relativ 0.1 dB; Nachb. -31.2/-31.2 dBFS; 166.7 ms; Breitband-RMS L/R -21.9/-22.0 dBFS; Messfenster ungültig
+1/12 89.1 Hz: -9.4 dBFS, Δ absolut 10.6 dB; Δ relativ -0.2 dB; Nachb. -21.6/-21.6 dBFS; 600.0 ms; Breitband-RMS L/R -12.2/-12.3 dBFS; Messfenster ungültig
+1/12 118.9 Hz: -7.4 dBFS, Δ absolut 12.6 dB; Δ relativ -0.2 dB; Nachb. -19.6/-19.6 dBFS; 533.3 ms; Breitband-RMS L/R -10.3/-10.2 dBFS; Messfenster ungültig
+1/12 125.9 Hz: -5.0 dBFS, Δ absolut 15.0 dB; Δ relativ -0.1 dB; Nachb. -17.3/-17.3 dBFS; 283.3 ms; Breitband-RMS L/R -8.0/-8.0 dBFS; Messfenster ungültig
+1/12 149.6 Hz: -6.3 dBFS, Δ absolut 13.7 dB; Δ relativ -0.2 dB; Nachb. -18.5/-18.5 dBFS; 483.3 ms; Breitband-RMS L/R -9.1/-9.1 dBFS; Messfenster ungültig
+1/12 167.9 Hz: -7.7 dBFS, Δ absolut 12.3 dB; Δ relativ -0.2 dB; Nachb. -19.8/-19.8 dBFS; 466.7 ms; Breitband-RMS L/R -10.5/-10.5 dBFS; Messfenster ungültig
+1/12 177.8 Hz: -6.4 dBFS, Δ absolut 13.6 dB; Δ relativ -0.1 dB; Nachb. -18.6/-18.6 dBFS; 433.3 ms; Breitband-RMS L/R -9.3/-9.3 dBFS; Messfenster ungültig
+1/12 199.5 Hz: -4.5 dBFS, Δ absolut 15.5 dB; Δ relativ -0.0 dB; Nachb. -16.8/-16.8 dBFS; 283.3 ms; Breitband-RMS L/R -7.5/-7.6 dBFS; Messfenster ungültig
+1/12 211.3 Hz: -4.2 dBFS, Δ absolut 15.8 dB; Δ relativ -0.0 dB; Nachb. -16.4/-16.4 dBFS; 283.3 ms; Breitband-RMS L/R -7.1/-7.2 dBFS; Messfenster ungültig
+1/12 223.9 Hz: -3.9 dBFS, Δ absolut 16.1 dB; Δ relativ -0.1 dB; Nachb. -16.2/-16.2 dBFS; 283.3 ms; Breitband-RMS L/R -6.9/-6.9 dBFS; Messfenster ungültig
+1/12 237.1 Hz: -3.7 dBFS, Δ absolut 16.3 dB; Δ relativ -0.1 dB; Nachb. -16.0/-16.0 dBFS; 283.3 ms; Breitband-RMS L/R -6.7/-6.7 dBFS; Messfenster ungültig
+1/12 251.2 Hz: -7.7 dBFS, Δ absolut 12.3 dB; Δ relativ -0.2 dB; Nachb. -19.8/-19.8 dBFS; 400.0 ms; Breitband-RMS L/R -10.5/-10.5 dBFS; Messfenster ungültig
+1/12 266.1 Hz: -4.7 dBFS, Δ absolut 15.3 dB; Δ relativ -0.1 dB; Nachb. -16.9/-16.9 dBFS; 250.0 ms; Breitband-RMS L/R -7.7/-7.6 dBFS; Messfenster ungültig
+1/12 281.8 Hz: -6.1 dBFS, Δ absolut 13.9 dB; Δ relativ -0.1 dB; Nachb. -18.3/-18.3 dBFS; 333.3 ms; Breitband-RMS L/R -9.0/-9.1 dBFS; Messfenster ungültig
+1/12 298.5 Hz: -5.6 dBFS, Δ absolut 14.4 dB; Δ relativ -0.1 dB; Nachb. -17.8/-17.8 dBFS; 333.3 ms; Breitband-RMS L/R -8.5/-8.6 dBFS; Messfenster ungültig
+1/12 316.2 Hz: -4.7 dBFS, Δ absolut 15.3 dB; Δ relativ -0.1 dB; Nachb. -16.9/-16.9 dBFS; 316.7 ms; Breitband-RMS L/R -7.7/-7.6 dBFS; Messfenster ungültig
+1/12 335.0 Hz: -4.9 dBFS, Δ absolut 15.1 dB; Δ relativ -0.1 dB; Nachb. -17.1/-17.1 dBFS; 316.7 ms; Breitband-RMS L/R -7.8/-7.8 dBFS; Messfenster ungültig
+1/12 354.8 Hz: -5.8 dBFS, Δ absolut 14.2 dB; Δ relativ -0.1 dB; Nachb. -18.0/-18.0 dBFS; 300.0 ms; Breitband-RMS L/R -8.7/-8.7 dBFS; Messfenster ungültig
+1/12 375.8 Hz: -5.2 dBFS, Δ absolut 14.8 dB; Δ relativ -0.1 dB; Nachb. -17.4/-17.4 dBFS; 300.0 ms; Breitband-RMS L/R -8.1/-8.2 dBFS; Messfenster ungültig
+1/12 398.1 Hz: -4.9 dBFS, Δ absolut 15.1 dB; Δ relativ -0.1 dB; Nachb. -17.2/-17.2 dBFS; 316.7 ms; Breitband-RMS L/R -7.9/-7.9 dBFS; Messfenster ungültig
+1/12 421.7 Hz: -4.1 dBFS, Δ absolut 15.9 dB; Δ relativ -0.1 dB; Nachb. -16.3/-16.3 dBFS; 316.7 ms; Breitband-RMS L/R -7.0/-7.0 dBFS; Messfenster ungültig
+1/12 446.7 Hz: -3.9 dBFS, Δ absolut 16.1 dB; Δ relativ -0.1 dB; Nachb. -16.2/-16.2 dBFS; 316.7 ms; Breitband-RMS L/R -7.0/-6.9 dBFS; Messfenster ungültig
+1/12 473.2 Hz: -4.0 dBFS, Δ absolut 16.0 dB; Δ relativ -0.1 dB; Nachb. -16.2/-16.2 dBFS; 316.7 ms; Breitband-RMS L/R -6.9/-7.0 dBFS; Messfenster ungültig
+1/12 501.2 Hz: -3.4 dBFS, Δ absolut 16.6 dB; Δ relativ -0.1 dB; Nachb. -15.6/-15.6 dBFS; 316.7 ms; Breitband-RMS L/R -6.3/-6.3 dBFS; Messfenster ungültig
+1/12 530.9 Hz: -3.2 dBFS, Δ absolut 16.8 dB; Δ relativ -0.0 dB; Nachb. -15.5/-15.5 dBFS; 316.7 ms; Breitband-RMS L/R -6.4/-6.2 dBFS; Messfenster ungültig
+1/12 562.3 Hz: -3.9 dBFS, Δ absolut 16.1 dB; Δ relativ -0.0 dB; Nachb. -16.2/-16.2 dBFS; 316.7 ms; Breitband-RMS L/R -6.9/-6.9 dBFS; Messfenster ungültig
+1/12 595.7 Hz: -2.9 dBFS, Δ absolut 17.1 dB; Δ relativ -0.0 dB; Nachb. -15.2/-15.2 dBFS; 283.3 ms; Breitband-RMS L/R -5.9/-6.0 dBFS; Messfenster ungültig
+1/12 631.0 Hz: -2.8 dBFS, Δ absolut 17.2 dB; Δ relativ -0.0 dB; Nachb. -15.1/-15.1 dBFS; 300.0 ms; Breitband-RMS L/R -5.8/-6.1 dBFS; Messfenster ungültig
+1/12 668.3 Hz: -3.0 dBFS, Δ absolut 17.0 dB; Δ relativ -0.0 dB; Nachb. -15.3/-15.3 dBFS; 300.0 ms; Breitband-RMS L/R -6.0/-6.1 dBFS; Messfenster ungültig
+1/12 707.9 Hz: -3.0 dBFS, Δ absolut 17.0 dB; Δ relativ -0.0 dB; Nachb. -15.3/-15.3 dBFS; 283.3 ms; Breitband-RMS L/R -6.0/-6.2 dBFS; Messfenster ungültig
+1/12 749.9 Hz: -3.8 dBFS, Δ absolut 16.2 dB; Δ relativ -0.0 dB; Nachb. -16.1/-16.1 dBFS; 300.0 ms; Breitband-RMS L/R -7.0/-6.8 dBFS; Messfenster ungültig
+1/12 794.3 Hz: -3.1 dBFS, Δ absolut 16.9 dB; Δ relativ -0.0 dB; Nachb. -15.4/-15.4 dBFS; 300.0 ms; Breitband-RMS L/R -6.1/-6.5 dBFS; Messfenster ungültig
+1/12 841.4 Hz: -3.3 dBFS, Δ absolut 16.7 dB; Δ relativ -0.0 dB; Nachb. -15.6/-15.6 dBFS; 300.0 ms; Breitband-RMS L/R -6.4/-6.3 dBFS; Messfenster ungültig
+1/12 891.3 Hz: -3.0 dBFS, Δ absolut 17.0 dB; Δ relativ -0.0 dB; Nachb. -15.3/-15.3 dBFS; 300.0 ms; Breitband-RMS L/R -6.0/-6.4 dBFS; Messfenster ungültig
+1/12 944.1 Hz: -4.9 dBFS, Δ absolut 15.1 dB; Δ relativ -0.0 dB; Nachb. -17.2/-17.2 dBFS; 300.0 ms; Breitband-RMS L/R -7.9/-8.1 dBFS; Messfenster ungültig
+1/12 1000.0 Hz: -5.1 dBFS, Δ absolut 14.9 dB; Δ relativ -0.0 dB; Nachb. -17.4/-17.4 dBFS; 283.3 ms; Breitband-RMS L/R -8.1/-8.3 dBFS; Messfenster ungültig
+1/12 1059.3 Hz: -6.4 dBFS, Δ absolut 13.6 dB; Δ relativ -0.0 dB; Nachb. -18.7/-18.7 dBFS; 283.3 ms; Breitband-RMS L/R -9.5/-9.4 dBFS; Messfenster ungültig
+1/12 1122.0 Hz: -6.2 dBFS, Δ absolut 13.8 dB; Δ relativ -0.0 dB; Nachb. -18.5/-18.5 dBFS; 283.3 ms; Breitband-RMS L/R -9.2/-9.3 dBFS; Messfenster ungültig
+1/12 1188.5 Hz: -3.2 dBFS, Δ absolut 16.8 dB; Δ relativ -0.0 dB; Nachb. -15.5/-15.5 dBFS; 283.3 ms; Breitband-RMS L/R -6.4/-6.2 dBFS; Messfenster ungültig
+1/12 1258.9 Hz: -3.0 dBFS, Δ absolut 17.0 dB; Δ relativ -0.0 dB; Nachb. -15.3/-15.3 dBFS; 283.3 ms; Breitband-RMS L/R -6.2/-6.0 dBFS; Messfenster ungültig
+1/12 1333.5 Hz: -4.8 dBFS, Δ absolut 15.2 dB; Δ relativ -0.0 dB; Nachb. -17.1/-17.1 dBFS; 300.0 ms; Breitband-RMS L/R -7.8/-7.8 dBFS; Messfenster ungültig
+1/12 1412.5 Hz: -5.8 dBFS, Δ absolut 14.2 dB; Δ relativ -0.0 dB; Nachb. -18.1/-18.1 dBFS; 283.3 ms; Breitband-RMS L/R -9.5/-8.8 dBFS; Messfenster ungültig
+1/12 1496.2 Hz: -6.6 dBFS, Δ absolut 13.4 dB; Δ relativ -0.0 dB; Nachb. -18.9/-18.9 dBFS; 283.3 ms; Breitband-RMS L/R -10.1/-9.6 dBFS; Messfenster ungültig
+1/12 1584.9 Hz: -7.0 dBFS, Δ absolut 13.0 dB; Δ relativ -0.0 dB; Nachb. -19.3/-19.3 dBFS; 283.3 ms; Breitband-RMS L/R -10.3/-10.0 dBFS; Messfenster ungültig
+1/12 1678.8 Hz: -5.9 dBFS, Δ absolut 14.1 dB; Δ relativ -0.0 dB; Nachb. -18.2/-18.2 dBFS; 300.0 ms; Breitband-RMS L/R -8.9/-9.0 dBFS; Messfenster ungültig
+1/12 1778.3 Hz: -7.4 dBFS, Δ absolut 12.6 dB; Δ relativ -0.0 dB; Nachb. -19.7/-19.7 dBFS; 283.3 ms; Breitband-RMS L/R -10.7/-10.4 dBFS; Messfenster ungültig
+1/12 1883.6 Hz: -7.7 dBFS, Δ absolut 12.3 dB; Δ relativ -0.0 dB; Nachb. -20.0/-20.0 dBFS; 283.3 ms; Breitband-RMS L/R -10.7/-10.9 dBFS; Messfenster ungültig
+1/12 1995.3 Hz: -7.2 dBFS, Δ absolut 12.8 dB; Δ relativ -0.0 dB; Nachb. -19.5/-19.5 dBFS; 266.7 ms; Breitband-RMS L/R -10.2/-10.8 dBFS; Messfenster ungültig
+1/12 2113.5 Hz: -5.1 dBFS, Δ absolut 14.9 dB; Δ relativ -0.0 dB; Nachb. -17.4/-17.4 dBFS; 333.3 ms; Breitband-RMS L/R -8.1/-8.1 dBFS; Messfenster ungültig
+1/12 2238.7 Hz: -5.3 dBFS, Δ absolut 14.7 dB; Δ relativ -0.0 dB; Nachb. -17.7/-17.6 dBFS; 333.3 ms; Breitband-RMS L/R -8.4/-8.4 dBFS; Messfenster ungültig
+1/12 2371.4 Hz: -5.4 dBFS, Δ absolut 14.6 dB; Δ relativ 0.0 dB; Nachb. -17.7/-17.7 dBFS; 283.3 ms; Breitband-RMS L/R -8.4/-8.4 dBFS; Messfenster ungültig
+1/12 2511.9 Hz: -6.8 dBFS, Δ absolut 13.2 dB; Δ relativ 0.0 dB; Nachb. -19.1/-19.1 dBFS; 266.7 ms; Breitband-RMS L/R -9.9/-9.8 dBFS; Messfenster ungültig
+1/12 2660.7 Hz: -7.1 dBFS, Δ absolut 12.9 dB; Δ relativ 0.0 dB; Nachb. -19.5/-19.4 dBFS; 266.7 ms; Breitband-RMS L/R -10.1/-10.5 dBFS; Messfenster ungültig
+1/12 2818.4 Hz: -6.5 dBFS, Δ absolut 13.5 dB; Δ relativ 0.0 dB; Nachb. -18.9/-18.8 dBFS; 283.3 ms; Breitband-RMS L/R -9.5/-9.5 dBFS; Messfenster ungültig
+1/12 2985.4 Hz: -5.4 dBFS, Δ absolut 14.6 dB; Δ relativ 0.0 dB; Nachb. -17.7/-17.6 dBFS; 316.7 ms; Breitband-RMS L/R -8.4/-8.5 dBFS; Messfenster ungültig
+1/12 3162.3 Hz: -5.8 dBFS, Δ absolut 14.2 dB; Δ relativ 0.0 dB; Nachb. -18.2/-18.1 dBFS; 333.3 ms; Breitband-RMS L/R -8.8/-8.9 dBFS; Messfenster ungültig
+1/12 3349.7 Hz: -7.6 dBFS, Δ absolut 12.4 dB; Δ relativ 0.0 dB; Nachb. -19.9/-19.8 dBFS; 250.0 ms; Breitband-RMS L/R -10.6/-10.8 dBFS; Messfenster ungültig
+1/12 3548.1 Hz: -6.7 dBFS, Δ absolut 13.3 dB; Δ relativ 0.0 dB; Nachb. -19.0/-19.0 dBFS; 300.0 ms; Breitband-RMS L/R -9.7/-10.1 dBFS; Messfenster ungültig
+1/12 3758.4 Hz: -5.9 dBFS, Δ absolut 14.1 dB; Δ relativ 0.0 dB; Nachb. -18.3/-18.2 dBFS; 350.0 ms; Breitband-RMS L/R -8.9/-9.0 dBFS; Messfenster ungültig
+1/12 3981.1 Hz: -7.2 dBFS, Δ absolut 12.8 dB; Δ relativ 0.0 dB; Nachb. -19.6/-19.5 dBFS; 283.3 ms; Breitband-RMS L/R -10.3/-10.5 dBFS; Messfenster ungültig
+1/12 4217.0 Hz: -7.9 dBFS, Δ absolut 12.1 dB; Δ relativ 0.0 dB; Nachb. -20.3/-20.2 dBFS; 266.7 ms; Breitband-RMS L/R -11.2/-10.9 dBFS; Messfenster ungültig
+1/12 4466.8 Hz: -6.1 dBFS, Δ absolut 13.9 dB; Δ relativ 0.0 dB; Nachb. -18.5/-18.4 dBFS; 366.7 ms; Breitband-RMS L/R -9.1/-9.3 dBFS; Messfenster ungültig
+1/12 4731.5 Hz: -5.5 dBFS, Δ absolut 14.5 dB; Δ relativ 0.0 dB; Nachb. -17.8/-17.7 dBFS; 350.0 ms; Breitband-RMS L/R -8.8/-8.5 dBFS; Messfenster ungültig
+1/12 5011.9 Hz: -5.6 dBFS, Δ absolut 14.4 dB; Δ relativ 0.0 dB; Nachb. -18.0/-17.9 dBFS; 333.3 ms; Breitband-RMS L/R -8.8/-8.6 dBFS; Messfenster ungültig
+1/12 5308.8 Hz: -8.7 dBFS, Δ absolut 11.3 dB; Δ relativ 0.0 dB; Nachb. -21.1/-21.0 dBFS; 250.0 ms; Breitband-RMS L/R -11.8/-12.3 dBFS; Messfenster ungültig
+1/12 5623.4 Hz: -5.9 dBFS, Δ absolut 14.1 dB; Δ relativ 0.0 dB; Nachb. -18.3/-18.1 dBFS; 366.7 ms; Breitband-RMS L/R -8.9/-9.6 dBFS; Messfenster ungültig
+1/12 5956.6 Hz: -6.4 dBFS, Δ absolut 13.6 dB; Δ relativ 0.0 dB; Nachb. -18.8/-18.6 dBFS; 350.0 ms; Breitband-RMS L/R -9.4/-9.6 dBFS; Messfenster ungültig
+1/12 6309.6 Hz: -9.6 dBFS, Δ absolut 10.4 dB; Δ relativ 0.0 dB; Nachb. -22.0/-21.8 dBFS; 283.3 ms; Breitband-RMS L/R -13.5/-12.6 dBFS; Messfenster ungültig
+1/12 6683.4 Hz: -6.8 dBFS, Δ absolut 13.2 dB; Δ relativ 0.0 dB; Nachb. -19.3/-19.1 dBFS; 366.7 ms; Breitband-RMS L/R -9.8/-10.6 dBFS; Messfenster ungültig
+1/12 7079.5 Hz: -6.7 dBFS, Δ absolut 13.3 dB; Δ relativ 0.0 dB; Nachb. -19.2/-18.9 dBFS; 366.7 ms; Breitband-RMS L/R -10.2/-9.7 dBFS; Messfenster ungültig
+1/12 7498.9 Hz: -7.1 dBFS, Δ absolut 12.9 dB; Δ relativ 0.0 dB; Nachb. -19.6/-19.3 dBFS; 383.3 ms; Breitband-RMS L/R -10.1/-10.5 dBFS; Messfenster ungültig
+1/12 7943.3 Hz: -9.5 dBFS, Δ absolut 10.5 dB; Δ relativ 0.0 dB; Nachb. -22.0/-21.7 dBFS; 300.0 ms; Breitband-RMS L/R -12.5/-12.5 dBFS; Messfenster ungültig
+1/12 8414.0 Hz: -5.0 dBFS, Δ absolut 15.0 dB; Δ relativ 0.0 dB; Nachb. -17.6/-17.2 dBFS; 366.7 ms; Breitband-RMS L/R -8.0/-8.7 dBFS; Messfenster ungültig
+1/12 8912.5 Hz: -6.2 dBFS, Δ absolut 13.8 dB; Δ relativ 0.0 dB; Nachb. -18.8/-18.4 dBFS; 366.7 ms; Breitband-RMS L/R -9.2/-9.8 dBFS; Messfenster ungültig
+1/12 9440.6 Hz: -6.0 dBFS, Δ absolut 14.0 dB; Δ relativ 0.0 dB; Nachb. -18.7/-18.2 dBFS; 333.3 ms; Breitband-RMS L/R -9.0/-9.2 dBFS; Messfenster ungültig
+1/12 10000.0 Hz: -9.6 dBFS, Δ absolut 10.4 dB; Δ relativ -0.0 dB; Nachb. -22.3/-21.8 dBFS; 250.0 ms; Breitband-RMS L/R -13.1/-12.6 dBFS; Messfenster ungültig
+1/12 10592.5 Hz: -10.4 dBFS, Δ absolut 9.6 dB; Δ relativ 0.0 dB; Nachb. -23.2/-22.5 dBFS; 433.3 ms; Breitband-RMS L/R -14.0/-13.4 dBFS; Messfenster ungültig
+1/12 11220.2 Hz: -3.9 dBFS, Δ absolut 16.1 dB; Δ relativ 0.0 dB; Nachb. -16.8/-16.0 dBFS; 333.3 ms; Breitband-RMS L/R -7.0/-6.9 dBFS; Messfenster ungültig
+1/12 11885.0 Hz: -2.6 dBFS, Δ absolut 17.4 dB; Δ relativ -0.0 dB; Nachb. -15.5/-14.7 dBFS; 250.0 ms; Breitband-RMS L/R -5.7/-5.6 dBFS; Messfenster ungültig
+1/12 12589.3 Hz: -2.9 dBFS, Δ absolut 17.1 dB; Δ relativ 0.0 dB; Nachb. -15.9/-14.9 dBFS; 266.7 ms; Breitband-RMS L/R -5.9/-6.0 dBFS; Messfenster ungültig
+1/12 13335.2 Hz: -2.8 dBFS, Δ absolut 17.2 dB; Δ relativ -0.0 dB; Nachb. -15.9/-14.8 dBFS; 250.0 ms; Breitband-RMS L/R -5.8/-5.8 dBFS; Messfenster ungültig
+1/12 14125.4 Hz: -3.0 dBFS, Δ absolut 17.0 dB; Δ relativ 0.0 dB; Nachb. -16.3/-14.9 dBFS; 283.3 ms; Breitband-RMS L/R -6.0/-6.0 dBFS; Messfenster ungültig
+1/12 14962.4 Hz: -5.5 dBFS, Δ absolut 14.5 dB; Δ relativ 0.0 dB; Nachb. -18.9/-17.3 dBFS; 316.7 ms; Breitband-RMS L/R -8.5/-8.5 dBFS; Messfenster ungültig
+1/12 15848.9 Hz: -10.6 dBFS, Δ absolut 9.4 dB; Δ relativ 0.0 dB; Nachb. -24.2/-22.4 dBFS; 450.0 ms; Breitband-RMS L/R -13.6/-13.6 dBFS; Messfenster ungültig
+1/12 16788.0 Hz: -4.1 dBFS, Δ absolut 15.9 dB; Δ relativ 0.0 dB; Nachb. -18.0/-15.8 dBFS; 316.7 ms; Breitband-RMS L/R -7.2/-7.1 dBFS; Messfenster ungültig
+1/12 17782.8 Hz: -2.6 dBFS, Δ absolut 17.4 dB; Δ relativ -0.0 dB; Nachb. -16.9/-14.1 dBFS; 250.0 ms; Breitband-RMS L/R -5.6/-5.6 dBFS; Messfenster ungültig
+1/12 18836.5 Hz: -6.6 dBFS, Δ absolut 13.4 dB; Δ relativ 0.0 dB; Nachb. -21.4/-18.0 dBFS; 416.7 ms; Breitband-RMS L/R -9.7/-9.7 dBFS; Messfenster ungültig
+1/12 19952.6 Hz: -7.7 dBFS, Δ absolut 12.3 dB; Δ relativ 0.0 dB; Nachb. -23.3 dBFS; 400.0 ms; Breitband-RMS L/R -10.8/-10.8 dBFS; Messfenster ungültig
+1/6 35.5 Hz: OK; -19.8 dBFS; Δ absolut 0.2 dB; Δ relativ -0.8 dB; Breitband-RMS L/R -22.1/-22.0 dBFS
+1/6 39.8 Hz: OK; -16.2 dBFS; Δ absolut 3.8 dB; Δ relativ -0.7 dB; Breitband-RMS L/R -18.5/-18.5 dBFS
+1/6 56.2 Hz: OK; -9.1 dBFS; Δ absolut 10.9 dB; Δ relativ -0.1 dB; Breitband-RMS L/R -12.0/-12.0 dBFS
+1/6 70.8 Hz: OK; -10.3 dBFS; Δ absolut 9.7 dB; Δ relativ -0.0 dB; Breitband-RMS L/R -13.3/-13.4 dBFS
+1/6 12589.3 Hz: OK; -2.6 dBFS; Δ absolut 17.4 dB; Δ relativ 0.0 dB; Breitband-RMS L/R -5.6/-5.7 dBFS
+1/12 25.1 Hz: OK; -32.6 dBFS; Δ absolut -12.6 dB; Δ relativ -0.8 dB; Breitband-RMS L/R -34.8/-34.8 dBFS
+1/12 26.6 Hz: OK; -29.5 dBFS; Δ absolut -9.5 dB; Δ relativ -0.8 dB; Breitband-RMS L/R -31.7/-31.6 dBFS
+1/12 28.2 Hz: OK; -27.6 dBFS; Δ absolut -7.6 dB; Δ relativ -0.8 dB; Breitband-RMS L/R -29.7/-29.7 dBFS
+1/12 29.9 Hz: OK; -25.5 dBFS; Δ absolut -5.5 dB; Δ relativ -1.0 dB; Breitband-RMS L/R -27.6/-27.6 dBFS
+1/12 31.6 Hz: OK; -23.8 dBFS; Δ absolut -3.8 dB; Δ relativ -0.9 dB; Breitband-RMS L/R -25.9/-25.9 dBFS
+1/12 33.5 Hz: OK; -21.4 dBFS; Δ absolut -1.4 dB; Δ relativ -0.9 dB; Breitband-RMS L/R -23.5/-23.5 dBFS
+1/12 35.5 Hz: OK; -19.6 dBFS; Δ absolut 0.4 dB; Δ relativ -0.8 dB; Breitband-RMS L/R -21.8/-21.8 dBFS
+1/12 37.6 Hz: OK; -18.0 dBFS; Δ absolut 2.0 dB; Δ relativ -0.7 dB; Breitband-RMS L/R -20.4/-20.3 dBFS
+1/12 42.2 Hz: OK; -13.4 dBFS; Δ absolut 6.6 dB; Δ relativ -0.4 dB; Breitband-RMS L/R -16.0/-15.9 dBFS
+1/12 44.7 Hz: OK; -11.3 dBFS; Δ absolut 8.7 dB; Δ relativ -0.3 dB; Breitband-RMS L/R -14.0/-14.0 dBFS
+1/12 47.3 Hz: OK; -10.2 dBFS; Δ absolut 9.8 dB; Δ relativ -0.3 dB; Breitband-RMS L/R -12.9/-13.0 dBFS
+1/12 53.1 Hz: OK; -9.1 dBFS; Δ absolut 10.9 dB; Δ relativ 0.1 dB; Breitband-RMS L/R -12.2/-12.2 dBFS
+1/12 56.2 Hz: OK; -9.0 dBFS; Δ absolut 11.0 dB; Δ relativ -0.0 dB; Breitband-RMS L/R -12.0/-12.0 dBFS
+1/12 59.6 Hz: OK; -8.9 dBFS; Δ absolut 11.1 dB; Δ relativ 0.0 dB; Breitband-RMS L/R -12.0/-12.0 dBFS
+1/12 63.1 Hz: OK; -9.0 dBFS; Δ absolut 11.0 dB; Δ relativ 0.0 dB; Breitband-RMS L/R -12.1/-12.0 dBFS
+1/12 66.8 Hz: OK; -8.9 dBFS; Δ absolut 11.1 dB; Δ relativ 0.1 dB; Breitband-RMS L/R -11.9/-11.9 dBFS
+1/12 79.4 Hz: OK; -8.9 dBFS; Δ absolut 11.1 dB; Δ relativ 0.0 dB; Breitband-RMS L/R -11.9/-12.0 dBFS
+1/12 84.1 Hz: OK; -8.9 dBFS; Δ absolut 11.1 dB; Δ relativ -0.0 dB; Breitband-RMS L/R -11.9/-12.0 dBFS
+1/12 94.4 Hz: OK; -7.5 dBFS; Δ absolut 12.5 dB; Δ relativ -0.0 dB; Breitband-RMS L/R -10.5/-10.6 dBFS
+1/12 100.0 Hz: OK; -7.0 dBFS; Δ absolut 13.0 dB; Δ relativ -0.0 dB; Breitband-RMS L/R -10.1/-10.0 dBFS
+1/12 105.9 Hz: OK; -6.4 dBFS; Δ absolut 13.6 dB; Δ relativ -0.0 dB; Breitband-RMS L/R -9.5/-9.4 dBFS
+1/12 112.2 Hz: OK; -6.6 dBFS; Δ absolut 13.4 dB; Δ relativ -0.0 dB; Breitband-RMS L/R -9.6/-9.6 dBFS
+1/12 133.4 Hz: OK; -4.3 dBFS; Δ absolut 15.7 dB; Δ relativ 0.0 dB; Breitband-RMS L/R -7.4/-7.4 dBFS
+1/12 141.3 Hz: OK; -3.9 dBFS; Δ absolut 16.1 dB; Δ relativ -0.0 dB; Breitband-RMS L/R -6.9/-6.9 dBFS
+1/12 158.5 Hz: OK; -4.8 dBFS; Δ absolut 15.2 dB; Δ relativ 0.0 dB; Breitband-RMS L/R -7.8/-7.8 dBFS
+1/12 188.4 Hz: OK; -4.5 dBFS; Δ absolut 15.5 dB; Δ relativ 0.0 dB; Breitband-RMS L/R -7.6/-7.5 dBFS
+Diagnose: USB-Audio - ADI-2 DAC (52000001) · 48000 Hz / 2 Kanäle / PCM_FLOAT
+Ausgangseffekte: Aktive USB-Effekte öffentlich nicht abfragbar; System-/Herstellereffekte möglich; verfügbar (Aktivierung unbekannt): DAP_game (Hersteller); Notification Listener (Hersteller); System Listener (Hersteller); Alarm Listener (Hersteller); Ring Listener (Hersteller); Music Listener (Hersteller); DAP (Hersteller); Moto SST Sound (Moto Audio); Noise Suppression (Qualcomm Fluence); Acoustic Echo Canceler (Qualcomm Fluence); Loudness Enhancer (The Android Open Source Project); Dynamics Processing (The Android Open Source Project); Multichannel Downmix To Stereo (The Android O
+Signalweg: pre FX / alle Ausgänge stumm
+System-Klangeffekte können die Messung verfälschen
+Kein passender Bit-Perfect-USB-Mixer für 48 kHz Stereo angeboten
