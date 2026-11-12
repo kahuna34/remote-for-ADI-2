@@ -63,7 +63,7 @@ Der vorhandene Controller verwendet wahlweise den bisherigen MIDI-Transport oder
 
 „Über Host verbinden“ zeigt gefundene und gespeicherte Hosts, QR-Scan, Code-Kopplung und manuelle Adresse. Die Hintergrundsuche aktualisiert die Adresse bekannter Host-IDs bei der nächsten Verbindung. Wiederverbindungen werden im Vordergrund alle drei Sekunden versucht. Jede neue Sitzung leert Gerätewerte, Rampen und EQ-Ziele und fragt den aktuellen Stand neu ab. Änderungen anderer Clients kommen wie normale Geräterückmeldungen an; die bestehende kurze Sperrfrist gegen veraltete Echos eigener Schreibbefehle bleibt wirksam. Beim Lesen gespeicherter EQ-Presets ordnet der Controller die Daten anhand der vorangestellten Preset-Nummer zu und ignoriert fremde Presetantworten für seinen eigenen Lesevorgang. Für die gemeinsame Abfragewarteschlange und die Statuspause wartet die App über den Host bis zu fünf Sekunden auf ein Preset; per USB bleiben es zwei Sekunden. Der Transport besitzt keinen Wiederholpuffer. Der Kopf zeigt HOST und den Host-Namen mit denselben Layout-Regeln wie OFFLINE.
 
-Android erhält Kamera- und Multicast-Rechte sowie einen während der Suche gehaltenen Multicast-Lock. iOS erhält lokale Netzwerkfreigabe, Bonjour-Dienst und Kamera-Begründung. Das macOS-Ziel der Haupt-App erhält keine Host-Funktion.
+Android erhält Kamera- und Multicast-Rechte sowie einen während der Suche gehaltenen Multicast-Lock. Das macOS-Ziel der Haupt-App erhält keine Host-Funktion.
 
 ## Prüfstand und offene Punkte
 
@@ -71,6 +71,6 @@ Protokoll-, Kopplungs-, Controller-, Abzeichen-, Filter- und Autostart-Tests sin
 
 Windows-Prüfung (Flutter stable, VS Build Tools 2022): `flutter analyze` ohne Befund und `flutter test` grün in Hauptprojekt und Host, `flutter build windows --release` erfolgreich. Der Namensparser liefert am angeschlossenen ADI-2 DAC `ADI-2 DAC (<Seriennummer>)`. Noch manuell zu prüfen: Zusammenspiel mit RME ADI-2 Remote, Smartphone-Test, Autostart nach Neuanmeldung, Firewall-Abfrage.
 
-Auf echter Hardware offen sind Windows-Infobereich, macOS-Menüleiste und verborgener Start, Autostart bei Anmeldung, QR-Kamera und mDNS auf Android/iPhone, WLAN-Wechsel und Ruhezustand, USB-Belegt-Erkennung, tatsächliche Pegel-/Ref-Level-Rückmeldungen aller Modelle sowie paralleler Betrieb mit der RME-Software. Windows muss eingehende Verbindungen für den Host im privaten Netzwerk erlauben. TCP-Port 47321 beziehungsweise der angezeigte Ausweichport und mDNS über UDP 5353 müssen erreichbar sein.
+Auf echter Hardware offen sind Windows-Infobereich, macOS-Menüleiste und verborgener Start, Autostart bei Anmeldung, QR-Kamera und mDNS auf Android, WLAN-Wechsel und Ruhezustand, USB-Belegt-Erkennung, tatsächliche Pegel-/Ref-Level-Rückmeldungen aller Modelle sowie paralleler Betrieb mit der RME-Software. Windows muss eingehende Verbindungen für den Host im privaten Netzwerk erlauben. TCP-Port 47321 beziehungsweise der angezeigte Ausweichport und mDNS über UDP 5353 müssen erreichbar sein.
 
 Paketierung, Signierung, Notarisierung, Installation und Updates sind weitere offene Schritte. **Analyzer über Host gehört zu einer späteren Stufe.** Dafür sind Desktop-Loopback-Aufnahme, Kanalrouting, lokale Spektrumsberechnung, Kalibrierung je Aufnahmeweg und die Übertragung zeitlich zuordenbarer Spektrums-/Pegelwerte erforderlich. Die App zeigt dafür derzeit einen Hinweis.

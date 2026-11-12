@@ -2,7 +2,7 @@
 
 Version **1.1.2 (4)** · [Projektübersicht](README.de.md) · [English](USER_GUIDE.md)
 
-Dieses Handbuch beschreibt die aktuelle App. Die verfügbaren Regler hängen vom gewählten Modell und den vom Gerät gemeldeten Werten ab. Die Screenshots zeigen Android-Geräte mit englischer Oberfläche. Getestet ist die App mit allen unterstützten ADI-2-Modellen auf Android-Smartphone und Android-Tablet sowie mit dem ADI-2 DAC am Mac, auch über den Host. Eine iPhone-Version ist geplant. Die Player-Anbindung unterstützt derzeit nur Android.
+Dieses Handbuch beschreibt die aktuelle App. Die verfügbaren Regler hängen vom gewählten Modell und den vom Gerät gemeldeten Werten ab. Die Screenshots zeigen Android-Geräte mit englischer Oberfläche. Getestet ist die App mit allen unterstützten ADI-2-Modellen auf Android-Smartphone und Android-Tablet sowie mit dem ADI-2 DAC am Mac, auch über den Host. Die Player-Anbindung unterstützt derzeit nur Android.
 
 ## Inhalt
 
@@ -690,7 +690,7 @@ Der Analyzer macht das aufgenommene USB-Audiosignal als Spektrum sowie als Peak-
 
 Unter **Anzeige unter der Kopfzeile** den **Analyzer** wählen oder am Tablet im Querformat den **Zusatzbereich** verwenden. Die Aufnahmeberechtigung auf Nachfrage erteilen. Die App analysiert USB-Audio bei sichtbarem Analyzer. Auf Android muss die App dabei im Vordergrund sein. Am Mac läuft der Analyzer auch in einem sichtbaren Fenster ohne Fokus weiter. Die Aufnahme stoppt, wenn der Analyzer verborgen wird oder eine andere Seite darüber liegt. Die App speichert das Audio nicht und verwendet kein Smartphone-Mikrofon.
 
-**macOS:** Das ADI-2 direkt per USB am Mac anschließen und die Mikrofonberechtigung für die App erteilen. Der Analyzer wählt das ADI-2 ausdrücklich als Eingang; ohne dieses Gerät erfolgt keine Aufnahme. Bei mehreren passenden ADI-2-Eingängen startet die Aufnahme ebenfalls nicht, weil die Gerätewahl dann nicht eindeutig ist. Die Standard-Audiogeräte des Macs bleiben unverändert. Die gemeinsame Dart-Signalverarbeitung liefert dieselben Bandauflösungen und Anzeigen wie iOS. Es gibt keine Audiodateien und kein Mithören. Der Mac-Analyzer ist noch nicht auf echter Hardware geprüft.
+**macOS:** Das ADI-2 direkt per USB am Mac anschließen und die Mikrofonberechtigung für die App erteilen. Der Analyzer wählt das ADI-2 ausdrücklich als Eingang; ohne dieses Gerät erfolgt keine Aufnahme. Bei mehreren passenden ADI-2-Eingängen startet die Aufnahme ebenfalls nicht, weil die Gerätewahl dann nicht eindeutig ist. Die Standard-Audiogeräte des Macs bleiben unverändert. Es gibt keine Audiodateien und kein Mithören. Der Mac-Analyzer ist noch nicht auf echter Hardware geprüft.
 
 ### Plattformen und Grenzen
 
@@ -924,6 +924,6 @@ Hier finden Sie die Lizenzangabe und die Zuordnung der genannten Marken.
 
 Kostenlose freie Software unter **GPL-3.0**. © 2026 Markus Rass. [Lizenzhinweise des Projekts](README.de.md#lizenz-und-marken).
 
-RME ist eine eingetragene Marke von RME Intelligent Audio Solutions. ADI-2 Pro ist eine Marke von RME Intelligent Audio Solutions; ADI-2 und ADI-2 Remote sind Produktnamen von RME. Alesis und ADAT sind eingetragene Marken der Alesis Corp.; ADAT optical ist eine Marke der Alesis Corp. Apple, iPhone, Mac und macOS sind Marken der Apple Inc. Android ist eine Marke der Google LLC. Direct Stream Digital und DSD sind Marken der jeweiligen Inhaber (Sony / Philips). Alle weiteren Marken und Produktnamen gehören ihren jeweiligen Inhabern und werden nur zur Bezeichnung kompatibler Geräte und Funktionen verwendet.
+RME ist eine eingetragene Marke von RME Intelligent Audio Solutions. ADI-2 Pro ist eine Marke von RME Intelligent Audio Solutions; ADI-2 und ADI-2 Remote sind Produktnamen von RME. Alesis und ADAT sind eingetragene Marken der Alesis Corp.; ADAT optical ist eine Marke der Alesis Corp. Apple, Mac und macOS sind Marken der Apple Inc. Android ist eine Marke der Google LLC. Direct Stream Digital und DSD sind Marken der jeweiligen Inhaber (Sony / Philips). Alle weiteren Marken und Produktnamen gehören ihren jeweiligen Inhabern und werden nur zur Bezeichnung kompatibler Geräte und Funktionen verwendet.
 
 [Datenschutzerklärung](DATENSCHUTZ.md)

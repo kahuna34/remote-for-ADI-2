@@ -2,7 +2,7 @@
 
 Version **1.1.2 (4)** · [Project overview](../README.md) · [Deutsch](BENUTZERHANDBUCH.md)
 
-This guide describes the current app. Controls depend on the selected model and values reported by the device. Screenshots show Android devices and the English interface. The app has been tested with all supported ADI-2 models on an Android smartphone and an Android tablet, and with the ADI-2 DAC on a Mac, also through the host. An iPhone version is planned. The Player integration currently supports Android only.
+This guide describes the current app. Controls depend on the selected model and values reported by the device. Screenshots show Android devices and the English interface. The app has been tested with all supported ADI-2 models on an Android smartphone and an Android tablet, and with the ADI-2 DAC on a Mac, also through the host. The Player integration currently supports Android only.
 
 ## Contents
 
@@ -690,7 +690,7 @@ The analyzer displays captured USB audio as a spectrum and as peak and RMS level
 
 Choose **Analyzer** under **Display below the header**, or use the tablet’s landscape **Extra panel**. Grant recording permission when requested. The app analyzes USB audio while the analyzer is visible. On Android, the app must also be in the foreground. On Mac, the analyzer continues in a visible window without focus. Capture stops when the analyzer is hidden or another page covers it. The app does not save the audio or use the smartphone microphone.
 
-**macOS:** Connect the ADI-2 directly to the Mac over USB and grant the app microphone permission. The analyzer explicitly selects the ADI-2 input and does not capture without it. Capture also refuses multiple matching ADI-2 inputs because the target would be ambiguous. The Mac's default audio devices stay unchanged. Shared Dart signal processing provides the same band resolutions and displays as iOS. No audio files or monitoring are produced. The Mac analyzer has not yet been verified on real hardware.
+**macOS:** Connect the ADI-2 directly to the Mac over USB and grant the app microphone permission. The analyzer explicitly selects the ADI-2 input and does not capture without it. Capture also refuses multiple matching ADI-2 inputs because the target would be ambiguous. The Mac's default audio devices stay unchanged. No audio files or monitoring are produced. The Mac analyzer has not yet been verified on real hardware.
 
 ### Platforms and limitations
 
@@ -924,6 +924,6 @@ This section identifies the software license and owners of the named trademarks.
 
 Free software under **GPL-3.0**. © 2026 Markus Rass. [Project license information](../README.md#license-and-trademarks).
 
-RME is a registered trademark of RME Intelligent Audio Solutions. ADI-2 Pro is a trademark of RME Intelligent Audio Solutions; ADI-2 and ADI-2 Remote are RME product names. Alesis and ADAT are registered trademarks of Alesis Corp.; ADAT optical is a trademark of Alesis Corp. Apple, iPhone, Mac and macOS are trademarks of Apple Inc. Android is a trademark of Google LLC. Direct Stream Digital and DSD are trademarks of their respective owners (Sony / Philips). All other trademarks and product names belong to their respective owners and are used only to identify compatible devices and functions.
+RME is a registered trademark of RME Intelligent Audio Solutions. ADI-2 Pro is a trademark of RME Intelligent Audio Solutions; ADI-2 and ADI-2 Remote are RME product names. Alesis and ADAT are registered trademarks of Alesis Corp.; ADAT optical is a trademark of Alesis Corp. Apple, Mac and macOS are trademarks of Apple Inc. Android is a trademark of Google LLC. Direct Stream Digital and DSD are trademarks of their respective owners (Sony / Philips). All other trademarks and product names belong to their respective owners and are used only to identify compatible devices and functions.
 
 [Privacy policy](../PRIVACY.md)

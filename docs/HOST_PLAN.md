@@ -63,7 +63,7 @@ The existing controller selects USB MIDI or the new host client. USB takes prece
 
 “Connect via host” provides discovered and saved hosts, QR scanning, code pairing and manual address entry. Background discovery refreshes known host IDs' addresses for the next connection. Foreground reconnect attempts run every three seconds. Every new session clears device values, volume ramps and EQ targets and requests a fresh state. Changes from other clients arrive as ordinary device readbacks, using the existing short hold for stale echoes of own writes. When reading stored EQ presets, the controller uses the preceding preset number to exclude other clients’ preset responses from its own capture. It allows five seconds per preset over the host to account for the shared query queue and status pause; USB keeps its two-second timeout. The transport has no replay queue. The header shows HOST and its name using the existing OFFLINE layout rules.
 
-Android adds camera and multicast permissions and a multicast lock during discovery. iOS adds local-network, Bonjour and camera descriptions. The main app's macOS target receives no host functionality.
+Android adds camera and multicast permissions and a multicast lock during discovery. The main app's macOS target receives no host functionality.
 
 ## Verification and remaining work
 
@@ -71,6 +71,6 @@ Protocol, pairing, controller, badge, volume-filter and autostart tests have bee
 
 Windows verification (Flutter stable, VS Build Tools 2022): `flutter analyze` clean and `flutter test` green in the main project and host, `flutter build windows --release` succeeds. On the attached ADI-2 DAC the name parser returns `ADI-2 DAC (<serial number>)`. Still to check manually: coexistence with RME ADI-2 Remote, smartphone test, autostart after sign-in, firewall prompt.
 
-Hardware validation remains for the Windows notification area, macOS menu bar and hidden launch, actual login autostart, Android/iPhone camera and mDNS, Wi-Fi changes and sleep/resume, USB busy detection, actual level/reference readbacks across models, and parallel RME software use. Windows must allow incoming connections for the host on private networks. TCP 47321 or the displayed fallback port and mDNS over UDP 5353 must be reachable.
+Hardware validation remains for the Windows notification area, macOS menu bar and hidden launch, actual login autostart, Android camera and mDNS, Wi-Fi changes and sleep/resume, USB busy detection, actual level/reference readbacks across models, and parallel RME software use. Windows must allow incoming connections for the host on private networks. TCP 47321 or the displayed fallback port and mDNS over UDP 5353 must be reachable.
 
 Packaging, signing, notarization, installation and updates remain open. **Analyzer via host belongs to a later stage.** That requires desktop loopback capture, channel routing, local spectrum processing, per-capture-path calibration and time-identifiable spectrum/level frames. The app currently displays a notice for this mode.
