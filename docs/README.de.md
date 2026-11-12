@@ -11,7 +11,7 @@ Remote for ADI-2 ist eine kostenlose Flutter-App zur direkten Steuerung kompatib
 | **App** | [Remote-for-ADI-2-Android.apk](https://github.com/kahuna34/remote-for-ADI-2/releases/latest/download/Remote-for-ADI-2-Android.apk) | Android-Smartphone oder -Tablet |
 | **Host für Mac** | [Remote-for-ADI-2-Host-macOS.zip](https://github.com/kahuna34/remote-for-ADI-2/releases/latest/download/Remote-for-ADI-2-Host-macOS.zip) | Mac, an dem der ADI-2 per USB hängt |
 | **Host für Windows** | [Remote-for-ADI-2-Host-Windows-x64.zip](https://github.com/kahuna34/remote-for-ADI-2/releases/latest/download/Remote-for-ADI-2-Host-Windows-x64.zip) | Windows-PC (64 Bit), an dem der ADI-2 per USB hängt |
-| **Host für Windows – Testversion** | [Remote-for-ADI-2-Host-Windows-x64.zip (1.1.2-test1)](https://github.com/kahuna34/remote-for-ADI-2/releases/download/v1.1.2-test1/Remote-for-ADI-2-Host-Windows-x64.zip) | Testversion mit verbesserter Geräteerkennung unter Windows 11 |
+| **Host für Windows – Testversion** | [Remote-for-ADI-2-Host-Windows-Setup.exe (1.1.2-test1)](https://github.com/kahuna34/remote-for-ADI-2/releases/download/v1.1.2-test1/Remote-for-ADI-2-Host-Windows-Setup.exe) · [ZIP](https://github.com/kahuna34/remote-for-ADI-2/releases/download/v1.1.2-test1/Remote-for-ADI-2-Host-Windows-x64.zip) | Testversion mit verbesserter Geräteerkennung unter Windows 11 |
 
 Alle Dateien der aktuellen Version stehen auch auf der [Release-Seite](https://github.com/kahuna34/remote-for-ADI-2/releases/latest). Den Host braucht man nur, um den ADI-2 per WLAN über einen Computer zu steuern; für die direkte USB-Verbindung genügt die App. Eine iPhone-Version ist geplant.
 

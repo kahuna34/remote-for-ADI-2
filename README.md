@@ -11,7 +11,7 @@ Remote for ADI-2 is a free Flutter app for controlling compatible ADI-2 audio in
 | **App** | [Remote-for-ADI-2-Android.apk](https://github.com/kahuna34/remote-for-ADI-2/releases/latest/download/Remote-for-ADI-2-Android.apk) | Android smartphone or tablet |
 | **Host for Mac** | [Remote-for-ADI-2-Host-macOS.zip](https://github.com/kahuna34/remote-for-ADI-2/releases/latest/download/Remote-for-ADI-2-Host-macOS.zip) | Mac with the ADI-2 connected by USB |
 | **Host for Windows** | [Remote-for-ADI-2-Host-Windows-x64.zip](https://github.com/kahuna34/remote-for-ADI-2/releases/latest/download/Remote-for-ADI-2-Host-Windows-x64.zip) | Windows PC (64-bit) with the ADI-2 connected by USB |
-| **Host for Windows – test build** | [Remote-for-ADI-2-Host-Windows-x64.zip (1.1.2-test1)](https://github.com/kahuna34/remote-for-ADI-2/releases/download/v1.1.2-test1/Remote-for-ADI-2-Host-Windows-x64.zip) | Test version with improved device detection on Windows 11 |
+| **Host for Windows – test build** | [Remote-for-ADI-2-Host-Windows-Setup.exe (1.1.2-test1)](https://github.com/kahuna34/remote-for-ADI-2/releases/download/v1.1.2-test1/Remote-for-ADI-2-Host-Windows-Setup.exe) · [ZIP](https://github.com/kahuna34/remote-for-ADI-2/releases/download/v1.1.2-test1/Remote-for-ADI-2-Host-Windows-x64.zip) | Test version with improved device detection on Windows 11 |
 
 All files of the current version are also on the [releases page](https://github.com/kahuna34/remote-for-ADI-2/releases/latest). The host is only needed to control the ADI-2 over Wi-Fi through a computer; for a direct USB connection the app is enough. An iPhone version is planned.
 
