@@ -10,7 +10,7 @@ Remote for ADI-2 is a free Flutter app for controlling compatible ADI-2 audio in
 | --- | --- | --- |
 | **App** | [Remote-for-ADI-2-Android.apk](https://github.com/kahuna34/remote-for-ADI-2/releases/latest/download/Remote-for-ADI-2-Android.apk) | Android smartphone or tablet |
 | **Host for Mac** | [Remote-for-ADI-2-Host-macOS.zip](https://github.com/kahuna34/remote-for-ADI-2/releases/latest/download/Remote-for-ADI-2-Host-macOS.zip) | Mac with the ADI-2 connected by USB |
-| **Host for Windows** | [Remote-for-ADI-2-Host-Windows-Setup.exe](https://github.com/kahuna34/remote-for-ADI-2/releases/latest/download/Remote-for-ADI-2-Host-Windows-Setup.exe) · [ZIP without installation](https://github.com/kahuna34/remote-for-ADI-2/releases/latest/download/Remote-for-ADI-2-Host-Windows-x64.zip) | Windows PC (64-bit) with the ADI-2 connected by USB |
+| **Host for Windows** | [Remote-for-ADI-2-Host-Windows-Setup.exe](https://github.com/kahuna34/remote-for-ADI-2/releases/latest/download/Remote-for-ADI-2-Host-Windows-Setup.exe) | Windows PC (64-bit) with the ADI-2 connected by USB |
 
 All files of the current version are also on the [releases page](https://github.com/kahuna34/remote-for-ADI-2/releases/latest). The host is only needed to control the ADI-2 over Wi-Fi through a computer; for a direct USB connection the app is enough. An iPhone version is planned.
 
@@ -22,7 +22,7 @@ App and host report new versions; this can be disabled, and the check only asks 
 
 **Install the host on a Mac:** Unzip the file and move **Remote for ADI-2 Host** to Applications. The program is not signed by Apple: on first start, macOS blocks it. Open **System Settings → Privacy & Security** and choose **Open Anyway**. The icon then appears in the menu bar.
 
-**Install the host on Windows:** Run **Remote-for-ADI-2-Host-Windows-Setup.exe**. It installs for your user account without administrator rights, adds **Remote for ADI-2 Host** to the Start menu and switches on **Start with Windows**; uninstall it under **Settings → Apps → Installed apps**. If SmartScreen warns, choose **More info → Run anyway**. The icon appears in the notification area of the taskbar, possibly behind the arrow (^). The ZIP is an alternative without installation: extract it completely and start **adi2_host.exe**. If the host does not detect the ADI-2, download the [Windows diagnosis tool](https://github.com/kahuna34/remote-for-ADI-2/releases/latest/download/Remote-for-ADI-2-Windows-Diagnose.zip), extract it and double-click **Diagnose.cmd**. It only reads information (MIDI ports, devices, host status), changes nothing and saves **ADI-2-Diagnose.txt** on the desktop; attach this file to an issue. It may contain the device serial number.
+**Install the host on Windows:** Run **Remote-for-ADI-2-Host-Windows-Setup.exe**. It installs for your user account without administrator rights, adds **Remote for ADI-2 Host** to the Start menu and switches on **Start with Windows**; uninstall it under **Settings → Apps → Installed apps**. If SmartScreen warns, choose **More info → Run anyway**. The icon appears in the notification area of the taskbar, possibly behind the arrow (^).
 
 Allow **Private networks** when Windows Firewall asks. If access was granted only for Public networks, open **Windows Security → Firewall & network protection → Allow an app through firewall** and check **Private** for **Remote for ADI-2 Host**.
 

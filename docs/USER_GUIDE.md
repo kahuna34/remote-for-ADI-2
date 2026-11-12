@@ -69,7 +69,7 @@ When the ADI-2 is connected by USB to a Mac or Windows PC, the smartphone can co
 
 ### Installing and starting the host
 
-On Windows, run **Remote-for-ADI-2-Host-Windows-Setup.exe**. The host installs for your user account only and needs no administrator rights. Start it at the end of setup or any time from the Start menu (**All apps → Remote for ADI-2 Host**). Remove it under **Settings → Apps → Installed apps**; the uninstaller asks whether settings and pairings should be deleted too. The ZIP file remains available as a version without installation. On a Mac, drag the app into Applications; remove it by deleting it from Applications.
+On Windows, run **Remote-for-ADI-2-Host-Windows-Setup.exe**. The host installs for your user account only and needs no administrator rights. Start it at the end of setup or any time from the Start menu (**All apps → Remote for ADI-2 Host**). Remove it under **Settings → Apps → Installed apps**; the uninstaller asks whether settings and pairings should be deleted too. On a Mac, drag the app into Applications; remove it by deleting it from Applications.
 
 On a Mac, open **Remote for ADI-2 Host** like any program. No window appears; an icon appears in the menu bar. On Windows the icon sits in the notification area of the taskbar; on Windows 11 it first appears in the hidden-icons area (^ arrow). Clicking the icon opens the menu:
 
