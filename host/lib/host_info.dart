@@ -1,2 +1,2 @@
 /// Shared release version; verified against host/pubspec.yaml by a test.
-const hostVersion = '1.1.1 (3)';
+const hostVersion = '1.1.2 (4)';

@@ -2,6 +2,12 @@
 // Platzhalter wie {n} müssen in beiden Sprachen gleich heißen.
 
 const Map<String, String> stringsEn = {
+  'Gilt für alle Ausgänge': 'Applies to all outputs',
+  'belegt: {Ausgang}': 'occupied: {Ausgang}',
+  'Loopback von {Ausgang} ausgeschaltet, weil {Paar} jetzt belegt ist':
+      'Loopback from {Ausgang} switched off because {Paar} is now occupied',
+
+  'Peak-Marken zurückgesetzt': 'Peak markers reset',
   'update:Laden': 'Download',
   'Download-Link konnte nicht geöffnet werden': 'Could not open download link',
   'Update {version} laden…': 'Download update {version}…',
@@ -41,8 +47,10 @@ const Map<String, String> stringsEn = {
       'Host pairing is missing or has been revoked',
   'Am Host wurde kein ADI-2 gefunden': 'No ADI-2 found on the host',
   'USB-MIDI am Host ist belegt': 'USB MIDI is busy on the host',
-  'Der Host wird bereits von einem anderen Smartphone gesteuert':
-      'Another smartphone is already controlling the host',
+  'Zu viele Clients am Host verbunden (maximal 4)':
+      'Too many clients connected to the host (maximum 4)',
+  '1 Client verbunden': '1 client connected',
+  '{n} Clients verbunden': '{n} clients connected',
   'Host-Verbindung unterbrochen. Neuer Verbindungsversuch läuft …':
       'Host connection interrupted. Reconnecting …',
   'Verbunden über Host{rate}': 'Connected via host{rate}',
@@ -122,7 +130,7 @@ const Map<String, String> stringsEn = {
   'USB-Aufnahme unterbrochen oder zu wenige Messwerte. Erneut versuchen. Nichts gespeichert.': 'USB capture interrupted or too few measurements. Try again. Nothing saved.',
   'Pegelkalibrierung konnte nicht gespeichert werden. Erneut versuchen.':
       'Could not save level calibration. Try again.',
-  'Einen voll ausgesteuerten Sinus (0 dBFS) auf L und R einspielen. Abgriff post FX wählen und EQ sowie alle Effekte ausschalten. Anschließend wird der unkalibrierte Peak etwa 2 Sekunden gemessen.': 'Play a full-scale sine (0 dBFS) on L and R. Select the post FX tap and switch off EQ and all effects. The uncalibrated peak will then be measured for about 2 seconds.',
+  'Einen voll ausgesteuerten Sinus (0 dBFS) auf L und R einspielen. Loopback-Quelle post FX wählen und EQ sowie alle Effekte ausschalten. Anschließend wird der unkalibrierte Peak etwa 2 Sekunden gemessen.': 'Play a full-scale sine (0 dBFS) on L and R. Select the post FX loopback source and switch off EQ and all effects. The uncalibrated peak will then be measured for about 2 seconds.',
   'kalibriert {offset} dB': 'calibrated {offset} dB',
   'Zum Vergleich mit dem Gerät Balken, 1/3 Oktave und post FX verwenden. Ein voller Sinus zeigt 0 dBFS Peak und −3 dBFS RMS.': 'To compare with the device, use bars, 1/3 octave and post FX. A full-scale sine shows 0 dBFS peak and −3 dBFS RMS.',
 
@@ -146,7 +154,10 @@ const Map<String, String> stringsEn = {
   'Terzbänder · 25 Hz–20 kHz': 'Third-octave bands · 25 Hz–20 kHz',
   'Analogeingang': 'Analog input',
   'Pegelbereich': 'Level range',
-  'Abgriff': 'Tap',
+  'Loopback-Quelle': 'Loopback source',
+  'Peak-Hold-Zeit': 'Peak hold time',
+  '{seconds} s': '{seconds} s',
+  '∞': '∞',
   'Analyzer-Einstellungen': 'Analyzer settings',
   'Wie Gerät': 'Follow device',
   'Analyzer-Farbe': 'Analyzer color',
@@ -734,8 +745,8 @@ const Map<String, String> stringsEn = {
   'SD LD': 'SD LD',
   'Brickwall': 'Brickwall',
   'Loopback zu USB': 'Loopback to USB',
-  'Abgriff für die USB-Aufnahme wählen.':
-      'Choose where to tap the signal for USB recording.',
+  'Loopback-Quelle für die USB-Aufnahme wählen.':
+      'Choose the loopback source for USB recording.',
   'USB-Ziel': 'USB target',
   '5/6 nur mit CC-Modus Multi-channel (am Gerät ohne USB-Verbindung umstellen).': '5/6 requires CC mode Multi-channel (change on the device with USB disconnected).',
   '5/6 nur mit CC-Modus Multi-channel. Am Gerät unter SETUP → Options → Device Mode / DSD → CC-Mode umstellen; dafür darf keine USB-Verbindung bestehen.': '5/6 requires CC mode Multi-channel. Change it on the device under SETUP → Options → Device Mode / DSD → CC-Mode with USB disconnected.',
@@ -968,4 +979,15 @@ const Map<String, String> stringsEn = {
   'Updates': 'Updates',
   'Überspringen': 'Skip',
   'Weiter': 'Next',
+  'Verbunden über Host': 'Connected via host',
+  'Trennt die Verbindung. Danach muss neu gekoppelt werden.':
+      'Disconnects. You will need to pair again afterwards.',
+  'Kopplung entfernen?': 'Remove pairing?',
+  'Die Kopplung mit {name} wird gelöscht. Zum erneuten Verbinden im Host „Smartphone koppeln…“ öffnen.': 'The pairing with {name} will be deleted. To connect again, open “Pair smartphone…” in the host.',
+  'Hosts verwalten…': 'Manage hosts…',
+  'Client: {name}': 'Client: {name}',
+  'RME device: {name}': 'RME device: {name}',
+  'Info: Version {version}': 'Info: Version {version}',
+  'Port {standard} belegt; Host verwendet Port {port}':
+      'Port {standard} is in use; Host uses port {port}',
 };

@@ -7,6 +7,7 @@ import 'package:adi2_remote/host/host_protocol.dart';
 import 'package:adi2_remote/protocol/adi2_codec.dart';
 import 'package:flutter/foundation.dart';
 
+import 'host_log.dart';
 import 'volume_filter.dart';
 
 abstract class HostMidiPort {
@@ -27,7 +28,7 @@ class _Peer {
   final challenge = randomToken();
   final created = DateTime.now();
   HostEnvelope? envelope;
-  String? deviceId;
+  String? deviceId, clientName;
   Duration? authenticatedAt, lastHeartbeat;
   bool active = true;
   void send(String type, [Map<String, dynamic> payload = const {}]) {
@@ -58,12 +59,16 @@ class HostServer extends ChangeNotifier {
   final Stopwatch _clock = Stopwatch()..start();
   HttpServer? _server;
   StreamSubscription<Uint8List>? _rx;
-  _Peer? _owner;
+  // Enthält auch reservierte Plätze während midi.open().
+  final Set<_Peer> _sessions = {};
+  static const maxSessions = 4;
+  String? _deviceName;
   Future<void> _usbWork = Future.value();
   Timer? _closeTimer;
   Timer? _leaseTimer;
   bool _stopping = false;
   bool _usbOpen = false;
+  int _usbGeneration = 0;
 
   /// Das Gerät meldet Änderungen anderer Software (z. B. RME ADI-2 Remote)
   /// nicht von selbst. Während einer Sitzung fragt der Host daher den Stand
@@ -98,8 +103,15 @@ class HostServer extends ChangeNotifier {
       now - lastPoll >= pollInterval &&
       (!waitForFull || now - lastRx >= quietBeforePoll);
   String status = 'Bereit';
-  String? connectedName;
+  List<String> get connectedNames => List.unmodifiable([
+    for (final peer in _sessions)
+      if (peer.envelope != null) peer.clientName!,
+  ]);
   int get port => _server?.port ?? 0;
+
+  // Include handshakes and authentication before midi.open() has completed.
+  bool get hasSession => _peers.isNotEmpty || _sessions.isNotEmpty;
+  bool get isMidiOpen => _usbOpen;
 
   Future<void> start({
     InternetAddress? address,
@@ -142,38 +154,124 @@ class HostServer extends ChangeNotifier {
   void _ensureSessionRuntime() {
     _rx ??= midi.packets.listen(
       (bytes) {
-        if (_owner?.envelope == null) return;
+        if (!_usbOpen || _sessions.isEmpty) return;
         _deviceModel = parseSysex(bytes)?.deviceId ?? _deviceModel;
         _lastDeviceRx = _clock.elapsed;
         filter.observe(bytes);
-        _owner!.send('midi', {'data': base64Encode(bytes)});
+        final payload = {'data': base64Encode(bytes)};
+        for (final peer in _sessions.toList()) {
+          if (peer.envelope != null) _send(peer, 'midi', payload);
+        }
       },
       onError: (Object error) {
         usbLost();
       },
     );
     _pollTimer ??= Timer.periodic(const Duration(milliseconds: 20), (_) {
-      final model = _deviceModel;
-      final now = _clock.elapsed;
-      // Nach den schnellen Abfragen muss die letzte Antwort vollständig sein.
-      final waitForFull = _quick == 0;
-      if (!pollDue(now, _lastDeviceRx, _lastPoll, waitForFull: waitForFull)) {
-        return;
-      }
-      if (model != null && _usbOpen && _owner?.envelope != null) {
-        _lastPoll = now;
-        _quick = (_quick + 1) % (quickPolls + 1);
-        midi.send(buildRequestAll(model));
-      }
+      _poll();
     });
     _leaseTimer ??= Timer.periodic(const Duration(milliseconds: 100), (_) {
-      final owner = _owner;
-      if (owner != null && _leaseExpired(owner)) {
-        owner.send('session_expired');
-        _drop(owner);
+      for (final peer in _sessions.toList()) {
+        if (peer.envelope == null) continue;
+        if (_sessionTimedOut(peer)) {
+          HostLog.write(
+            'Client ${peer.clientName ?? '?'} getrennt: kein Lebenszeichen',
+          );
+          _send(peer, 'session_expired');
+          _drop(peer);
+        } else if (_leaseExpired(peer)) {
+          // Nur die Freigabe zum Anheben endet; die Verbindung bleibt.
+          filter.release(peer);
+        }
       }
-      if (!filter.granted) filter.release();
     });
+  }
+
+  // Bis zur ersten Antwort werden die Modell-Probes der Apps gesammelt.
+  // Danach gibt es unabhängig von der Clientzahl genau einen Abfragezyklus.
+  final Set<int> _probeModels = {};
+  int _probeIndex = 0;
+  final Map<String, Uint8List> _requests = {};
+  Uint8List? _specificRequest;
+  static const presetQuiet = Duration(milliseconds: 250);
+
+  void _request(Uint8List bytes) {
+    if (bytes.length == 8 && bytes[6] == 0x09) {
+      _probeModels.add(bytes[4]);
+    } else {
+      // Presets/Namen gehören nicht zu Request All. Identische laufende oder
+      // wartende Requests zusammenfassen, andere nach Antwortende senden.
+      final key = base64Encode(bytes);
+      if (_specificRequest != null &&
+          key == base64Encode(_specificRequest!) &&
+          _clock.elapsed - _lastPoll < presetQuiet) {
+        return;
+      }
+      if (_requests.length < 32) _requests[key] = bytes;
+    }
+    _poll();
+  }
+
+  void _poll() {
+    if (!_usbOpen || !_sessions.any((p) => p.envelope != null)) return;
+    final now = _clock.elapsed;
+    final specific = _specificRequest != null;
+    if (specific &&
+        (now - _lastPoll < presetQuiet || now - _lastDeviceRx < presetQuiet)) {
+      return;
+    }
+    if (!pollDue(
+      now,
+      _lastDeviceRx,
+      _lastPoll,
+      waitForFull: specific || _requests.isNotEmpty || _quick == 0,
+    )) {
+      return;
+    }
+    Uint8List bytes;
+    if (_requests.isNotEmpty) {
+      final key = _requests.keys.first;
+      bytes = _requests.remove(key)!;
+      _specificRequest = bytes;
+      _quick = 0;
+    } else {
+      final models = _probeModels.toList();
+      final model =
+          _deviceModel ??
+          (models.isEmpty ? null : models[_probeIndex++ % models.length]);
+      if (model == null) return;
+      bytes = buildRequestAll(model);
+      _specificRequest = null;
+      _quick = (_quick + 1) % (quickPolls + 1);
+    }
+    _lastPoll = now;
+    midi.send(bytes);
+  }
+
+  /// Nach einer Änderung sofort abfragen und die vollständige Antwort
+  /// (~0,7 s, EQ und Dim stehen hinten) ohne schnelle Folgeabfragen
+  /// durchlaufen lassen. Das Gerät bleibt die Quelle: Andere Clients sehen
+  /// die Änderung erst, wenn das Gerät sie meldet.
+  void _pollAfterWrite() {
+    if (_specificRequest != null || _requests.isNotEmpty) return;
+    _quick = quickPolls;
+    final now = _clock.elapsed;
+    if (now - _lastPoll >= afterWriteGap) _lastPoll = now - pollInterval;
+  }
+
+  /// Mindestabstand der Sofortabfrage zur vorigen Abfrage, damit eine
+  /// Lautstärkerampe nicht jede Antwort abbricht.
+  static const afterWriteGap = Duration(milliseconds: 50);
+
+  void _resetDeviceState() {
+    filter.reset();
+    _deviceModel = null;
+    _probeModels.clear();
+    _probeIndex = 0;
+    _requests.clear();
+    _specificRequest = null;
+    _lastDeviceRx = _lastPoll = _clock.elapsed;
+    _quick = 0;
   }
 
   /// Gemeinsamer Sitzungseinstieg für TCP-WebSockets und In-Memory-Tests.
@@ -186,7 +284,7 @@ class HostServer extends ChangeNotifier {
     final peer = _Peer(socket);
     peer.socket.pingInterval = const Duration(seconds: 3);
     _peers.add(peer);
-    peer.send('hello', {
+    _send(peer, 'hello', {
       'hostId': id,
       'name': name,
       'challenge': peer.challenge,
@@ -203,13 +301,27 @@ class HostServer extends ChangeNotifier {
       },
       onDone: () {
         timeout.cancel();
+        if (peer.envelope != null && peer.active) {
+          HostLog.write('Client ${peer.clientName ?? '?'}: Verbindung beendet');
+        }
         _drop(peer);
       },
       onError: (Object error) {
         timeout.cancel();
+        HostLog.write('Client ${peer.clientName ?? '?'}: Socketfehler $error');
         _drop(peer);
       },
     );
+  }
+
+  /// Verbindung erst nach längerer Funkstille trennen. WLAN-Pakete kommen
+  /// oft über eine Sekunde verzögert; der Lautstärkeschutz hängt allein an
+  /// der kurzen Freigabe ([hostGrantLifetime]).
+  static const sessionTimeout = Duration(seconds: 6);
+
+  bool _sessionTimedOut(_Peer peer) {
+    final last = peer.lastHeartbeat ?? peer.authenticatedAt;
+    return last != null && _clock.elapsed - last >= sessionTimeout;
   }
 
   bool _leaseExpired(_Peer peer) {
@@ -222,9 +334,9 @@ class HostServer extends ChangeNotifier {
     try {
       final message = decodeHostMessage(frame);
       if (peer.envelope != null) {
-        if (_owner != peer ||
+        if (!_sessions.contains(peer) ||
             !pairing.devices.containsKey(peer.deviceId) ||
-            _leaseExpired(peer)) {
+            _sessionTimedOut(peer)) {
           _drop(peer);
           return;
         }
@@ -232,28 +344,28 @@ class HostServer extends ChangeNotifier {
         switch (data['type']) {
           case 'heartbeat':
             peer.lastHeartbeat = _clock.elapsed;
-            filter.heartbeat();
+            filter.heartbeat(peer);
           case 'release':
-            filter.release();
+            filter.release(peer);
             _drop(peer);
           case 'midi':
             if (!_usbOpen) {
-              peer.send('usb_missing');
+              _send(peer, 'usb_missing');
               return;
             }
-            final bytes = filter.filter(decodeMidi(data['data']));
-            if (filter.limited) peer.send('volume_limited');
-            if (bytes != null && peer.active && _owner == peer) {
-              midi.send(bytes);
+            final bytes = filter.filter(decodeMidi(data['data']), client: peer);
+            if (filter.limited) _send(peer, 'volume_limited');
+            if (bytes != null && peer.active && _sessions.contains(peer)) {
+              if (bytes[5] == Adi2Cmd.request) {
+                _request(bytes);
+              } else {
+                midi.send(bytes);
+                _pollAfterWrite();
+              }
             }
           default:
             throw const FormatException('Unbekannter Nachrichtentyp');
         }
-        return;
-      }
-      if (_owner != null) {
-        peer.send('busy');
-        _drop(peer);
         return;
       }
       if (message['type'] == 'pair') {
@@ -263,7 +375,7 @@ class HostServer extends ChangeNotifier {
           message['name'] as String,
         );
         if (device == null) {
-          peer.send('not_paired');
+          _send(peer, 'not_paired');
           _drop(peer);
           return;
         }
@@ -273,7 +385,7 @@ class HostServer extends ChangeNotifier {
           pairing.revoke(device.id);
           rethrow;
         }
-        peer.send('paired', {'key': device.key});
+        _send(peer, 'paired', {'key': device.key});
         _drop(peer);
         notifyListeners();
         return;
@@ -281,13 +393,13 @@ class HostServer extends ChangeNotifier {
       if (message['type'] != 'auth' ||
           DateTime.now().difference(peer.created) >=
               const Duration(seconds: 10)) {
-        peer.send('not_paired');
+        _send(peer, 'not_paired');
         _drop(peer);
         return;
       }
       final device = pairing.devices[message['deviceId']];
       if (device == null) {
-        peer.send('not_paired');
+        _send(peer, 'not_paired');
         _drop(peer);
         return;
       }
@@ -301,51 +413,82 @@ class HostServer extends ChangeNotifier {
         message['proof'] as String,
         hostMac(device.key, ['client', ...context]),
       )) {
-        peer.send('not_paired');
+        _send(peer, 'not_paired');
         _drop(peer);
         return;
       }
-      _owner = peer; // vor dem ersten await reservieren
+      if (_sessions.length >= maxSessions) {
+        _send(peer, 'busy');
+        _drop(peer);
+        return;
+      }
+      _sessions.add(peer); // vor dem ersten await reservieren
       peer.deviceId = device.id;
+      peer.clientName = device.name;
+      final usbGeneration = _usbGeneration;
       _closeTimer?.cancel();
-      filter.reset();
-      String? deviceName;
-      _usbWork = _usbWork.then((_) async {
-        if (!peer.active || _owner != peer || _stopping) return;
-        deviceName = await midi.open();
-        _usbOpen = true;
+      _usbWork = _usbWork.catchError((Object _) {}).then((_) async {
+        if (!peer.active || !_sessions.contains(peer) || _stopping) return;
+        if (!_usbOpen) {
+          final deviceName = await midi.open();
+          // USB-Verlust/Abbruch während open darf keine Sitzung wiederbeleben.
+          if (_sessions.isEmpty ||
+              _stopping ||
+              usbGeneration != _usbGeneration) {
+            await midi.close();
+            return;
+          }
+          _deviceName = deviceName;
+          _usbOpen = true;
+        }
       });
       try {
         await _usbWork;
       } catch (error) {
-        _usbWork = Future.value();
         final type = error is HostUsbException ? error.type : 'usb_busy';
         status = type == 'usb_missing'
             ? 'Kein ADI-2 gefunden'
             : 'USB-MIDI belegt';
-        peer.send(type);
+        _send(peer, type);
         _drop(peer);
         notifyListeners();
         return;
       }
-      if (!peer.active || _owner != peer || _stopping || deviceName == null) {
+      if (!peer.active || !_sessions.contains(peer) || _stopping || !_usbOpen) {
         return;
       }
-      peer.send('authenticated', {
-        'deviceName': deviceName,
+      if (!_send(peer, 'authenticated', {
+        'deviceName': _deviceName!,
         'proof': hostMac(device.key, ['server', ...context]),
-      });
+      })) {
+        return;
+      }
       peer.envelope = HostEnvelope(
         sessionKey(device.key, context),
         outgoing: 'server',
         incoming: 'client',
       );
       peer.authenticatedAt = _clock.elapsed;
-      connectedName = device.name;
-      status = 'Smartphone verbunden';
+      status = 'Clients verbunden';
       notifyListeners();
-    } catch (_) {
+    } catch (error) {
+      HostLog.write('Client ${peer.clientName ?? '?'} getrennt: $error');
       _drop(peer);
+    }
+  }
+
+  bool _send(
+    _Peer peer,
+    String type, [
+    Map<String, dynamic> payload = const {},
+  ]) {
+    try {
+      peer.send(type, payload);
+      return true;
+    } catch (_) {
+      // Ein bereits schließender Socket darf den Broadcast nicht unterbrechen.
+      _drop(peer);
+      return false;
     }
   }
 
@@ -354,41 +497,47 @@ class HostServer extends ChangeNotifier {
     peer.active = false;
     _peers.remove(peer);
     unawaited(peer.socket.close());
-    if (_owner != peer) return;
-    _owner = null;
-    connectedName = null;
-    filter.reset();
-    if (status == 'Smartphone verbunden') status = 'Bereit';
-    _closeTimer?.cancel();
-    _closeTimer = Timer(closeDelay, () {
-      _usbWork = _usbWork.catchError((Object _) {}).then((_) async {
-        if (_owner == null) {
-          _usbOpen = false;
-          await midi.close();
-        }
+    if (!_sessions.remove(peer)) return;
+    filter.release(peer);
+    if (_sessions.isEmpty) {
+      _resetDeviceState();
+      if (status == 'Clients verbunden') status = 'Bereit';
+      _closeTimer?.cancel();
+      _closeTimer = Timer(closeDelay, () {
+        _usbWork = _usbWork.catchError((Object _) {}).then((_) async {
+          if (_sessions.isEmpty) {
+            _usbOpen = false;
+            _deviceName = null;
+            await midi.close();
+          }
+        });
       });
-    });
+    }
     notifyListeners();
   }
 
   void usbLost() {
-    filter.reset();
-    _deviceModel = null;
+    _usbGeneration++;
+    _resetDeviceState();
     _usbOpen = false;
+    _deviceName = null;
     status = 'Kein ADI-2 gefunden';
-    final owner = _owner;
-    owner?.send('usb_missing');
-    if (owner != null) _drop(owner);
+    _usbWork = _usbWork.catchError((Object _) {}).then((_) => midi.close());
+    for (final peer in _sessions.toList()) {
+      _send(peer, 'usb_missing');
+      _drop(peer);
+    }
     notifyListeners();
   }
 
   Future<void> revoke(String deviceId) async {
     final previous = pairing.devices[deviceId];
     pairing.revoke(deviceId);
-    final owner = _owner;
-    if (owner?.deviceId == deviceId) {
-      owner!.send('revoked');
-      _drop(owner);
+    for (final peer in _sessions.toList()) {
+      if (peer.deviceId == deviceId) {
+        _send(peer, 'revoked');
+        _drop(peer);
+      }
     }
     try {
       await persist();

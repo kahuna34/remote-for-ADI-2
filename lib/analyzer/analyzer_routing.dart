@@ -3,14 +3,11 @@ import 'dart:async';
 import '../app_settings.dart';
 import '../device/adi2_controller.dart';
 import '../device/loopback.dart';
+import '../device/loopback_routing.dart';
 import '../protocol/adi2_codec.dart';
 import '../protocol/adi2_params.dart';
 
-List<int> analyzerOutputAddresses(Adi2Controller ctrl) => [
-  Adi2Addr.line,
-  Adi2Addr.ph12,
-  if (ctrl.variant?.hasPhones34 == true) Adi2Addr.ph34,
-].where((a) => ctrl.value(a, OutIdx.loopback) != null).toList();
+List<int> analyzerOutputAddresses(Adi2Controller ctrl) => loopbackOutputs(ctrl);
 
 /// DAC status bits are verified for Line/Phones/IEM. Pro status bits have a
 /// different meaning; use the selected output there rather than guessing.
@@ -29,44 +26,37 @@ int? activeAnalyzerOutput(Adi2Controller ctrl) {
   return outputs.firstOrNull;
 }
 
-/// Preserve other USB pairs and disable competing USB 1/2 sources first.
-void routeAnalyzerLoopback(Adi2Controller ctrl, int address, int tap) {
+/// Preserve other USB pairs; the DAC value is shared across all outputs.
+void routeAnalyzerLoopback(
+  Adi2Controller ctrl,
+  int address,
+  int tap, {
+  void Function(int address, int pair)? onDisplaced,
+}) {
   if (ctrl.analyzerSelfTestActive ||
-      ctrl.state != ConnState.connected ||
+      (ctrl.state != ConnState.connected && !ctrl.offline) ||
       ctrl.variant == null) {
     return;
   }
   final outputs = analyzerOutputAddresses(ctrl);
   if (!outputs.contains(address) ||
-      outputs.any((a) => ctrl.confirmedValue(a, OutIdx.loopback) == null)) {
+      (!ctrl.offline &&
+          outputs.any(
+            (a) => ctrl.confirmedValue(a, OutIdx.loopback) == null,
+          ))) {
     return;
   }
-  if (tap != 0) {
-    for (final other in outputs) {
-      if (other == address) continue;
-      final value = decodeLoopback(
-        ctrl.confirmedValue(other, OutIdx.loopback)!,
-        hasInput: ctrl.variant!.hasInput,
-      );
-      if (value.tap != 0 && value.pair == 0) {
-        ctrl.set(other, OutIdx.loopback, 0);
-      }
-    }
-  }
-  final raw = encodeLoopback(
-    tap: tap,
-    pair: 0,
-    hasInput: ctrl.variant!.hasInput,
-  );
-  if (ctrl.confirmedValue(address, OutIdx.loopback) != raw) {
-    ctrl.set(address, OutIdx.loopback, raw);
-  }
+  final current = ctrl.offline
+      ? ctrl.value(address, OutIdx.loopback)
+      : ctrl.confirmedValue(address, OutIdx.loopback);
+  if (current == tap && loopbackOccupants(ctrl, address, 0).isEmpty) return;
+  setLoopbackRoute(ctrl, address, tap: tap, pair: 0, onDisplaced: onDisplaced);
 }
 
 /// Only real output transitions while visible may schedule automatic writes.
 /// Readbacks and unrelated settings never reconcile a manually changed route.
 class AnalyzerRouting {
-  AnalyzerRouting(this.ctrl) {
+  AnalyzerRouting(this.ctrl, {this.onDisplaced}) {
     _lastAddress = address;
     _lastConfiguration = _configuration;
     _connected = ctrl?.state == ConnState.connected;
@@ -75,6 +65,7 @@ class AnalyzerRouting {
     AppSettings.instance.addListener(_observe);
   }
   final Adi2Controller? ctrl;
+  final void Function(int address, int pair)? onDisplaced;
   bool _active = false, _disposed = false;
   bool _connected = false;
   int? _lastAddress;
@@ -98,6 +89,7 @@ class AnalyzerRouting {
   bool get _canAutomate =>
       _active &&
       ctrl?.state == ConnState.connected &&
+      ctrl?.variant?.isDac == false &&
       ctrl?.analyzerSelfTestActive == false &&
       AppSettings.instance.analyzerLoopbackOutput == 0 &&
       AppSettings.instance.analyzerLoopbackConfirmed &&
@@ -106,6 +98,7 @@ class AnalyzerRouting {
   int? get address {
     final c = ctrl;
     if (c == null || c.variant == null) return null;
+    if (c.variant!.isDac) return dacLoopbackAddress(c);
     final selected = AppSettings.instance.analyzerLoopbackOutput;
     return selected == 0
         ? activeAnalyzerOutput(c)
@@ -118,6 +111,10 @@ class AnalyzerRouting {
     final settings = AppSettings.instance;
     if (settings.analyzerRoutingConfigured || ctrl?.variant == null) {
       return settings.analyzerLoopbackTap;
+    }
+    if (ctrl!.variant!.isDac) {
+      final address = dacLoopbackAddress(ctrl!);
+      return address == null ? 0 : ctrl!.value(address, OutIdx.loopback)!;
     }
     for (final address in analyzerOutputAddresses(ctrl!)) {
       final value = decodeLoopback(
@@ -135,7 +132,7 @@ class AnalyzerRouting {
     final previous = address;
     // Persist the explicit user action. Settings notifications alone never write.
     final saved = AppSettings.instance.setAnalyzerRouting(
-      output: output,
+      output: ctrl?.variant?.isDac == true ? 0 : output,
       tap: tap,
     );
     _cancel();
@@ -144,13 +141,15 @@ class AnalyzerRouting {
       final target = tap == 0 ? previous : address;
       final raw = target == null
           ? null
-          : ctrl!.confirmedValue(target, OutIdx.loopback);
+          : (ctrl!.offline
+                ? ctrl!.value(target, OutIdx.loopback)
+                : ctrl!.confirmedValue(target, OutIdx.loopback));
       // Off must preserve recordings on other USB pairs.
       if (raw != null &&
           (tap != 0 ||
               decodeLoopback(raw, hasInput: ctrl!.variant!.hasInput).pair ==
                   0)) {
-        routeAnalyzerLoopback(ctrl!, target!, tap);
+        routeAnalyzerLoopback(ctrl!, target!, tap, onDisplaced: onDisplaced);
       }
     }
     await saved;
@@ -184,7 +183,12 @@ class AnalyzerRouting {
       _debounce = null;
       if (!_canAutomate || address != target || tap != selectedTap) return;
       // One attempt per transition, even if a late/stale readback disagrees.
-      routeAnalyzerLoopback(ctrl!, target, selectedTap);
+      routeAnalyzerLoopback(
+        ctrl!,
+        target,
+        selectedTap,
+        onDisplaced: onDisplaced,
+      );
     });
   }
 

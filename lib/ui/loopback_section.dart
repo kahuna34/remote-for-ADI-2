@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../device/adi2_controller.dart';
 import '../device/loopback.dart';
+import '../device/loopback_routing.dart';
+import 'loopback_feedback.dart';
 import '../device/usb_cc_mode.dart';
 import '../l10n/l10n.dart';
 import '../protocol/adi2_params.dart';
@@ -95,11 +97,11 @@ class LoopbackSection extends StatelessWidget {
               ],
             ),
             Text(
-              tr('Abgriff für die USB-Aufnahme wählen.'),
+              tr('Loopback-Quelle für die USB-Aufnahme wählen.'),
               style: ts(13, color: Palette.muted),
             ),
             const SizedBox(height: 12),
-            for (final o in outputs) ...[
+            for (final o in (v.isDac ? [outputs.first] : outputs)) ...[
               if (o != outputs.first) const Divider(height: 24),
               _LoopbackOutput(
                 key: ValueKey('loopback-${o.address}'),
@@ -131,26 +133,40 @@ class _LoopbackOutput extends StatelessWidget {
   Widget build(BuildContext context) {
     final stereo = ctrl.ccMode == UsbCcMode.stereo;
     final selection = decodeLoopback(
-      ctrl.value(output.address, OutIdx.loopback)!,
+      ctrl.value(
+        hasInput ? output.address : dacLoopbackAddress(ctrl)!,
+        OutIdx.loopback,
+      )!,
       hasInput: hasInput,
     );
-    void set(int tap, int pair) => ctrl.set(
+    void set(int tap, int pair) => setLoopbackRoute(
+      ctrl,
       output.address,
-      OutIdx.loopback,
-      encodeLoopback(tap: tap, pair: pair, hasInput: hasInput),
+      tap: tap,
+      pair: pair,
+      onDisplaced: (address, pair) =>
+          showLoopbackDisplaced(context, ctrl, address, pair),
     );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(output.name, style: ts(15, weight: 600)),
+        Text(
+          hasInput ? output.name : tr('Loopback-Quelle'),
+          style: ts(15, weight: 600),
+        ),
+        if (!hasInput)
+          Text(
+            tr('Gilt für alle Ausgänge'),
+            style: ts(13, color: Palette.muted),
+          ),
         const SizedBox(height: 8),
         ParamChoices(
           labels: [tr('Aus'), tr('pre FX'), tr('post FX'), tr('post −6 dB')],
           selected: selection.tap,
           onSelected: (tap) => set(tap, selection.pair),
         ),
-        if (selection.tap != 0) ...[
+        if (hasInput && selection.tap != 0) ...[
           const SizedBox(height: 8),
           Row(
             children: [
@@ -160,6 +176,25 @@ class _LoopbackOutput extends StatelessWidget {
                 Expanded(
                   child: ParamChoices(
                     labels: [tr('1/2'), tr('3/4'), tr('5/6')],
+                    subtitles: [
+                      for (var pair = 0; pair < 3; pair++)
+                        loopbackOccupants(ctrl, output.address, pair).isEmpty
+                            ? null
+                            : trf('belegt: {Ausgang}', {
+                                'Ausgang':
+                                    loopbackOccupants(
+                                          ctrl,
+                                          output.address,
+                                          pair,
+                                        )
+                                        .map(
+                                          (a) => outputsFor(ctrl.variant!)
+                                              .firstWhere((o) => o.address == a)
+                                              .name,
+                                        )
+                                        .join(', '),
+                              }),
+                    ],
                     selected: selection.pair,
                     markedIndices: const {2},
                     disabledIndices: stereo ? const {2} : const {},

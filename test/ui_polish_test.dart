@@ -399,7 +399,7 @@ void main() {
       final gear = tester.getRect(find.byTooltip(tr('Analyzer-Einstellungen')));
       expect(tester.getRect(controls).top, greaterThanOrEqualTo(gear.bottom));
       for (final chip in [tr('Linien'), tr('Balken'), tr('Peak hold')]) {
-        final finder = find.text(chip);
+        final finder = find.descendant(of: controls, matching: find.text(chip));
         final rect = tester.getRect(finder);
         expect(rect.left, greaterThanOrEqualTo(panel.left));
         expect(rect.right, lessThanOrEqualTo(panel.right));

@@ -4,6 +4,78 @@ import 'package:adi2_host/autostart.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'Aktiver Windows-Autostart übernimmt beim Start den aktuellen Pfad',
+    () async {
+      final calls = <(String, List<String>)>[];
+      final autostart = HostAutostart(
+        platform: 'windows',
+        executable: r'C:\Users\Test\AppData\Local\Programs\Remote for ADI-2 Host\adi2_host.exe',
+        home: '',
+        run: (command, args) async {
+          calls.add((command, args));
+          return ProcessResult(
+            1,
+            0,
+            'Remote for ADI-2 Host REG_SZ "C:\\Portable\\adi2_host.exe"',
+            '',
+          );
+        },
+      );
+      expect(await autostart.refreshEnabledPath(), isTrue);
+      expect(calls.map((call) => call.$1), everyElement('reg.exe'));
+      expect(calls.map((call) => call.$2.first), ['query', 'add']);
+      expect(
+        calls.last.$2,
+        containsAllInOrder([
+          HostAutostart.registry,
+          '/v',
+          'Remote for ADI-2 Host',
+          '/t',
+          'REG_SZ',
+          '/d',
+          '"${autostart.executable}"',
+          '/f',
+        ]),
+      );
+    },
+  );
+
+  test(
+    'Deaktivierter Windows-Autostart wird beim Aktualisieren nicht angelegt',
+    () async {
+      final calls = <List<String>>[];
+      final autostart = HostAutostart(
+        platform: 'windows',
+        executable: r'C:\Installed\adi2_host.exe',
+        home: '',
+        run: (_, args) async {
+          calls.add(args);
+          return ProcessResult(1, 1, '', 'not found');
+        },
+      );
+      expect(await autostart.refreshEnabledPath(), isFalse);
+      expect(calls.single.first, 'query');
+    },
+  );
+
+  test(
+    'Fehler beim Aktualisieren des Windows-Autostarts wird weitergegeben',
+    () async {
+      final autostart = HostAutostart(
+        platform: 'windows',
+        executable: r'C:\Installed\adi2_host.exe',
+        home: '',
+        run: (_, args) async =>
+            ProcessResult(1, args.first == 'query' ? 0 : 5, '', 'denied'),
+      );
+      await expectLater(
+        autostart.refreshEnabledPath(),
+        throwsA(isA<ProcessException>()),
+      );
+    },
+  );
+
   test('Windows benutzt ausschließlich HKCU und getrennte Argumente', () async {
     final calls = <(String, List<String>)>[];
     final autostart = HostAutostart(

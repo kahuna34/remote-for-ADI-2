@@ -9,7 +9,7 @@ String hostErrorText(String error) {
   }
   if (error.contains('usb_busy')) return tr('USB-MIDI am Host ist belegt');
   if (error.contains('busy')) {
-    return tr('Der Host wird bereits von einem anderen Smartphone gesteuert');
+    return tr('Zu viele Clients am Host verbunden (maximal 4)');
   }
   return tr('Host-Verbindung unterbrochen. Neuer Verbindungsversuch läuft …');
 }

@@ -3,10 +3,15 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:adi2_host/desktop_midi.dart';
+import 'package:adi2_host/windows_pnp.dart';
+import 'package:adi2_host/host_server.dart';
+
 import 'package:adi2_remote/device/adi2_controller.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_midi_command/flutter_midi_command.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'midi_process_fake.dart';
 
 Map<String, Object?> device(String name, String serial) => {
   'name': name,
@@ -16,10 +21,13 @@ Map<String, Object?> device(String name, String serial) => {
 
 class _MidiCommand extends Fake implements MidiCommand {
   List<MidiDevice> ports = [];
-  int connections = 0;
+  int connections = 0, deviceQueries = 0;
 
   @override
-  Future<List<MidiDevice>?> get devices async => ports;
+  Future<List<MidiDevice>?> get devices async {
+    deviceQueries++;
+    return ports;
+  }
 
   @override
   void configureTransportPolicy(MidiTransportPolicy policy) {}
@@ -57,112 +65,190 @@ void main() {
       DesktopMidi.withWindowsUsbName(port, parse(rows));
 
   test(
-    'Windows: detect und open teilen den Cache, detect öffnet nie',
+    'Windows: PnP wird bei jedem detect erneuert, ohne Portöffnung',
     () async {
       final command = _MidiCommand()..ports = [portDevice('adi', port)];
       var queries = 0;
+      var names = ['ADI-2 DAC (99000001)'];
       final midi = DesktopMidi(
         command: command,
         platform: TargetPlatform.windows,
+        processStarter: FakeMidiProcesses().start,
         windowsNameQuery: () async {
           queries++;
-          return ['ADI-2 DAC (99000001)'];
+          return names;
         },
         macNameQuery: () async =>
             throw StateError('macOS-Abfrage unter Windows'),
       );
       expect(await midi.detect(), 'ADI-2 DAC (99000001)');
-      expect(await midi.detect(), 'ADI-2 DAC (99000001)');
-      command.ports = [portDevice('other', 'Babyface'), ...command.ports];
-      expect(await midi.detect(), 'ADI-2 DAC (99000001)');
-      expect(queries, 1);
+      names = ['ADI-2 DAC (99000002)'];
+      expect(await midi.detect(), 'ADI-2 DAC (99000002)');
+      expect(queries, 2);
       expect(command.connections, 0);
-      expect(await midi.open(), 'ADI-2 DAC (99000001)');
-      expect(await midi.open(), 'ADI-2 DAC (99000001)');
-      expect(queries, 1);
-      expect(command.connections, 1);
+      expect(await midi.open(), 'ADI-2 DAC (99000002)');
+      expect(midi.portInUse, isTrue);
+      expect(await midi.open(), 'ADI-2 DAC (99000002)');
+      expect(command.connections, 0);
+      expect(command.deviceQueries, 0);
       await midi.close();
+      expect(midi.portInUse, isFalse);
     },
   );
 
   test(
-    'Windows: Änderungen an Kandidaten-ID und -Name erneuern den Cache',
+    'Windows: frische WinMM-Liste gilt, wenn PnP das Gerät nicht findet',
     () async {
       final command = _MidiCommand()..ports = [portDevice('adi', port)];
-      var queries = 0;
+      final helpers = FakeMidiProcesses();
       final midi = DesktopMidi(
         command: command,
         platform: TargetPlatform.windows,
-        windowsNameQuery: () async {
-          queries++;
-          return ['ADI-2 DAC (99000001)'];
-        },
+        processStarter: helpers.start,
+        windowsNameQuery: () async => [],
       );
-      await midi.detect();
-      command.ports = [portDevice('new-id', port)];
-      await midi.detect();
-      expect(queries, 2);
-      command.ports = [portDevice('new-id', 'RME ADI-2 DAC')];
-      await midi.detect();
-      expect(queries, 3);
-      command.ports.add(portDevice('second', port));
-      await midi.detect();
-      expect(queries, 4);
-      command.ports = command.ports.reversed.toList();
-      await midi.detect();
-      expect(queries, 4);
-      command.ports.removeLast();
-      await midi.detect();
-      expect(queries, 5);
+      expect(await midi.detect(), 'ADI-2 DAC');
+      expect(midi.windowsPnpUnreliable, isTrue);
+      expect(midi.windowsPnpPresent, isFalse);
+      helpers.ports = [];
+      expect(await midi.detect(), isNull);
+    },
+  );
+
+  test(
+    'Windows: PnP bleibt nach Sichtung maßgeblich, ohne WinMM im Host',
+    () async {
+      final command = _MidiCommand()..ports = [portDevice('adi', port)];
+      final helpers = FakeMidiProcesses()..ports = [];
+      var names = ['ADI-2 DAC (99000001)'];
+      final midi = DesktopMidi(
+        command: command,
+        platform: TargetPlatform.windows,
+        processStarter: helpers.start,
+        windowsNameQuery: () async => names,
+      );
+      expect(await midi.detect(), 'ADI-2 DAC (99000001)');
+      names = [];
+      expect(await midi.detect(), isNull);
+      expect(midi.windowsPnpPresent, isFalse);
+      expect(helpers.calls, isEmpty);
+      expect(midi.portInUse, isFalse);
+      await expectLater(midi.open(), throwsA(isA<HostUsbException>()));
       expect(command.connections, 0);
     },
   );
 
   test(
-    'Windows: Abziehen meldet sofort null ohne PnP; Anstecken fragt neu',
+    'Windows: neues PnP-Gerät wird trotz leerer WinMM-Liste erkannt',
     () async {
-      final target = portDevice('adi', port);
-      final command = _MidiCommand()..ports = [target];
-      var queries = 0;
+      final command = _MidiCommand();
+      var names = <String>[];
       final midi = DesktopMidi(
         command: command,
         platform: TargetPlatform.windows,
-        windowsNameQuery: () async {
-          queries++;
-          return ['ADI-2 DAC (99000001)'];
-        },
+        processStarter: (FakeMidiProcesses()..ports = []).start,
+        windowsNameQuery: () async => names,
       );
-      await midi.detect();
-      command.ports = [portDevice('other', 'Babyface')];
       expect(await midi.detect(), isNull);
-      expect(await midi.detect(), isNull);
-      expect(queries, 1);
-      command.ports = [target];
+      names = ['ADI-2 DAC (99000001)'];
       expect(await midi.detect(), 'ADI-2 DAC (99000001)');
-      expect(queries, 2);
+      expect(midi.windowsPnpPresent, isTrue);
+      names = [];
+      expect(await midi.detect(), isNull);
       expect(command.connections, 0);
     },
   );
 
-  test('Windows: leere und fehlerhafte Abfragen werden wiederholt', () async {
-    final command = _MidiCommand()..ports = [portDevice('adi', port)];
-    var queries = 0;
-    final midi = DesktopMidi(
-      command: command,
-      platform: TargetPlatform.windows,
-      windowsNameQuery: () async {
-        queries++;
-        if (queries == 1) return [];
-        if (queries == 2) throw StateError('PnP nicht verfügbar');
+  test(
+    'Windows: Abziehen bei offenem Port schließt und meldet onLost',
+    () async {
+      final command = _MidiCommand()..ports = [portDevice('adi', port)];
+      var names = ['ADI-2 DAC (99000001)'];
+      var lost = 0;
+      final midi = DesktopMidi(
+        command: command,
+        platform: TargetPlatform.windows,
+        processStarter: FakeMidiProcesses().start,
+        windowsNameQuery: () async => names,
+      )..onLost = () => lost++;
+      await midi.open();
+      names = [];
+      expect(await midi.detect(), isNull);
+      expect(midi.portInUse, isFalse);
+      expect(lost, 1);
+      expect(await midi.detect(), isNull);
+      expect(lost, 1);
+    },
+  );
+
+  test(
+    'Windows: Fehler gelten nicht als PnP-Abwesenheit und werden wiederholt',
+    () async {
+      final command = _MidiCommand()..ports = [portDevice('adi', port)];
+      var fails = false;
+      final midi = DesktopMidi(
+        command: command,
+        platform: TargetPlatform.windows,
+        processStarter: FakeMidiProcesses().start,
+        windowsNameQuery: () async {
+          if (fails) throw StateError('PnP');
+          return ['ADI-2 DAC (99000001)'];
+        },
+      );
+      await midi.detect();
+      fails = true;
+      await expectLater(midi.detect(), throwsStateError);
+      expect(midi.windowsPnpPresent, isNull);
+      fails = false;
+      expect(await midi.detect(), 'ADI-2 DAC (99000001)');
+    },
+  );
+
+  test(
+    'Windows: native leere Liste löst keinen PowerShell-Rückfall aus',
+    () async {
+      var fallbacks = 0;
+      Future<List<String>> fallback() async {
+        fallbacks++;
         return ['ADI-2 DAC (99000001)'];
-      },
+      }
+
+      expect(
+        await DesktopMidi.windowsPresentDeviceNames(
+          nativeQuery: () => [],
+          fallbackQuery: fallback,
+        ),
+        isEmpty,
+      );
+      expect(fallbacks, 0);
+      expect(
+        await DesktopMidi.windowsPresentDeviceNames(
+          nativeQuery: () => throw StateError('SetupAPI'),
+          fallbackQuery: fallback,
+        ),
+        ['ADI-2 DAC (99000001)'],
+      );
+      expect(fallbacks, 1);
+    },
+  );
+
+  test('Windows: PnP-Anzeigename nutzt Busbeschreibung oder FriendlyName', () {
+    expect(
+      WindowsPnp.deviceName('RME ADI-2 DAC', 'ADI-2 DAC (12345678)'),
+      'ADI-2 DAC (12345678)',
     );
-    expect(await midi.detect(), 'ADI-2 DAC');
-    expect(await midi.detect(), 'ADI-2 DAC');
-    expect(await midi.detect(), 'ADI-2 DAC (99000001)');
-    expect(await midi.detect(), 'ADI-2 DAC (99000001)');
-    expect(queries, 3);
-    expect(command.connections, 0);
+    expect(WindowsPnp.deviceName('RME ADI-2 DAC', null), 'ADI-2 DAC');
+    expect(WindowsPnp.deviceName('RME ADI-2 DAC', 'Babyface'), 'ADI-2 DAC');
+    expect(
+      DesktopMidi.parseWindowsPnpPresence(
+        jsonEncode([
+          {'name': 'RME ADI-2 DAC', 'busName': 'ADI-2 DAC (12345678)'},
+          {'name': 'RME ADI-2 Pro'},
+          {'name': 'Babyface'},
+        ]),
+      ),
+      ['ADI-2 DAC (12345678)', 'ADI-2 Pro'],
+    );
   });
 
   test(
@@ -175,6 +261,7 @@ void main() {
       final midi = DesktopMidi(
         command: command,
         platform: TargetPlatform.windows,
+        processStarter: FakeMidiProcesses().start,
         windowsNameQuery: () {
           queries++;
           started.complete();
@@ -202,6 +289,7 @@ void main() {
       final midi = DesktopMidi(
         command: command,
         platform: TargetPlatform.windows,
+        processStarter: FakeMidiProcesses().start,
         windowsNameQuery: () async => ['ADI-2 Pro (56010000)'],
       );
       expect(await midi.detect(), 'ADI-2 Pro EX (56010000)');

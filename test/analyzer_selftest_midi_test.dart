@@ -30,7 +30,8 @@ class _Midi implements MidiCommand {
         OutIdx.loopback,
         OutIdx.source,
       ])
-        a << 8 | i: i == OutIdx.volume ? -250 : 0,
+        if (a != Adi2Addr.ph12 || i != OutIdx.loopback)
+          a << 8 | i: i == OutIdx.volume ? -250 : 0,
   };
   bool answer = true;
   final writes = <Adi2Param>[];
@@ -177,6 +178,31 @@ void main() {
     },
   );
 
+  test('Pro self-test never writes Loopback to Phones 1/2', () async {
+    midi.emitStatus();
+    final snapshot = await device.read();
+    expect(device.loopbackOutputs, [Adi2Addr.line, Adi2Addr.ph34]);
+    expect(snapshot, isNot(contains(Adi2Addr.ph12 << 8 | OutIdx.loopback)));
+    final session = AnalyzerSelfTest(
+      device,
+      TestSelfTestAudio([]),
+      silence: Duration.zero,
+    );
+    addTearDown(session.dispose);
+    await session.run(Adi2Addr.ph34);
+    expect(session.error, isNull);
+    expect(session.restored, isTrue);
+    await session.resetTestState();
+    expect(session.error, isNull);
+    expect(midi.writes.where((p) => p.index == OutIdx.loopback), isNotEmpty);
+    expect(
+      midi.writes.where(
+        (p) => p.address == Adi2Addr.ph12 && p.index == OutIdx.loopback,
+      ),
+      isEmpty,
+    );
+  });
+
   test('emergency reset keeps loopback off after automatic analyzer routing resumes', () async {
     midi.emitStatus();
     await device.read();
@@ -200,7 +226,10 @@ void main() {
     midi.emitStatus();
     await Future<void>.delayed(Duration.zero);
     for (final output in device.outputs) {
-      expect(midi.actual[output << 8 | OutIdx.loopback], 0);
+      expect(
+        midi.actual[output << 8 | OutIdx.loopback],
+        device.loopbackOutputs.contains(output) ? 0 : isNull,
+      );
       expect(midi.actual[output << 8 | OutIdx.source], 0);
     }
     for (final e in protectedValues.entries) {
@@ -241,17 +270,14 @@ void main() {
     },
   );
 
-  test(
-    'snapshot comes from fresh device RX and contains all 12 parameters',
-    () async {
-      final snapshot = await device.read();
-      expect(snapshot, midi.actual);
-      expect(snapshot.length, 12);
-      expect(device.usbSource, 4);
-      ctrl.model = Adi2Model.dac;
-      expect(device.usbSource, 3);
-    },
-  );
+  test('snapshot comes from fresh device RX and contains all 11 supported Pro parameters', () async {
+    final snapshot = await device.read();
+    expect(snapshot, midi.actual);
+    expect(snapshot.length, 11);
+    expect(device.usbSource, 4);
+    ctrl.model = Adi2Model.dac;
+    expect(device.usbSource, 3);
+  });
   test('USB option and source labels come from every variant definition', () {
     for (final model in Adi2Model.values) {
       ctrl.model = model;
@@ -339,11 +365,11 @@ void main() {
       expect(device.acquire, throwsStateError);
       ctrl.volGuard.cancelAll();
       device.acquire();
-      routeAnalyzerLoopback(ctrl, 6, 1);
+      routeAnalyzerLoopback(ctrl, Adi2Addr.ph34, 1);
       expect(midi.writes, isEmpty);
       expect(device.acquire, throwsStateError);
       device.release();
-      routeAnalyzerLoopback(ctrl, 6, 1);
+      routeAnalyzerLoopback(ctrl, Adi2Addr.ph34, 1);
       expect(midi.writes.single.index, OutIdx.loopback);
     },
   );

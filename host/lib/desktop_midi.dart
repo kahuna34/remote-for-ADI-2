@@ -9,6 +9,9 @@ import 'package:adi2_remote/device/supported_models.dart';
 import 'package:adi2_remote/protocol/adi2_codec.dart';
 
 import 'host_server.dart';
+import 'windows_pnp.dart';
+import 'windows_midi.dart';
+import 'host_log.dart';
 
 class DesktopMidi implements HostMidiPort {
   DesktopMidi({
@@ -16,29 +19,71 @@ class DesktopMidi implements HostMidiPort {
     TargetPlatform? platform,
     Future<List<String>> Function()? windowsNameQuery,
     Future<List<String>> Function()? macNameQuery,
+    MidiProcessStarter? processStarter,
+    String? helperExecutable,
   }) : command = command ?? MidiCommand(),
+       _windowsMidi = WindowsMidi(
+         starter: processStarter,
+         executable: helperExecutable,
+       ),
        _platform =
            platform ??
            (Platform.isMacOS ? TargetPlatform.macOS : TargetPlatform.windows),
-       _windowsNameQuery = windowsNameQuery ?? windowsUsbProductNames,
+       _windowsNameQuery = windowsNameQuery ?? windowsPresentDeviceNames,
        _macNameQuery = macNameQuery ?? macUsbProductNames;
+
+  final WindowsMidi _windowsMidi;
+  MidiHelperSession? _windowsSession;
+  Future<void>? _windowsClosing;
+  Future<String>? _pendingOpen;
+  int _generation = 0;
+  bool windowsPnpUnreliable = false;
+  bool _pnpSeen = false;
 
   final MidiCommand command;
   final TargetPlatform _platform;
   final Future<List<String>> Function() _windowsNameQuery, _macNameQuery;
-  String? _windowsCandidates;
   Future<List<String>>? _windowsNames;
   final _packets = StreamController<Uint8List>.broadcast();
   MidiDevice? _device;
   String? _deviceName;
   StreamSubscription<dynamic>? _rx, _setup;
   VoidCallback? onLost;
+  bool _opening = false;
+  bool get portInUse => _opening || _device != null || _windowsSession != null;
+  bool? windowsPnpPresent;
   @override
   Stream<Uint8List> get packets => _packets.stream;
 
   /// Erkennt einen angeschlossenen ADI-2, ohne den MIDI-Port zu öffnen, und
   /// liefert Modell und Seriennummer für die Anzeige im Menü.
   Future<String?> detect() async {
+    if (_platform == TargetPlatform.windows) {
+      windowsPnpPresent = null;
+      final names = windowsPnpUnreliable
+          ? const <String>[]
+          : await _queryWindowsNames();
+      if (!windowsPnpUnreliable) windowsPnpPresent = names.isNotEmpty;
+      if (names.isNotEmpty) {
+        windowsPnpUnreliable = false;
+        return displayName(names.first);
+      }
+      // On systems whose PnP names never expose ADI-2, a fresh helper can
+      // establish the fallback at any time, including after a later hotplug.
+      if (windowsPnpUnreliable || !_pnpSeen) {
+        final ports = await _windowsMidi.list();
+        final candidates = ports.candidates;
+        if (candidates.isNotEmpty) {
+          windowsPnpUnreliable = true;
+          return displayName(candidates.first);
+        }
+      }
+      if (_windowsSession != null) {
+        await close();
+        onLost?.call();
+      }
+      return null;
+    }
     final candidates = await _candidates();
     if (candidates.isEmpty) return null;
     return displayName(await _resolveDeviceName(candidates));
@@ -46,15 +91,22 @@ class DesktopMidi implements HostMidiPort {
 
   Future<List<MidiDevice>> _candidates() async {
     _configure();
-    final candidates = Adi2Controller.autoConnectCandidates(
+    return Adi2Controller.autoConnectCandidates(
       await command.devices ?? [],
       _platform,
     );
-    if (_platform == TargetPlatform.windows && candidates.isEmpty) {
-      _windowsCandidates = null;
-      _windowsNames = null;
-    }
-    return candidates;
+  }
+
+  Future<List<String>> _queryWindowsNames() {
+    // Only concurrent callers share work; the next poll always reads PnP.
+    return _windowsNames ??= Future.sync(_windowsNameQuery)
+        .then((names) {
+          if (names.isNotEmpty) _pnpSeen = true;
+          return names;
+        })
+        .whenComplete(() {
+          _windowsNames = null;
+        });
   }
 
   Future<String> _resolveDeviceName(List<MidiDevice> candidates) async {
@@ -62,23 +114,7 @@ class DesktopMidi implements HostMidiPort {
     if (_platform != TargetPlatform.windows) {
       return withUsbName(name, await _macNameQuery());
     }
-    // Reihenfolge und fremde MIDI-Ports lösen keine neue PnP-Abfrage aus.
-    final ports = candidates.map((d) => jsonEncode([d.id, d.name])).toList()
-      ..sort();
-    final key = jsonEncode(ports);
-    if (_windowsCandidates != key || _windowsNames == null) {
-      _windowsCandidates = key;
-      // Auch gleichzeitige open-/detect-Aufrufe teilen sich die Abfrage.
-      _windowsNames = Future.sync(_windowsNameQuery)
-          .catchError((Object _) => <String>[]);
-    }
-    final pending = _windowsNames!;
-    final names = await pending;
-    if (names.isEmpty && identical(_windowsNames, pending)) {
-      // Leere oder fehlgeschlagene Abfragen beim nächsten Mal wiederholen.
-      _windowsNames = null;
-    }
-    return withWindowsUsbName(name, names);
+    return withWindowsUsbName(name, await _queryWindowsNames());
   }
 
   /// Anzeigename: Portzusatz entfernen, ADI-2 Pro EX an der Seriennummer
@@ -104,8 +140,85 @@ class DesktopMidi implements HostMidiPort {
   );
 
   @override
-  Future<String> open() async {
-    if (_device != null) return _deviceName ?? _device!.name;
+  Future<String> open() {
+    if (_pendingOpen != null) return _pendingOpen!;
+    if (_windowsSession != null || _device != null) {
+      return Future.value(_deviceName ?? _device!.name);
+    }
+    _opening = true;
+    final generation = _generation;
+    return _pendingOpen = (() async {
+      try {
+        return _platform == TargetPlatform.windows
+            ? await _openWindows(generation)
+            : await _openDevice();
+      } finally {
+        _opening = false;
+        _pendingOpen = null;
+      }
+    })();
+  }
+
+  Future<String> _openWindows(int generation) async {
+    MidiHelperSession? session;
+    try {
+      await _windowsClosing;
+      // PnP supplies display metadata; only the fresh helper decides which
+      // ports can actually open, including on systems with unusable PnP.
+      var names = const <String>[];
+      try {
+        names = await _queryWindowsNames();
+      } catch (error) {
+        HostLog.write('MIDI USB-Name nicht verfügbar: $error');
+      }
+      final candidates = (await _windowsMidi.list()).candidates;
+      if (candidates.isEmpty || generation != _generation) {
+        throw const HostUsbException('usb_missing');
+      }
+      final target = candidates.first;
+      final process = await _windowsMidi.start(['open', target]);
+      session = MidiHelperSession(
+        process,
+        onPacket: (bytes) {
+          if (generation == _generation) _packets.add(bytes);
+        },
+        onLost: () {
+          if (generation != _generation) return;
+          _windowsSession = null;
+          _deviceName = null;
+          _windowsClosing = session!.close();
+          onLost?.call();
+        },
+      );
+      if (generation != _generation) {
+        // Attach the error handler before closing an unfinished handshake.
+        unawaited(session.opened.catchError((Object _) => ''));
+        throw const HostUsbException('usb_missing');
+      }
+      _windowsSession = session;
+      final portName = await session.opened;
+      if (generation != _generation || _windowsSession != session) {
+        throw const HostUsbException('usb_missing');
+      }
+      _deviceName = withWindowsUsbName(portName, names);
+      return _deviceName!;
+    } catch (error) {
+      HostLog.write('MIDI-Hilfsprozess Öffnen fehlgeschlagen: $error');
+      if (_windowsSession == session) {
+        _windowsSession = null;
+        _deviceName = null;
+      }
+      await session?.close();
+      if (error is HostUsbException) rethrow;
+      throw HostUsbException(
+        error is MidiHelperException && error.code == 'busy'
+            ? 'usb_busy'
+            : 'usb_missing',
+      );
+    }
+  }
+
+  Future<String> _openDevice() async {
     final candidates = await _candidates();
     if (candidates.isEmpty) throw const HostUsbException('usb_missing');
     final target = candidates.first;
@@ -171,7 +284,7 @@ $devices = @(Get-PnpDevice -PresentOnly -Class MEDIA | Where-Object {
 ConvertTo-Json -InputObject $devices -Compress
 ''';
 
-  static const _pnpTimeout = Duration(seconds: 3);
+  static const _pnpTimeout = Duration(seconds: 10);
 
   static Future<ProcessResult> _queryWindowsPnp() async {
     final process = await Process.start('powershell.exe', [
@@ -198,15 +311,57 @@ ConvertTo-Json -InputObject $devices -Compress
     }
   }
 
+  /// Empty native results are authoritative. PowerShell runs only when the
+  /// native API fails, never to confirm absence or to refresh a name cache.
+  static Future<List<String>> windowsPresentDeviceNames({
+    FutureOr<List<String>> Function()? nativeQuery,
+    Future<List<String>> Function()? fallbackQuery,
+  }) async {
+    try {
+      return await (nativeQuery ?? WindowsPnp.productNames)();
+    } catch (_) {
+      return await (fallbackQuery ??
+          () => windowsUsbProductNames(presence: true))();
+    }
+  }
+
+  static List<String> parseWindowsPnpPresence(String output) {
+    final decoded = jsonDecode(output.trim().replaceFirst('\uFEFF', ''));
+    final rows = decoded is List ? decoded : [decoded];
+    final names = <String>[];
+    for (final row in rows) {
+      if (row is! Map || row['name'] is! String) {
+        throw const FormatException('Invalid PnP device');
+      }
+      final friendly = row['name'] as String;
+      if (!WindowsPnp.isAdi2(friendly)) continue;
+      final value = row['busName'];
+      final buses = value is List ? value : [value];
+      final bus = buses
+          .whereType<String>()
+          .where(WindowsPnp.isAdi2)
+          .firstOrNull;
+      names.add(WindowsPnp.deviceName(friendly, bus));
+    }
+    return names;
+  }
+
   static Future<List<String>> windowsUsbProductNames({
     Future<ProcessResult> Function()? query,
     Duration timeout = _pnpTimeout,
+    bool presence = false,
   }) async {
     try {
       final result = await (query ?? _queryWindowsPnp)().timeout(timeout);
-      if (result.exitCode != 0 || result.stdout is! String) return const [];
-      return parseWindowsUsbProductNames(result.stdout as String);
+      if (result.exitCode != 0 || result.stdout is! String) {
+        if (presence) throw StateError('PnP query failed');
+        return const [];
+      }
+      return presence
+          ? parseWindowsPnpPresence(result.stdout as String)
+          : parseWindowsUsbProductNames(result.stdout as String);
     } catch (_) {
+      if (presence) rethrow;
       return const [];
     }
   }
@@ -325,12 +480,24 @@ ConvertTo-Json -InputObject $devices -Compress
 
   @override
   void send(Uint8List data) {
+    if (_platform == TargetPlatform.windows) {
+      _windowsSession?.send(data);
+      return;
+    }
     final device = _device;
     if (device != null) command.sendData(data, deviceId: device.id);
   }
 
   @override
   Future<void> close() async {
+    _generation++;
+    final session = _windowsSession;
+    _windowsSession = null;
+    _deviceName = null;
+    final closing = _windowsClosing;
+    _windowsClosing = null;
+    await session?.close();
+    await closing;
     await _rx?.cancel();
     _rx = null;
     await _setup?.cancel();

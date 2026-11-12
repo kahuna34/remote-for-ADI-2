@@ -74,12 +74,29 @@ $listen = Get-NetTCPConnection -State Listen | Where-Object { $_.LocalPort -ge 4
   ForEach-Object { "Port $($_.LocalPort) by PID $($_.OwningProcess)" }
 Add-Block 'Host network port (47321)' $listen
 
-$fw = Get-NetFirewallApplicationFilter | Where-Object { $_.Program -match 'adi2_host' } |
-  ForEach-Object {
-    $rule = $_ | Get-NetFirewallRule
-    "$($rule.DisplayName) | enabled $($rule.Enabled) | $($rule.Action) | profile $($rule.Profile)"
-  }
+$profiles = @(Get-NetConnectionProfile | Where-Object {
+  $_.IPv4Connectivity -ne 'Disconnected' -or $_.IPv6Connectivity -ne 'Disconnected'
+})
+Add-Block 'Active network profiles' @($profiles | ForEach-Object { "$($_.Name) | $($_.NetworkCategory)" })
+
+$fwRules = @(Get-NetFirewallApplicationFilter | Where-Object { $_.Program -match 'adi2_host' } |
+  Get-NetFirewallRule)
+$fw = @($fwRules | ForEach-Object {
+  "$($_.DisplayName) | enabled $($_.Enabled) | $($_.Action) | profile $($_.Profile)"
+})
 Add-Block 'Firewall rules for adi2_host' $fw
+$allow = @($fwRules | Where-Object {
+  $_.Enabled -eq 'True' -and $_.Action -eq 'Allow' -and $_.Direction -eq 'Inbound'
+})
+$public = @($allow | Where-Object { $_.Profile.ToString() -match '(^|,\s*)Public(,|$)' })
+$private = @($allow | Where-Object { $_.Profile.ToString() -match '(^|,\s*)(Private|Any)(,|$)' })
+if (@($profiles | Where-Object { $_.NetworkCategory -eq 'Private' }).Count -gt 0 -and
+    $public.Count -gt 0 -and $private.Count -eq 0) {
+  Add-Line 'WARNING: Firewall rule only for Public, but network is Private'
+}
+
+$log = Join-Path $env:LOCALAPPDATA 'Remote for ADI-2 Host\host.log'
+Add-Block 'Host log (last 60 lines)' @(if (Test-Path $log) { Get-Content $log -Tail 60 } else { 'no log yet' })
 
 $file = Join-Path ([Environment]::GetFolderPath('Desktop')) 'ADI-2-Diagnose.txt'
 $out | Out-File -FilePath $file -Encoding UTF8

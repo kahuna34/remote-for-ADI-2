@@ -1,3 +1,4 @@
+import 'loopback_feedback.dart';
 import '../dev/analyzer_selftest_diagnostics.dart';
 
 import 'dart:async';
@@ -5,6 +6,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../analyzer/analyzer_controller.dart';
 import '../analyzer/analyzer_dsp.dart';
@@ -20,6 +22,24 @@ import 'responsive_layout.dart';
 import 'player_bar.dart';
 import 'theme.dart';
 
+/// Each tool supplies its own optional toolbar controls.
+/// New tools can return an empty list or different widget builders.
+extension AnalyzerToolPresentation on AnalyzerView {
+  String get title => switch (this) {
+    AnalyzerView.spectrum => tr('Spektrum'),
+  };
+
+  /// Werkzeuge mit Peak-Marken zeigen den Knopf „Peak hold“.
+  bool get hasPeakHold => switch (this) {
+    AnalyzerView.spectrum => true,
+  };
+  List<WidgetBuilder> get toolbarOptions => switch (this) {
+    AnalyzerView.spectrum => [
+      (context) => const AnalyzerBandSetting(inline: true),
+    ],
+  };
+}
+
 /// One capture owner survives compact/fullscreen transitions, but stops when
 /// hidden by another page, a tab change, backgrounding, or removal.
 /// On the Mac a visible window that merely lost focus is `inactive`; the
@@ -28,6 +48,38 @@ bool analyzerRunsIn(AppLifecycleState state) =>
     state == AppLifecycleState.resumed ||
     (state == AppLifecycleState.inactive &&
         defaultTargetPlatform == TargetPlatform.macOS);
+
+/// „Peak hold“: Tippen schaltet um, langes Drücken setzt die Marken zurück.
+class AnalyzerPeakHoldChip extends StatelessWidget {
+  const AnalyzerPeakHoldChip({super.key, required this.controller});
+  final AnalyzerController controller;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    key: const ValueKey('analyzer-peak-hold'),
+    onLongPress: () {
+      controller.resetPeaks();
+      HapticFeedback.selectionClick();
+      ScaffoldMessenger.maybeOf(context)
+        ?..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(tr('Peak-Marken zurückgesetzt')),
+            duration: const Duration(seconds: 1),
+          ),
+        );
+    },
+    child: FilterChip(
+      label: Text(tr('Peak hold')),
+      selected: controller.peakHold,
+      showCheckmark: false,
+      labelStyle: ts(12),
+      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      onSelected: controller.setPeakHold,
+    ),
+  );
+}
 
 class AnalyzerPanel extends StatefulWidget {
   const AnalyzerPanel({
@@ -50,6 +102,7 @@ class _AnalyzerPanelState extends State<AnalyzerPanel>
   bool _current = true, _foreground = true, _waitForPortrait = false;
   bool _scheduled = false, _controlsOpen = false;
   bool _fullscreenCurrent = false;
+  bool _fullscreenDisposed = false, _resourcesDisposed = false;
   Route<void>? _fullscreen;
   bool _calibrationPromptScheduled = false, _calibrationPromptOpen = false;
 
@@ -171,7 +224,14 @@ class _AnalyzerPanelState extends State<AnalyzerPanel>
   void initState() {
     super.initState();
     _controller = widget.controller ?? AnalyzerController();
-    _routing = AnalyzerRouting(widget.deviceController);
+    _routing = AnalyzerRouting(
+      widget.deviceController,
+      onDisplaced: (a, p) {
+        if (mounted) {
+          showLoopbackDisplaced(context, widget.deviceController!, a, p);
+        }
+      },
+    );
     _controller.addListener(_scheduleCalibrationPrompt);
     widget.deviceController?.addListener(_scheduleCalibrationPrompt);
     final lifecycle = WidgetsBinding.instance.lifecycleState;
@@ -187,7 +247,14 @@ class _AnalyzerPanelState extends State<AnalyzerPanel>
       oldWidget.deviceController?.removeListener(_scheduleCalibrationPrompt);
       widget.deviceController?.addListener(_scheduleCalibrationPrompt);
       _routing.dispose();
-      _routing = AnalyzerRouting(widget.deviceController);
+      _routing = AnalyzerRouting(
+        widget.deviceController,
+        onDisplaced: (a, p) {
+          if (mounted) {
+            showLoopbackDisplaced(context, widget.deviceController!, a, p);
+          }
+        },
+      );
       _updateActivity();
     }
   }
@@ -217,7 +284,7 @@ class _AnalyzerPanelState extends State<AnalyzerPanel>
     unawaited(
       _controller.setActiveFor(
         this,
-        _foreground && (_current || _fullscreen != null || _controlsOpen),
+        _foreground && (_current || _fullscreenCurrent || _controlsOpen),
       ),
     );
   }
@@ -264,28 +331,37 @@ class _AnalyzerPanelState extends State<AnalyzerPanel>
 
   Future<void> _open({bool automatic = false}) async {
     if (_fullscreen != null) return;
-    final size = MediaQuery.sizeOf(context);
-    final keepPortrait = isTablet(context) && size.height >= size.width;
+    _fullscreenDisposed = false;
     final route = MaterialPageRoute<void>(
       settings: const RouteSettings(name: 'analyzer-fullscreen'),
       builder: (_) => _AnalyzerFullscreen(
         controller: _controller,
         automatic: automatic,
-        keepPortrait: keepPortrait,
         routing: _routing,
         deviceController: widget.deviceController,
+        onDisposed: () {
+          _fullscreenDisposed = true;
+          if (!mounted) _disposeResources();
+        },
         onVisibilityChanged: (visible) {
           _fullscreenCurrent = visible;
-          if (mounted) _updateActivity();
+          if (mounted) {
+            _updateActivity();
+          } else {
+            _routing.setActive(visible);
+          }
         },
-        onShowControls: (loopbackOnly) =>
-            _showControls(loopbackOnly: loopbackOnly),
       ),
     );
     _fullscreen = route;
     await Navigator.of(context).push(route);
+    await route.completed;
     _fullscreen = null;
     _fullscreenCurrent = false;
+    if (!mounted) {
+      _disposeResources();
+      return;
+    }
     _waitForPortrait = true;
     EqDisplayMode.allowRotation(this, false);
     if (mounted) _schedule();
@@ -297,20 +373,19 @@ class _AnalyzerPanelState extends State<AnalyzerPanel>
     _controller.removeListener(_scheduleCalibrationPrompt);
     widget.deviceController?.removeListener(_scheduleCalibrationPrompt);
     AppSettings.instance.removeListener(_schedule);
-    _routing.dispose();
     EqDisplayMode.allowRotation(this, false);
-    final route = _fullscreen;
-    if (route != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (route.isActive) route.navigator?.removeRoute(route);
-      });
-    }
-    if (widget.controller == null) {
-      _controller.dispose();
-    } else {
-      unawaited(_controller.setActiveFor(this, false));
-    }
+    unawaited(_controller.setActiveFor(this, false));
+    // Rotation rebuilds the tablet page under this route. The fullscreen owns
+    // its capture activity and retains these resources until it closes.
+    if (_fullscreen == null || _fullscreenDisposed) _disposeResources();
     super.dispose();
+  }
+
+  void _disposeResources() {
+    if (_resourcesDisposed) return;
+    _resourcesDisposed = true;
+    _routing.dispose();
+    if (widget.controller == null) _controller.dispose();
   }
 
   @override
@@ -337,6 +412,12 @@ class _AnalyzerPanelState extends State<AnalyzerPanel>
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    if (_controller.view.hasPeakHold)
+                      ListenableBuilder(
+                        listenable: _controller,
+                        builder: (context, _) =>
+                            AnalyzerPeakHoldChip(controller: _controller),
+                      ),
                     IconButton(
                       tooltip: tr('Analyzer-Einstellungen'),
                       constraints: const BoxConstraints.tightFor(
@@ -388,16 +469,14 @@ class _AnalyzerFullscreen extends StatefulWidget {
     required this.automatic,
     required this.routing,
     required this.onVisibilityChanged,
-    required this.onShowControls,
-    this.keepPortrait = false,
+    required this.onDisposed,
     this.deviceController,
   });
   final AnalyzerController controller;
   final bool automatic;
-  final bool keepPortrait;
   final AnalyzerRouting routing;
   final ValueChanged<bool> onVisibilityChanged;
-  final Future<void> Function(bool) onShowControls;
+  final VoidCallback onDisposed;
   final Adi2Controller? deviceController;
   @override
   State<_AnalyzerFullscreen> createState() => _AnalyzerFullscreenState();
@@ -406,22 +485,53 @@ class _AnalyzerFullscreen extends StatefulWidget {
 class _AnalyzerFullscreenState extends State<_AnalyzerFullscreen>
     with WidgetsBindingObserver {
   bool _spectrumOnly = false;
+  bool _foreground = true, _current = true, _controlsOpen = false;
+
+  void _updateActivity() {
+    final active = _foreground && (_current || _controlsOpen);
+    widget.onVisibilityChanged(active);
+    unawaited(widget.controller.setActiveFor(this, active));
+  }
+
+  Future<void> _showControls() async {
+    _controlsOpen = true;
+    _updateActivity();
+    try {
+      await showAnalyzerSettings(
+        context,
+        widget.controller,
+        widget.deviceController,
+        routing: widget.routing,
+      );
+    } finally {
+      _controlsOpen = false;
+      if (mounted) {
+        // The route's inherited isCurrent value may still describe the sheet
+        // during its closing frame. Read the navigator's current route now.
+        _current = ModalRoute.of(context)?.isCurrent ?? true;
+        _updateActivity();
+      }
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _foreground = analyzerRunsIn(state);
+    _updateActivity();
+  }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    widget.onVisibilityChanged(ModalRoute.isCurrentOf(context) ?? true);
+    _current = ModalRoute.isCurrentOf(context) ?? true;
+    _updateActivity();
   }
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    EqDisplayMode.enterFullscreen(
-      this,
-      automatic: widget.automatic,
-      keepPortrait: widget.keepPortrait,
-    );
+    EqDisplayMode.enterFullscreen(this, automatic: widget.automatic);
   }
 
   @override
@@ -440,6 +550,9 @@ class _AnalyzerFullscreenState extends State<_AnalyzerFullscreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     EqDisplayMode.leaveFullscreen(this);
+    widget.onVisibilityChanged(false);
+    unawaited(widget.controller.setActiveFor(this, false));
+    widget.onDisposed();
     super.dispose();
   }
 
@@ -475,70 +588,121 @@ class _AnalyzerFullscreenState extends State<_AnalyzerFullscreen>
               )
             : Column(
                 children: [
-                  Row(
-                    children: [
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: [
-                              DropdownButton<AnalyzerView>(
-                                value: widget.controller.view,
-                                underline: const SizedBox.shrink(),
-                                items: [
-                                  DropdownMenuItem(
-                                    value: AnalyzerView.spectrum,
-                                    child: Text(tr('Spektrum')),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final toolbar = Wrap(
+                        spacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          DropdownButton<AnalyzerView>(
+                            value: widget.controller.view,
+                            underline: const SizedBox.shrink(),
+                            items: [
+                              for (final tool in AnalyzerView.values)
+                                DropdownMenuItem(
+                                  value: tool,
+                                  child: Text(tool.title),
+                                ),
+                            ],
+                            onChanged: (v) {
+                              if (v != null) widget.controller.setView(v);
+                            },
+                          ),
+                          for (final option
+                              in widget.controller.view.toolbarOptions)
+                            option(context),
+                        ],
+                      );
+                      final quickControls = SizedBox(
+                        width: math.min(
+                          240,
+                          math.max(80, constraints.maxWidth * .34),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: AnalyzerBallisticsSetting(
+                                controller: widget.controller,
+                                inline: true,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: AnalyzerLoopbackControls(
+                                ctrl: widget.deviceController,
+                                inline: true,
+                                routing: widget.routing,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                      final actions = Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          quickControls,
+                          IconButton(
+                            tooltip: tr('Nur Spektrum'),
+                            icon: const Icon(Icons.hide_source),
+                            onPressed: () =>
+                                setState(() => _spectrumOnly = true),
+                          ),
+                          IconButton(
+                            tooltip: tr('Analyzer-Einstellungen'),
+                            constraints: const BoxConstraints.tightFor(
+                              width: 40,
+                              height: 40,
+                            ),
+                            style: IconButton.styleFrom(
+                              fixedSize: const Size.square(40),
+                              minimumSize: const Size.square(40),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            padding: EdgeInsets.zero,
+                            icon: const Icon(Icons.settings_outlined),
+                            onPressed: _showControls,
+                          ),
+                          IconButton(
+                            tooltip: tr('Vollbild schließen'),
+                            constraints: const BoxConstraints.tightFor(
+                              width: 40,
+                              height: 40,
+                            ),
+                            style: IconButton.styleFrom(
+                              fixedSize: const Size.square(40),
+                              minimumSize: const Size.square(40),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            padding: EdgeInsets.zero,
+                            icon: const Icon(Icons.fullscreen_exit),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                        ],
+                      );
+                      return Padding(
+                        key: const ValueKey('analyzer-fullscreen-toolbar'),
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: constraints.maxWidth < 640
+                            ? Column(
+                                children: [
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: actions,
+                                  ),
+                                  Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: toolbar,
                                   ),
                                 ],
-                                onChanged: (v) {
-                                  if (v != null) widget.controller.setView(v);
-                                },
+                              )
+                            : Row(
+                                children: [
+                                  Expanded(child: toolbar),
+                                  actions,
+                                ],
                               ),
-                              const SizedBox(width: 12),
-                              if (widget.controller.bars)
-                                const AnalyzerBandSetting(inline: true),
-                            ],
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: tr('Nur Spektrum'),
-                        icon: const Icon(Icons.hide_source),
-                        onPressed: () => setState(() => _spectrumOnly = true),
-                      ),
-                      IconButton(
-                        tooltip: tr('Analyzer-Einstellungen'),
-                        constraints: const BoxConstraints.tightFor(
-                          width: 40,
-                          height: 40,
-                        ),
-                        style: IconButton.styleFrom(
-                          fixedSize: const Size.square(40),
-                          minimumSize: const Size.square(40),
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                        padding: EdgeInsets.zero,
-                        icon: const Icon(Icons.settings_outlined),
-                        onPressed: () => widget.onShowControls(false),
-                      ),
-                      IconButton(
-                        tooltip: tr('Vollbild schließen'),
-                        constraints: const BoxConstraints.tightFor(
-                          width: 40,
-                          height: 40,
-                        ),
-                        style: IconButton.styleFrom(
-                          fixedSize: const Size.square(40),
-                          minimumSize: const Size.square(40),
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                        padding: EdgeInsets.zero,
-                        icon: const Icon(Icons.fullscreen_exit),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                    ],
+                      );
+                    },
                   ),
                   Expanded(
                     child: AnalyzerDisplay(
@@ -623,7 +787,7 @@ class AnalyzerDisplay extends StatelessWidget {
               hasInput: deviceController!.variant!.hasInput,
             ).tap;
       final sourceText = source != null
-          ? '${source.name} · ${tr('Loopback')} · ${tr(['Aus', 'pre FX', 'post FX', 'post −6 dB'][tap])}'
+          ? '${deviceController?.variant?.isDac == true ? tr('Gilt für alle Ausgänge') : source.name} · ${tr('Loopback')} · ${tr(['Aus', 'pre FX', 'post FX', 'post −6 dB'][tap])}'
           : deviceController?.variant?.isDac == true
           ? tr('Loopback aus')
           : tr('Analogeingang');
@@ -1013,51 +1177,8 @@ class _FullscreenControls extends StatelessWidget {
             materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             onSelected: (_) => controller.setBars(true),
           ),
-          FilterChip(
-            label: Text(tr('Peak hold')),
-            selected: controller.peakHold,
-            showCheckmark: false,
-            labelStyle: ts(12),
-            visualDensity: VisualDensity.compact,
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            onSelected: controller.setPeakHold,
-          ),
-        ],
-      ),
-      Wrap(
-        key: const ValueKey('analyzer-ballistics-loopback-controls'),
-        spacing: 8,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(tr('Ballistik')),
-              const SizedBox(width: 6),
-              DropdownButton<AnalyzerBallistics>(
-                isDense: true,
-                underline: const SizedBox.shrink(),
-                value: controller.ballistics,
-                items: [
-                  for (final b in AnalyzerBallistics.values)
-                    DropdownMenuItem(
-                      value: b,
-                      child: Text(
-                        tr(['schnell', 'mittel', 'langsam'][b.index]),
-                      ),
-                    ),
-                ],
-                onChanged: (b) {
-                  if (b != null) controller.setBallistics(b);
-                },
-              ),
-            ],
-          ),
-          AnalyzerLoopbackControls(
-            ctrl: deviceController,
-            inline: true,
-            routing: routing,
-          ),
+          if (controller.view.hasPeakHold)
+            AnalyzerPeakHoldChip(controller: controller),
         ],
       ),
     ],

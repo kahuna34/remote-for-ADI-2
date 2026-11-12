@@ -4,6 +4,7 @@
 import '../eq/eq_model.dart';
 import '../protocol/adi2_codec.dart';
 import '../protocol/adi2_params.dart';
+import 'loopback.dart';
 
 Map<int, int> offlineDefaults(Adi2Variant v) {
   final m = <int, int>{};
@@ -42,6 +43,9 @@ Map<int, int> offlineDefaults(Adi2Variant v) {
   }
   for (final d in deviceParams(v)) {
     put(Adi2Addr.device, d.index, d.def);
+  }
+  if (!hasOwnLoopback(v, Adi2Addr.ph12)) {
+    m.remove(Adi2Addr.ph12 << 8 | OutIdx.loopback);
   }
   return m;
 }

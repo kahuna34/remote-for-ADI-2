@@ -7,6 +7,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// Hauptliste der Seite; Knopfreihen scrollen zusätzlich waagerecht.
+final _vertical = find
+    .byWidgetPredicate(
+      (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
+    )
+    .first;
+
 void main() {
   setUp(() async {
     final previous = AppLang.instance.language;
@@ -110,7 +117,7 @@ void main() {
               ? 'Marken und Rechtliches'
               : 'Trademarks and legal',
         );
-        await tester.scrollUntilVisible(legal, 300);
+        await tester.scrollUntilVisible(legal, 300, scrollable: _vertical);
         await tester.pumpAndSettle();
         await tester.tap(legal);
         await tester.pumpAndSettle();
@@ -137,7 +144,7 @@ void main() {
               ];
         for (final notice in notices) {
           final text = find.text(notice);
-          await tester.scrollUntilVisible(text, 150);
+          await tester.scrollUntilVisible(text, 150, scrollable: _vertical);
           await tester.ensureVisible(text);
           await tester.pumpAndSettle();
           expect(text.hitTestable(), findsOneWidget);
@@ -157,7 +164,7 @@ void main() {
               ? 'Open-Source-Lizenzen'
               : 'Open-source licenses',
         );
-        await tester.scrollUntilVisible(licenses, 150);
+        await tester.scrollUntilVisible(licenses, 150, scrollable: _vertical);
         await tester.pumpAndSettle();
         await tester.tap(licenses);
         await tester.pumpAndSettle();

@@ -49,10 +49,21 @@ Future<void> _tap(WidgetTester tester, String text) async {
   if (find.text(text).evaluate().isEmpty) {
     await tester.scrollUntilVisible(find.text(text), 180);
   }
-  await tester.ensureVisible(find.text(text));
+  await Scrollable.ensureVisible(
+    tester.element(find.text(text)),
+    alignment: .5,
+  );
+  await tester.pumpAndSettle();
   await tester.tap(find.text(text));
   await tester.pumpAndSettle();
 }
+
+/// Hauptliste der Seite; Knopfreihen scrollen zusätzlich waagerecht.
+final _vertical = find
+    .byWidgetPredicate(
+      (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
+    )
+    .first;
 
 void main() {
   setUp(() async {
@@ -216,7 +227,11 @@ void main() {
         home: AppSettingsPage(np: np),
       ),
     );
-    await tester.scrollUntilVisible(find.text('Privacy'), 300);
+    await tester.scrollUntilVisible(
+      find.text('Privacy'),
+      300,
+      scrollable: _vertical,
+    );
     await _tap(tester, 'Privacy');
     expect(find.byType(PrivacyPage), findsOneWidget);
     await tester.pageBack();

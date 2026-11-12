@@ -101,27 +101,34 @@ void main() {
         ctrl.state = ConnState.connected;
         ctrl.writes.clear();
         setAnalyzerLoopback(ctrl, outputs[1].address, 3);
-        expect(
-          ctrl.writes,
-          contains((outputs.first.address, OutIdx.loopback, 0)),
-        );
+        if (variant.isDac) {
+          expect(ctrl.writes, [(outputs[1].address, OutIdx.loopback, 3)]);
+        } else {
+          expect(ctrl.writes, [
+            (outputs.first.address, OutIdx.loopback, 0),
+            (outputs[1].address, OutIdx.loopback, 3),
+          ]);
+        }
         expect(ctrl.writes.last, (outputs[1].address, OutIdx.loopback, 3));
         if (outputs.length > 2 && variant.hasInput) {
           expect(ctrl.value(outputs.last.address, OutIdx.loopback), 5);
         }
-        expect(analyzerLoopbackSource(ctrl)?.address, outputs[1].address);
+        expect(
+          analyzerLoopbackSource(ctrl)?.address,
+          variant.isDac ? Adi2Addr.line : outputs[1].address,
+        );
         setAnalyzerLoopback(ctrl, outputs[1].address, 0);
         expect(analyzerLoopbackSource(ctrl), isNull);
         ctrl.state = ConnState.offline;
         ctrl.writes.clear();
         setAnalyzerLoopback(ctrl, outputs.first.address, 2);
-        expect(ctrl.writes, isEmpty);
+        expect(ctrl.writes, [(outputs.first.address, OutIdx.loopback, 2)]);
         ctrl.dispose();
       },
     );
   }
   testWidgets(
-    'settings sheet has color, range, ballistics and offline-disabled loopback',
+    'settings sheet has color, range, ballistics and offline loopback',
     (tester) async {
       final ctrl = _Device();
       await ctrl.startOffline(Adi2Variant.pro);
@@ -145,16 +152,130 @@ void main() {
       expect(find.text('Wie Gerät'), findsOneWidget);
       expect(find.text('Pegelbereich'), findsOneWidget);
       expect(find.text('Ballistik'), findsOneWidget);
-      final dropdown = tester.widget<DropdownButton<int>>(
+      expect(find.text('Loopback-Quelle'), findsOneWidget);
+      expect(find.text('Abgriff'), findsNothing);
+      expect(find.byWidgetPredicate((w) => w is DropdownButton), findsNothing);
+      for (final key in [
+        'analyzer-color',
+        'analyzer-range',
+        'analyzer-ballistics',
+        'analyzer-band-resolution',
+        'analyzer-loopback-output',
+        'analyzer-loopback-tap',
+        'analyzer-peak-hold-seconds',
+      ]) {
+        expect(
+          find.descendant(
+            of: find.byKey(ValueKey(key)),
+            matching: find.byType(ChoiceChip),
+          ),
+          findsWidgets,
+        );
+      }
+      final dropdown = tester.widget<AnalyzerChoices<int>>(
         find.byKey(const ValueKey('analyzer-loopback-tap')),
       );
-      expect(dropdown.onChanged, isNull);
+      expect(dropdown.onSelected, isNotNull);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
       analyzer.dispose();
       ctrl.dispose();
     },
   );
+  testWidgets(
+    'Peak-Hold-Zeit wird gespeichert und sofort auf alle Anzeigen angewendet',
+    (tester) async {
+      final controller = AnalyzerController();
+      addTearDown(controller.dispose);
+      expect(settings.analyzerPeakHoldSeconds, 1);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildTheme(),
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () =>
+                    showAnalyzerSettings(context, controller, null),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      final envelopes = [
+        controller.spectrum,
+        controller.bassSpectrum,
+        controller.bands,
+      ];
+      for (final envelope in envelopes) {
+        envelope.update([-5], .1);
+      }
+      await Scrollable.ensureVisible(
+        tester.element(find.text('5 s')),
+        alignment: .5,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('5 s'));
+      await tester.pumpAndSettle();
+      expect(
+        (await SharedPreferences.getInstance()).getInt(
+          'analyzer_peak_hold_seconds',
+        ),
+        5,
+      );
+      for (final envelope in envelopes) {
+        expect(envelope.holdSeconds, 5);
+        envelope.update([-60], 2);
+        expect(envelope.held.single, -5);
+        envelope.update([-60], 4);
+        expect(envelope.held.single, closeTo(-17, .0001));
+      }
+      await Scrollable.ensureVisible(
+        tester.element(find.text('∞')),
+        alignment: .5,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('∞'));
+      await tester.pumpAndSettle();
+      for (final envelope in envelopes) {
+        expect(envelope.holdSeconds, double.infinity);
+        envelope.update([-60], 1000);
+        expect(envelope.held.single, closeTo(-17, .0001));
+      }
+      expect(
+        (await SharedPreferences.getInstance()).getInt(
+          'analyzer_peak_hold_seconds',
+        ),
+        0,
+      );
+      final infinite = AnalyzerController();
+      expect(infinite.spectrum.holdSeconds, double.infinity);
+      infinite.dispose();
+      await Scrollable.ensureVisible(
+        tester.element(find.text('2 s')),
+        alignment: .5,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('2 s'));
+      await tester.pumpAndSettle();
+      for (final envelope in envelopes) {
+        expect(envelope.holdSeconds, 2);
+        envelope.update([-60], 3);
+        expect(envelope.held.single, closeTo(-29, .0001));
+      }
+      await settings.load();
+      final restored = AnalyzerController();
+      expect(settings.analyzerPeakHoldSeconds, 2);
+      expect(restored.spectrum.holdSeconds, 2);
+      expect(restored.bassSpectrum.holdSeconds, 2);
+      expect(restored.bands.holdSeconds, 2);
+      restored.dispose();
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
   testWidgets('Abgriff zeigt den Gerätezustand statt des gespeicherten Werts', (
     tester,
   ) async {
@@ -171,16 +292,17 @@ void main() {
     );
     await tester.pumpAndSettle();
     final tap = find.byKey(const ValueKey('analyzer-loopback-tap'));
-    expect(tester.widget<DropdownButton<int>>(tap).value, 0);
+    expect(tester.widget<AnalyzerChoices<int>>(tap).value, 0);
     expect(ctrl.writes, isEmpty);
+    expect(
+      find.byKey(const ValueKey('analyzer-loopback-output')),
+      findsNothing,
+    );
 
-    await tester.tap(tap);
-    await tester.pumpAndSettle();
     await tester.tap(find.text('post FX').last);
     await tester.pumpAndSettle();
-    expect(ctrl.writes.last.$2, OutIdx.loopback);
-    expect(ctrl.writes.last.$3, 2);
-    expect(tester.widget<DropdownButton<int>>(tap).value, 2);
+    expect(ctrl.writes, [(Adi2Addr.line, OutIdx.loopback, 2)]);
+    expect(tester.widget<AnalyzerChoices<int>>(tap).value, 2);
     await tester.pumpWidget(const SizedBox());
     ctrl.dispose();
   });
@@ -196,8 +318,6 @@ void main() {
         home: Scaffold(body: AnalyzerLoopbackControls(ctrl: ctrl)),
       ),
     );
-    await tester.tap(find.byKey(const ValueKey('analyzer-loopback-tap')));
-    await tester.pumpAndSettle();
     await tester.tap(find.text('post FX').last);
     await tester.pumpAndSettle();
     expect(ctrl.writes, isEmpty);
@@ -220,13 +340,20 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('analyzer-loopback-output')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Phones 1/2').last);
+    ctrl.writes.clear();
+    await tester.tap(find.text('Phones 3/4').last);
     await tester.pumpAndSettle();
     expect(find.byType(AlertDialog), findsNothing);
-    expect(ctrl.writes, contains((Adi2Addr.line, OutIdx.loopback, 0)));
-    expect(ctrl.writes.last, (Adi2Addr.ph12, OutIdx.loopback, 2));
+    expect(ctrl.writes, [
+      (Adi2Addr.line, OutIdx.loopback, 0),
+      (Adi2Addr.ph34, OutIdx.loopback, 2),
+    ]);
+    expect(
+      find.text(
+        'Loopback von Line Out ausgeschaltet, weil 1/2 jetzt belegt ist',
+      ),
+      findsOneWidget,
+    );
     await tester.pumpWidget(const SizedBox());
     ctrl.dispose();
   });
@@ -349,15 +476,15 @@ void main() {
       expect(find.byKey(const ValueKey('analyzer-color')), findsOneWidget);
       expect(
         find.byKey(const ValueKey('analyzer-loopback-output')),
-        findsOneWidget,
+        findsNothing,
       );
       expect(
         tester
-            .widget<DropdownButton<int>>(
+            .widget<AnalyzerChoices<int>>(
               find.byKey(const ValueKey('analyzer-loopback-tap')),
             )
-            .onChanged,
-        isNull,
+            .onSelected,
+        isNotNull,
       );
       Navigator.of(tester.element(find.byType(AnalyzerColorSetting))).pop();
       await tester.pumpAndSettle();
@@ -437,9 +564,10 @@ void main() {
       await settings.confirmAnalyzerLoopback();
       await settings.setAnalyzerRouting(output: 0, tap: 3);
       final ctrl = _Device();
-      await ctrl.startOffline(Adi2Variant.dac);
+      await ctrl.startOffline(Adi2Variant.pro);
       ctrl.state = ConnState.connected;
       ctrl.status = Adi2Status([0]);
+      ctrl.selectedOutput = Adi2Addr.line;
       final analyzer = AnalyzerController();
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
         const MethodChannel('adi2/analyzer'),
@@ -463,22 +591,24 @@ void main() {
       await tester.pumpAndSettle();
       ctrl.writes.clear();
       ctrl.status = Adi2Status([1]);
+      ctrl.selectedOutput = Adi2Addr.ph34;
       ctrl.notifyListeners();
       await tester.pump(const Duration(seconds: 1));
       await tester.pumpAndSettle();
-      expect(ctrl.writes, [(Adi2Addr.ph12, OutIdx.loopback, 3)]);
+      expect(ctrl.writes, [(Adi2Addr.ph34, OutIdx.loopback, 3)]);
       await tester.tap(find.byTooltip('Bedienleiste anzeigen'));
       await tester.pumpAndSettle();
       await tester.tap(find.byIcon(Icons.settings_outlined).last);
       await tester.pumpAndSettle();
       ctrl.writes.clear();
       ctrl.status = Adi2Status([2]);
+      ctrl.selectedOutput = Adi2Addr.line;
       ctrl.notifyListeners();
       await tester.pump(const Duration(seconds: 1));
       await tester.pumpAndSettle();
       expect(ctrl.writes, [
-        (Adi2Addr.ph12, OutIdx.loopback, 0),
-        (Adi2Addr.ph34, OutIdx.loopback, 3),
+        (Adi2Addr.ph34, OutIdx.loopback, 0),
+        (Adi2Addr.line, OutIdx.loopback, 3),
       ]);
       expect(find.byType(AlertDialog), findsNothing);
       Navigator.of(tester.element(find.byType(AnalyzerColorSetting))).pop();
@@ -487,12 +617,13 @@ void main() {
       await tester.pumpAndSettle();
       ctrl.writes.clear();
       ctrl.status = Adi2Status([0]);
+      ctrl.selectedOutput = Adi2Addr.ph34;
       ctrl.notifyListeners();
       await tester.pump(const Duration(seconds: 1));
       await tester.pumpAndSettle();
       expect(ctrl.writes, [
-        (Adi2Addr.ph34, OutIdx.loopback, 0),
-        (Adi2Addr.line, OutIdx.loopback, 3),
+        (Adi2Addr.line, OutIdx.loopback, 0),
+        (Adi2Addr.ph34, OutIdx.loopback, 3),
       ]);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
@@ -517,9 +648,10 @@ void main() {
         await settings.confirmAnalyzerLoopback();
         await settings.setAnalyzerRouting(output: 0, tap: 2);
         final ctrl = _Device();
-        await ctrl.startOffline(Adi2Variant.dac);
+        await ctrl.startOffline(Adi2Variant.pro);
         ctrl.state = ConnState.connected;
         ctrl.status = Adi2Status([0]);
+        ctrl.selectedOutput = Adi2Addr.line;
         final analyzer = AnalyzerController();
         final navigator = GlobalKey<NavigatorState>();
         tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
@@ -548,6 +680,7 @@ void main() {
         }
         // A status change just before navigation must also be cancelled.
         ctrl.status = Adi2Status([1]);
+        ctrl.selectedOutput = Adi2Addr.ph34;
         ctrl.notifyListeners();
         navigator.currentState!.push(
           MaterialPageRoute<void>(
@@ -562,6 +695,7 @@ void main() {
         await tester.pump(const Duration(seconds: 2));
         expect(ctrl.writes, isEmpty);
         ctrl.status = Adi2Status([2]);
+        ctrl.selectedOutput = Adi2Addr.line;
         ctrl.notifyListeners();
         tester.binding.handleAppLifecycleStateChanged(
           AppLifecycleState.inactive,
@@ -575,11 +709,13 @@ void main() {
         await tester.pump(const Duration(seconds: 2));
         expect(ctrl.writes, isEmpty);
         ctrl.status = Adi2Status([0]);
+        ctrl.selectedOutput = Adi2Addr.ph34;
         ctrl.notifyListeners();
         await tester.pump(const Duration(seconds: 1));
-        expect(ctrl.writes, [(Adi2Addr.line, OutIdx.loopback, 2)]);
+        expect(ctrl.writes, [(Adi2Addr.ph34, OutIdx.loopback, 2)]);
         ctrl.writes.clear();
         ctrl.status = Adi2Status([1]);
+        ctrl.selectedOutput = Adi2Addr.line;
         ctrl.notifyListeners();
         ctrl.analyzerSelfTestActive = true;
         await tester.pump(const Duration(seconds: 2));
@@ -598,7 +734,7 @@ void main() {
     'cancelled first-use consent and detach during consent never route USB',
     (tester) async {
       final ctrl = _Device();
-      await ctrl.startOffline(Adi2Variant.dac);
+      await ctrl.startOffline(Adi2Variant.pro);
       ctrl.state = ConnState.connected;
       await tester.pumpWidget(
         MaterialApp(
@@ -607,8 +743,6 @@ void main() {
         ),
       );
       Future<void> chooseTap() async {
-        await tester.tap(find.byKey(const ValueKey('analyzer-loopback-tap')));
-        await tester.pumpAndSettle();
         await tester.tap(find.text('post FX').last);
         await tester.pumpAndSettle();
       }
@@ -628,14 +762,41 @@ void main() {
       expect(settings.analyzerLoopbackTap, 0);
       expect(
         tester
-            .widget<DropdownButton<int>>(
+            .widget<AnalyzerChoices<int>>(
               find.byKey(const ValueKey('analyzer-loopback-output')),
             )
-            .onChanged,
+            .onSelected,
         isNull,
       );
       await tester.pumpWidget(const SizedBox());
       ctrl.dispose();
     },
   );
+
+  testWidgets('Langdruck auf Peak hold setzt die Peak-Marken zurück', (
+    tester,
+  ) async {
+    await settings.setAnalyzerPeakHoldSeconds(0);
+    final controller = AnalyzerController();
+    addTearDown(controller.dispose);
+    final envelope = controller.spectrum;
+    envelope.update([-10], .1);
+    envelope.update([-50], 5);
+    expect(envelope.held.single, -10); // ∞: bleibt stehen
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildTheme(),
+        home: Scaffold(body: AnalyzerPeakHoldChip(controller: controller)),
+      ),
+    );
+    await tester.longPress(find.byKey(const ValueKey('analyzer-peak-hold')));
+    await tester.pump();
+    expect(envelope.held.single, envelope.values.single);
+    expect(envelope.held.single, lessThan(-10));
+    final before = controller.peakHold;
+    await tester.tap(find.byKey(const ValueKey('analyzer-peak-hold')));
+    await tester.pump();
+    expect(controller.peakHold, !before);
+    await tester.pumpWidget(const SizedBox());
+  });
 }

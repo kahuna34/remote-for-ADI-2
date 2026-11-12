@@ -106,11 +106,23 @@ void main() {
         (tester) async {
           final ctrl = await show(tester, variant, language: language);
           try {
-            for (final output in outputsFor(variant)) {
+            if (variant == Adi2Variant.pro) {
+              expect(row(Adi2Addr.ph12), findsNothing);
+              expect(row(Adi2Addr.line), findsOneWidget);
+              expect(row(Adi2Addr.ph34), findsOneWidget);
+            }
+            for (final output
+                in (variant.isDac
+                    ? [outputsFor(variant).first]
+                    : outputsFor(variant).where(
+                        (o) => ctrl.value(o.address, OutIdx.loopback) != null,
+                      ))) {
               expect(
                 find.descendant(
                   of: row(output.address),
-                  matching: find.text(output.name),
+                  matching: find.text(
+                    variant.isDac ? tr('Loopback-Quelle') : output.name,
+                  ),
                 ),
                 findsOneWidget,
               );
@@ -121,7 +133,10 @@ void main() {
               for (var pair = 0; pair < (variant.hasInput ? 3 : 1); pair++) {
                 const taps = ['pre FX', 'post FX', 'post −6 dB'];
                 await tap(tester, choice(output.address, taps[0]));
-                expect(choice(output.address, 'USB-Ziel'), findsOneWidget);
+                expect(
+                  choice(output.address, 'USB-Ziel'),
+                  variant.hasInput ? findsOneWidget : findsNothing,
+                );
                 if (variant.hasInput) {
                   await tap(
                     tester,

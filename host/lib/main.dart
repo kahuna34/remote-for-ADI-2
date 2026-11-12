@@ -4,6 +4,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -19,12 +20,26 @@ import 'package:adi2_remote/update/update_check.dart';
 import 'package:adi2_remote/update/open_update.dart';
 
 import 'host_info.dart';
+import 'host_menu.dart';
+import 'host_update.dart';
 import 'autostart.dart';
 import 'desktop_midi.dart';
+import 'host_log.dart';
 import 'host_server.dart';
 
-Future<void> main() async {
+Future<void> main(List<String> arguments) async {
   WidgetsFlutterBinding.ensureInitialized();
+  HostLog.write(
+    'Start $hostVersion ${Platform.operatingSystem} args=$arguments',
+  );
+  FlutterError.onError = (details) {
+    HostLog.write('Flutter-Fehler: ${details.exceptionAsString()}');
+    FlutterError.presentError(details);
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    HostLog.write('Fehler: $error');
+    return false;
+  };
   await AppLang.instance.load();
   final prefs = await SharedPreferences.getInstance();
   var id = prefs.getString('host_id');
@@ -138,6 +153,7 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
   Timer? _detectTimer;
   String? _adi2;
   bool _detected = false;
+  bool _detecting = false, _exiting = false;
   Future<void> _menuWork = Future.value();
   HostServer get server => widget.server;
 
@@ -167,7 +183,24 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
         Platform.isWindows ? 'assets/host.ico' : 'assets/host.png',
       );
       await trayManager.setToolTip('Remote for ADI-2 Host');
-      _automatic = await _autostart.enabled();
+      _automatic = await _autostart.refreshEnabledPath();
+      // Windows: Autostart beim ersten Start einschalten (abschaltbar im Menü).
+      if (Platform.isWindows && !_automatic) {
+        final prefs = await SharedPreferences.getInstance();
+        if (!(prefs.getBool('autostart_default_applied') ?? false)) {
+          try {
+            await _autostart.setEnabled(true);
+            _automatic = await _autostart.enabled();
+            HostLog.write('Autostart standardmäßig eingeschaltet');
+          } catch (e) {
+            HostLog.write('Autostart fehlgeschlagen: $e');
+          }
+          await prefs.setBool('autostart_default_applied', true);
+        }
+      } else if (Platform.isWindows) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('autostart_default_applied', true);
+      }
       _addresses = (await NetworkInterface.list(type: InternetAddressType.IPv4))
           .expand((i) => i.addresses)
           .where((a) => !a.isLoopback)
@@ -193,7 +226,13 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
     final cachedUrl = Uri.tryParse(
       prefs.getString('host_available_update_url') ?? '',
     );
-    if (cachedVersion != null &&
+    // Ein alter gespeicherter ZIP-Link wird mit den neuen Asset-Regeln geprüft.
+    final refreshWindowsUrl =
+        Platform.isWindows &&
+        cachedVersion != null &&
+        prefs.getInt('host_update_asset_format') != 1;
+    if (!refreshWindowsUrl &&
+        cachedVersion != null &&
         isNewerVersion(hostVersion, cachedVersion) &&
         cachedUrl?.scheme == 'https' &&
         cachedUrl!.host.isNotEmpty) {
@@ -205,13 +244,12 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
     }
     _updates = UpdateCheck(
       installedVersion: hostVersion,
-      platform: Platform.isMacOS
-          ? UpdatePlatform.macos
-          : UpdatePlatform.windows,
+      platform: Platform.isMacOS ? UpdatePlatform.macos : UpdatePlatform.other,
+      fetcher: Platform.isWindows ? fetchWindowsHostRelease : null,
       enabled: prefs.getBool('host_update_check') ?? true,
-      lastCheck: DateTime.tryParse(
-        prefs.getString('host_last_update_check') ?? '',
-      ),
+      lastCheck: refreshWindowsUrl
+          ? null
+          : DateTime.tryParse(prefs.getString('host_last_update_check') ?? ''),
       onState: () async {
         final last = _updates?.lastCheck;
         if (last != null) {
@@ -253,6 +291,7 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('host_available_update_version', result.version!);
       await prefs.setString('host_available_update_url', result.url.toString());
+      if (Platform.isWindows) await prefs.setInt('host_update_asset_format', 1);
       await _menu();
       if (_updateNotice != result.version) {
         _updateNotice = result.version;
@@ -267,16 +306,29 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
 
   /// Prüft regelmäßig, ob und welcher ADI-2 angeschlossen ist.
   Future<void> _detect() async {
-    String? found;
+    if (_detecting || _exiting) return;
+    _detecting = true;
     try {
-      found = await widget.midi.detect();
+      final found = await widget.midi.detect();
+      if (!mounted || _exiting) return;
+      if (!_detected || found != _adi2) {
+        HostLog.write('Erkennung: ${found ?? 'kein ADI-2'}');
+        _detected = true;
+        _adi2 = found;
+        unawaited(_menu());
+      }
     } catch (_) {
-      found = null;
+      // A failed PnP read is not evidence of removal or a stale WinMM list.
+      if (!Platform.isWindows) {
+        if (!_detected || _adi2 != null) {
+          _detected = true;
+          _adi2 = null;
+          if (mounted) unawaited(_menu());
+        }
+      }
+    } finally {
+      _detecting = false;
     }
-    if (_detected && found == _adi2) return;
-    _detected = true;
-    _adi2 = found;
-    if (mounted) unawaited(_menu());
   }
 
   void _changed() {
@@ -285,53 +337,24 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
   }
 
   Future<void> _menu() {
+    if (_exiting) return Future.value();
     _menuWork = _menuWork
         .catchError((Object _) {})
         .then(
           (_) => trayManager.setContextMenu(
             Menu(
-              items: [
-                MenuItem(
-                  label: server.connectedName == null
-                      ? tr(server.status)
-                      : '${tr(server.status)} · ${server.connectedName}',
-                  // Ohne Aktion, aber nicht deaktiviert: sonst stellt das
-                  // System die Zeile grau dar.
-                ),
-                MenuItem(
-                  label: !_detected
-                      ? tr('Suche ADI-2 …')
-                      : _adi2 == null
-                      ? tr('Kein ADI-2 erkannt')
-                      : trf('ADI-2 erkannt: {name}', {'name': _adi2!}),
-                  // Ohne Aktion, aber nicht deaktiviert: sonst stellt das
-                  // System die Zeile grau dar.
-                ),
-                MenuItem.separator(),
-                MenuItem(key: 'pair', label: tr('Smartphone koppeln…')),
-                MenuItem(key: 'devices', label: tr('Gekoppelte Geräte…')),
-                MenuItem.checkbox(
-                  key: 'autostart',
-                  label: Platform.isWindows
-                      ? tr('Mit Windows starten')
-                      : tr('Bei Anmeldung starten'),
-                  checked: _automatic,
-                ),
-                MenuItem.checkbox(
-                  key: 'updates',
-                  label: tr('Nach Updates suchen'),
-                  checked: _updates?.enabled ?? true,
-                ),
-                MenuItem.separator(),
-                if (_availableUpdate != null)
-                  MenuItem(
-                    key: 'download-update',
-                    label: trf('Update {version} laden…', {
-                      'version': _availableUpdate!.version,
-                    }),
-                  ),
-                MenuItem(key: 'quit', label: tr('Beenden')),
-              ],
+              items: buildHostMenu(
+                clientNames: server.connectedNames,
+                rmeDevice: _adi2,
+                status: server.status,
+                error: _error,
+                port: server.port,
+                version: hostVersion,
+                windows: Platform.isWindows,
+                autostart: _automatic,
+                updatesEnabled: _updates?.enabled ?? true,
+                availableVersion: _availableUpdate?.version,
+              ),
             ),
           ),
         );
@@ -351,6 +374,11 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
 
   Future<void> _showError(String error) async {
     if (mounted) setState(() => _error = error);
+    try {
+      await _menu();
+    } catch (_) {
+      // Auch bei ausgefallenem Tray bleibt das Fehlerfenster erreichbar.
+    }
     await windowManager.show();
     await windowManager.focus();
   }
@@ -400,6 +428,8 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
           } catch (_) {}
         }
       case 'quit':
+        _exiting = true;
+        _detectTimer?.cancel();
         await server.stop();
         if (widget.broadcast.isReady) await widget.broadcast.stop();
         await trayManager.destroy();
@@ -447,9 +477,9 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
           padding: const EdgeInsets.all(20),
           children: [
             Text(
-              server.connectedName == null
-                  ? tr(server.status)
-                  : '${tr(server.status)} · ${server.connectedName}',
+              server.connectedNames.isEmpty
+                  ? hostStatusText(server.status, server.connectedNames.length)
+                  : '${hostStatusText(server.status, server.connectedNames.length)} · ${server.connectedNames.join(', ')}',
             ),
             if (_error != null)
               Text(_error!, style: const TextStyle(color: Colors.red)),

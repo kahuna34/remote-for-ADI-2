@@ -1100,40 +1100,43 @@ void main() {
     },
   );
 
-  testWidgets('source check uses measured loopback output for each variant', (
-    tester,
-  ) async {
-    for (final variant in Adi2Variant.values) {
-      final d = Adi2Controller();
-      await d.startOffline(variant);
-      d.state = ConnState.connected;
-      for (final output in analyzerOutputs(d)) {
-        d.set(output.address, OutIdx.loopback, 0);
+  testWidgets(
+    'source check uses DAC fallback or assigned Pro loopback output',
+    (tester) async {
+      for (final variant in Adi2Variant.values) {
+        final d = Adi2Controller();
+        await d.startOffline(variant);
+        d.state = ConnState.connected;
+        for (final output in analyzerOutputs(d)) {
+          d.set(output.address, OutIdx.loopback, 0);
+        }
+        d.set(Adi2Addr.ph34, OutIdx.loopback, 2);
+        d.set(Adi2Addr.line, OutIdx.source, variant.isDac ? 3 : 4);
+        d.selectedOutput = Adi2Addr.line;
+        final sourceAddress = variant.isDac ? Adi2Addr.line : Adi2Addr.ph34;
+        final definition = outputParams(
+          variant,
+          phones: true,
+          ph34: true,
+        ).firstWhere((p) => p.index == OutIdx.source);
+        for (var source = 0; source < definition.options!.length; source++) {
+          d.set(sourceAddress, OutIdx.source, source);
+          expect(
+            analyzerCalibrationUsesUsb(d),
+            source == 0 || definition.options![source].startsWith('USB'),
+          );
+        }
+        if (!variant.isDac) {
+          d.set(Adi2Addr.ph34, OutIdx.source, 0);
+          d.set(Adi2Addr.device, 6, 3);
+          expect(analyzerCalibrationUsesUsb(d), isFalse);
+          d.set(Adi2Addr.device, 6, 2);
+          expect(analyzerCalibrationUsesUsb(d), isTrue);
+        }
+        d.dispose();
       }
-      d.set(Adi2Addr.ph12, OutIdx.loopback, 2);
-      d.set(Adi2Addr.line, OutIdx.source, variant.isDac ? 3 : 4);
-      d.selectedOutput = Adi2Addr.line;
-      final definition = outputParams(
-        variant,
-        phones: true,
-      ).firstWhere((p) => p.index == OutIdx.source);
-      for (var source = 0; source < definition.options!.length; source++) {
-        d.set(Adi2Addr.ph12, OutIdx.source, source);
-        expect(
-          analyzerCalibrationUsesUsb(d),
-          source == 0 || definition.options![source].startsWith('USB'),
-        );
-      }
-      if (!variant.isDac) {
-        d.set(Adi2Addr.ph12, OutIdx.source, 0);
-        d.set(Adi2Addr.device, 6, 3);
-        expect(analyzerCalibrationUsesUsb(d), isFalse);
-        d.set(Adi2Addr.device, 6, 2);
-        expect(analyzerCalibrationUsesUsb(d), isTrue);
-      }
-      d.dispose();
-    }
-  });
+    },
+  );
 
   for (final answer in [false, true]) {
     testWidgets(
@@ -1337,7 +1340,7 @@ void main() {
           find.byKey(const ValueKey('analyzer-calibration-auto')),
         );
         await settle(tester);
-        expect(find.textContaining('Abgriff post FX'), findsOneWidget);
+        expect(find.textContaining('Loopback-Quelle post FX'), findsOneWidget);
         await tester.tap(find.text('Messung starten'));
         await tester.pump();
         await signal(tester);

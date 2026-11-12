@@ -9,6 +9,8 @@ import 'package:adi2_remote/host/host_client.dart';
 import 'package:adi2_remote/host/host_pairing.dart';
 import 'package:adi2_remote/host/host_protocol.dart';
 import 'package:adi2_remote/protocol/adi2_codec.dart';
+import 'package:adi2_remote/protocol/adi2_params.dart';
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter_test/flutter_test.dart';
 
 /// Vollständige Duplex-Nachrichten und Schließen über die WebSocket-API.
@@ -16,12 +18,12 @@ import 'package:flutter_test/flutter_test.dart';
 class _Socket extends Stream<dynamic> implements WebSocket {
   final _input = StreamController<dynamic>();
   late _Socket peer;
-  bool _closed = false;
+  bool _closed = false, rejectWrites = false;
   @override
   Duration? pingInterval;
   @override
   void add(dynamic data) {
-    if (_closed) throw StateError('closed');
+    if (_closed || rejectWrites) throw StateError('closed');
     peer._input.add(data);
   }
 
@@ -113,10 +115,10 @@ void main() {
     await midi.responses.close();
   });
 
-  Future<HostCredentials> pair() => HostClient.pair(
+  Future<HostCredentials> pair([String name = 'Handy']) => HostClient.pair(
     endpoint,
     pairing.issue(),
-    'Handy',
+    name,
     connectSocket: connectSocket,
   );
 
@@ -165,35 +167,246 @@ void main() {
     },
   );
 
+  test('Kopplung während Sitzung, gemeinsamer Port, Befehle und Antworten beider Clients', () async {
+    final credentials = await pair();
+    expect(midi.opens, 0);
+    final first = HostClient(connectSocket: connectSocket);
+    final second = HostClient(connectSocket: connectSocket);
+    addTearDown(first.dispose);
+    addTearDown(second.dispose);
+    await first.connect(credentials);
+    expect(midi.opens, 1);
+    expect(first.deviceName, 'ADI-2 Pro (56010042)');
+    final tablet = await pair('Tablet');
+    await second.connect(tablet);
+    expect(second.deviceName, first.deviceName);
+    expect(server.connectedNames, ['Handy', 'Tablet']);
+    expect(midi.opens, 1);
+    final a = buildSetParams(0x72, [const Adi2Param(0, 1, 1)]).single;
+    final b = buildSetParams(0x72, [const Adi2Param(0, 1, 2)]).single;
+    first.sendMidi(a);
+    second.sendMidi(b);
+    await _until(() => midi.sent.length >= 2);
+    expect(midi.sent, [a, b]);
+    final packet = first.packets.stream.first;
+    final packet2 = second.packets.stream.first;
+    midi.responses.add(buildRequestAll(0x72));
+    expect(
+      await packet.timeout(const Duration(seconds: 1)),
+      buildRequestAll(0x72),
+    );
+    expect(await packet2, buildRequestAll(0x72));
+    first.disconnect();
+    await _until(() => server.connectedNames.length == 1);
+    await Future<void>.delayed(const Duration(milliseconds: 70));
+    expect(midi.closes, 0);
+    expect(second.connected, isTrue);
+    expect(server.connectedNames, ['Tablet']);
+    second.disconnect();
+    await _until(() => midi.closes == 1);
+    expect(midi.closes, 1);
+  });
+
+  test('Vier parallele Anmeldungen teilen open, fünfter busy, Koppeln bleibt möglich', () async {
+    final credentials = [for (var i = 0; i < 5; i++) await pair('Client $i')];
+    final clients = [
+      for (var i = 0; i < 5; i++) HostClient(connectSocket: connectSocket),
+    ];
+    for (final client in clients) {
+      addTearDown(client.dispose);
+    }
+    midi.opening = Completer<void>();
+    final connecting = [
+      for (var i = 0; i < 4; i++) clients[i].connect(credentials[i]),
+    ];
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(midi.opens, 1);
+    await expectLater(
+      clients[4].connect(credentials[4]),
+      throwsA(predicate((e) => e.toString().contains('busy'))),
+    );
+    expect((await pair('Weiteres Tablet')).deviceId, isNotEmpty);
+    midi.opening!.complete();
+    await Future.wait(connecting);
+    expect(server.connectedNames, [
+      'Client 0',
+      'Client 1',
+      'Client 2',
+      'Client 3',
+    ]);
+    expect(midi.opens, 1);
+    // Auch bei vier bereits authentifizierten Sitzungen weiter koppeln.
+    await pair('Noch ein Telefon');
+    await expectLater(
+      clients[4].connect(credentials[4]),
+      throwsA(predicate((e) => e.toString().contains('busy'))),
+    );
+    clients[0].disconnect();
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    await clients[4].connect(credentials[4]);
+    expect(midi.opens, 1);
+    expect(server.connectedNames, [
+      'Client 1',
+      'Client 2',
+      'Client 3',
+      'Client 4',
+    ]);
+  });
+
   test(
-    'Kopplung öffnet USB nicht, Sitzung öffnet USB, zweiter Client belegt',
+    'Port wird während closeDelay ohne erneutes open wiederverwendet',
     () async {
       final credentials = await pair();
-      expect(midi.opens, 0);
+      final client = HostClient(connectSocket: connectSocket);
+      addTearDown(client.dispose);
+      await client.connect(credentials);
+      client.disconnect();
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      await client.connect(credentials);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(midi.opens, 1);
+      expect(midi.closes, 0);
+      expect(server.isMidiOpen, isTrue);
+    },
+  );
+
+  test(
+    'Neue Sitzung und Release löschen keinen Gerätestand anderer Clients',
+    () async {
       final first = HostClient(connectSocket: connectSocket);
       final second = HostClient(connectSocket: connectSocket);
       addTearDown(first.dispose);
       addTearDown(second.dispose);
-      await first.connect(credentials);
-      expect(midi.opens, 1);
-      expect(first.deviceName, 'ADI-2 Pro (56010042)');
-      await expectLater(
-        second.connect(credentials),
-        throwsA(predicate((e) => e.toString().contains('busy'))),
-      );
-      expect(midi.opens, 1);
-      first.sendMidi(buildRequestAll(0x72));
+      await first.connect(await pair());
+      final observed = buildSetParams(0x72, [
+        const Adi2Param(3, OutIdx.volume, -400),
+      ]).single..[5] = Adi2Cmd.paramsToRemote;
+      midi.responses.add(observed);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      await second.connect(await pair('Tablet'));
+      first.setForeground(false);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(second.connected, isTrue);
+      expect(server.filter.granted, isTrue);
+      final lower = buildSetParams(0x72, [
+        const Adi2Param(3, OutIdx.volume, -600),
+      ]).single;
+      second.sendMidi(lower);
       await Future<void>.delayed(const Duration(milliseconds: 20));
-      expect(midi.sent, [buildRequestAll(0x72)]);
-      final packet = first.packets.stream.first;
-      midi.responses.add(buildRequestAll(0x72));
-      expect(
-        await packet.timeout(const Duration(seconds: 1)),
-        buildRequestAll(0x72),
+      expect(midi.sent, contains(equals(lower)));
+      expect(midi.closes, 0);
+    },
+  );
+
+  test('USB-Verlust wird allen Sitzungen gemeldet', () async {
+    final clients = [
+      HostClient(connectSocket: connectSocket),
+      HostClient(connectSocket: connectSocket),
+    ];
+    for (final client in clients) {
+      addTearDown(client.dispose);
+      await client.connect(await pair());
+    }
+    server.usbLost();
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    for (final client in clients) {
+      expect(client.connected, isFalse);
+      expect(client.error, contains('usb_missing'));
+    }
+    expect(server.connectedNames, isEmpty);
+    expect(server.filter.granted, isFalse);
+    expect(server.isMidiOpen, isFalse);
+  });
+
+  test(
+    'Client-Vollabfragen vervielfachen oder unterbrechen den Host-Zyklus nicht',
+    () async {
+      final clients = [
+        HostClient(connectSocket: connectSocket),
+        HostClient(connectSocket: connectSocket),
+      ];
+      for (final client in clients) {
+        addTearDown(client.dispose);
+        await client.connect(await pair());
+      }
+      final request = buildRequestAll(0x72);
+      for (var i = 0; i < 20; i++) {
+        for (final client in clients) {
+          client.sendMidi(request);
+        }
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 140));
+      expect(midi.sent, [request]);
+      // Nach vier schnellen Folgeabfragen ist eine vollständige Antwort dran.
+      while (midi.sent.length < HostServer.quickPolls + 1) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      final before = midi.sent.length;
+      final response = buildSetParams(0x72, [const Adi2Param(0, 1, 1)]).single
+        ..[5] = Adi2Cmd.paramsToRemote;
+      for (var i = 0; i < 20; i++) {
+        midi.responses.add(response);
+        for (final client in clients) {
+          client.sendMidi(request);
+        }
+        // Deutlich unter der 40-ms-Ruhezeit, damit Testlast nicht als
+        // Antwortpause zählt.
+        await Future<void>.delayed(const Duration(milliseconds: 15));
+      }
+      expect(midi.sent.length, before);
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      expect(midi.sent.length, greaterThan(before));
+    },
+  );
+
+  test(
+    'Gezielte Presetabfragen bleiben erhalten und werden zusammengefasst',
+    () async {
+      final first = HostClient(connectSocket: connectSocket);
+      final second = HostClient(connectSocket: connectSocket);
+      addTearDown(first.dispose);
+      addTearDown(second.dispose);
+      await first.connect(await pair());
+      await second.connect(await pair());
+      final request = buildRequestEqPreset(0x72, 3);
+      first.sendMidi(request);
+      second.sendMidi(request);
+      await Future<void>.delayed(const Duration(milliseconds: 140));
+      expect(midi.sent, [request]);
+      first.sendMidi(request);
+      second.sendMidi(buildRequestAll(0x72));
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect(midi.sent, [request]);
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      expect(midi.sent.where((b) => b[6] == 0x0d).length, 1);
+      expect(midi.sent, contains(equals(buildRequestAll(0x72))));
+    },
+  );
+
+  test(
+    'Defekter Client-Socket unterbricht den Broadcast an andere nicht',
+    () async {
+      late _Socket firstWire;
+      final first = HostClient(
+        connectSocket: (uri) async {
+          firstWire = await connectSocket(uri) as _Socket;
+          return firstWire;
+        },
       );
-      first.disconnect();
-      await Future<void>.delayed(const Duration(milliseconds: 100));
-      expect(midi.closes, 1);
+      final second = HostClient(connectSocket: connectSocket);
+      addTearDown(first.dispose);
+      addTearDown(second.dispose);
+      await first.connect(await pair('Telefon'));
+      await second.connect(await pair('Tablet'));
+      firstWire.peer.rejectWrites = true;
+      final packet = second.packets.stream.first;
+      final response = buildSetParams(0x72, [const Adi2Param(0, 1, 1)]).single
+        ..[5] = Adi2Cmd.paramsToRemote;
+      midi.responses.add(response);
+      expect(await packet.timeout(const Duration(seconds: 1)), response);
+      expect(server.connectedNames, ['Tablet']);
+      expect(second.connected, isTrue);
+      expect(midi.closes, 0);
     },
   );
 
@@ -233,9 +446,10 @@ void main() {
     client.sendMidi(buildRequestAll(0x71));
     await Future<void>.delayed(const Duration(milliseconds: 100));
     await client.connect(credentials);
-    client.sendMidi(buildRequestAll(0x72));
+    final command = buildSetParams(0x72, [const Adi2Param(0, 1, 1)]).single;
+    client.sendMidi(command);
     await Future<void>.delayed(const Duration(milliseconds: 30));
-    expect(midi.sent, [buildRequestAll(0x72)]);
+    expect(midi.sent, [command]);
   });
 
   test(
@@ -259,38 +473,43 @@ void main() {
     },
   );
 
-  test(
-    'Ausbleibendes Lebenszeichen schließt die authentifizierte Sitzung',
-    () async {
-      final credentials = await pair();
-      final socket = await connectSocket(endpoint.uri);
-      final messages = StreamIterator<dynamic>(socket);
-      await messages.moveNext();
-      final hello = decodeHostMessage(messages.current);
-      final context = authContext(
-        endpoint.id,
-        credentials.deviceId,
-        hello['challenge'] as String,
-        randomToken(),
-      );
-      socket.add(
-        jsonEncode({
-          'type': 'auth',
-          'deviceId': credentials.deviceId,
-          'nonce': context.last,
-          'proof': hostMac(credentials.key, ['client', ...context]),
-        }),
-      );
-      await messages.moveNext();
-      expect(decodeHostMessage(messages.current)['type'], 'authenticated');
-      await Future<void>.delayed(const Duration(milliseconds: 1200));
-      expect(server.connectedName, isNull);
-      expect(server.filter.granted, isFalse);
-      expect(midi.sent, isEmpty);
-      await messages.cancel();
-      await socket.close();
-    },
-  );
+  test('Kurz ausbleibendes Lebenszeichen beendet nur die Freigabe, nicht die Sitzung', () async {
+    final credentials = await pair();
+    final other = HostClient(connectSocket: connectSocket);
+    addTearDown(other.dispose);
+    await other.connect(await pair('Tablet'));
+    final socket = await connectSocket(endpoint.uri);
+    final messages = StreamIterator<dynamic>(socket);
+    await messages.moveNext();
+    final hello = decodeHostMessage(messages.current);
+    final context = authContext(
+      endpoint.id,
+      credentials.deviceId,
+      hello['challenge'] as String,
+      randomToken(),
+    );
+    socket.add(
+      jsonEncode({
+        'type': 'auth',
+        'deviceId': credentials.deviceId,
+        'nonce': context.last,
+        'proof': hostMac(credentials.key, ['client', ...context]),
+      }),
+    );
+    await messages.moveNext();
+    expect(decodeHostMessage(messages.current)['type'], 'authenticated');
+    await Future<void>.delayed(const Duration(milliseconds: 1200));
+    // WLAN-Aussetzer über 1 s trennen nicht mehr; erst nach
+    // HostServer.sessionTimeout ohne Lebenszeichen.
+    expect(server.connectedNames, hasLength(2));
+    expect(HostServer.sessionTimeout, const Duration(seconds: 6));
+    expect(other.connected, isTrue);
+    expect(midi.closes, 0);
+    expect(server.filter.granted, isTrue);
+    expect(midi.sent, isEmpty);
+    await messages.cancel();
+    await socket.close();
+  });
 
   test('Abbruch während USB-Öffnen gibt den Port wieder frei', () async {
     final credentials = await pair();
@@ -306,6 +525,49 @@ void main() {
     expect(midi.closes, greaterThanOrEqualTo(1));
     await cancelled;
   }, timeout: const Timeout(Duration(seconds: 12)));
+
+  test('USB-Verlust während open belebt keine alte Anmeldung wieder', () async {
+    final credentials = await pair();
+    midi.opening = Completer<void>();
+    final client = HostClient(connectSocket: connectSocket);
+    addTearDown(client.dispose);
+    final rejected = expectLater(
+      client.connect(credentials),
+      throwsA(predicate((e) => e.toString().contains('usb_missing'))),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    server.usbLost();
+    await rejected;
+    final next = HostClient(connectSocket: connectSocket);
+    addTearDown(next.dispose);
+    final reconnecting = next.connect(credentials);
+    midi.opening!.complete();
+    await reconnecting;
+    expect(client.connected, isFalse);
+    expect(next.connected, isTrue);
+    expect(midi.opens, 2);
+    expect(server.connectedNames, ['Handy']);
+  });
+
+  test(
+    'Widerruf eines Clients lässt andere Sitzungen und ihren Port bestehen',
+    () async {
+      final credentials = await pair('Telefon');
+      final first = HostClient(connectSocket: connectSocket);
+      final second = HostClient(connectSocket: connectSocket);
+      addTearDown(first.dispose);
+      addTearDown(second.dispose);
+      await first.connect(credentials);
+      await second.connect(await pair('Tablet'));
+      await server.revoke(credentials.deviceId);
+      await Future<void>.delayed(const Duration(milliseconds: 70));
+      expect(first.connected, isFalse);
+      expect(second.connected, isTrue);
+      expect(server.connectedNames, ['Tablet']);
+      expect(server.filter.granted, isTrue);
+      expect(midi.closes, 0);
+    },
+  );
 
   test('Abfrage ruht am Ende jedes Zyklus für die Statusmeldung', () {
     bool at(int ms) => HostServer.pollActiveAt(Duration(milliseconds: ms));
@@ -370,4 +632,45 @@ void main() {
     );
     expect(DesktopMidi.displayName('Port 1'), 'ADI-2');
   });
+
+  test(
+    'Nach einer Änderung fragt der Host sofort ab und lässt die Antwort laufen',
+    () async {
+      final client = HostClient(connectSocket: connectSocket);
+      addTearDown(client.dispose);
+      await client.connect(await pair());
+      final request = buildRequestAll(0x72);
+      final response = buildSetParams(0x72, [const Adi2Param(0, 1, 1)]).single
+        ..[5] = Adi2Cmd.paramsToRemote;
+      // Gerät bekannt machen und den laufenden Zyklus in eine Antwort führen.
+      midi.responses.add(response);
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+      final command = buildSetParams(0x72, [
+        const Adi2Param(Adi2Addr.line, OutIdx.mute, 1),
+      ]).single;
+      final before = midi.sent.length;
+      client.sendMidi(command);
+      // Das Gerät antwortet laufend (wie bei einer vollständigen Antwort).
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      for (var i = 0; i < 12; i++) {
+        midi.responses.add(response);
+        await Future<void>.delayed(const Duration(milliseconds: 15));
+      }
+      final sent = midi.sent.sublist(before);
+      expect(sent.first, command);
+      // Genau eine Sofortabfrage; die laufende Antwort wird nicht abgebrochen.
+      expect(sent.skip(1).where((m) => listEquals(m, request)), hasLength(1));
+    },
+  );
+}
+
+/// Wartet auf einen Zustand statt auf eine feste Zeit (langsame CI-Rechner).
+Future<void> _until(
+  bool Function() done, {
+  Duration timeout = const Duration(seconds: 3),
+}) async {
+  final end = DateTime.now().add(timeout);
+  while (!done() && DateTime.now().isBefore(end)) {
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+  }
 }

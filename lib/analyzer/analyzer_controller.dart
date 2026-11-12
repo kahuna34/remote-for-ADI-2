@@ -23,12 +23,23 @@ class AnalyzerController extends ChangeNotifier {
     AppSettings.instance.addListener(_settingsChanged);
     analyzerDeveloperMode.addListener(_diagnosticsChanged);
     _applyBallistics(AppSettings.instance.analyzerBallistics);
+    _applyPeakHoldDuration();
   }
   AnalyzerBandResolution _bandResolution =
       AppSettings.instance.analyzerBandResolution;
   AnalyzerBandResolution get bandResolution => _bandResolution;
 
+  void _applyPeakHoldDuration() {
+    final seconds = AppSettings.instance.analyzerPeakHoldSeconds;
+    for (final envelope in [spectrum, bassSpectrum, bands]) {
+      envelope.holdSeconds = seconds == 0
+          ? double.infinity
+          : seconds.toDouble();
+    }
+  }
+
   void _settingsChanged() {
+    _applyPeakHoldDuration();
     final next = AppSettings.instance.analyzerBandResolution;
     final offset = AppSettings.instance.analyzerCalibration(
       calibrationIdentity?.key,
@@ -256,6 +267,14 @@ class AnalyzerController extends ChangeNotifier {
   void setBars(bool value) {
     bars = value;
     unawaited(AppSettings.instance.setAnalyzerBars(value));
+    _notify();
+  }
+
+  /// Setzt die Peak-Marken aller Darstellungen sofort zurück.
+  void resetPeaks() {
+    for (final envelope in [spectrum, bassSpectrum, bands]) {
+      envelope.resetHeld();
+    }
     _notify();
   }
 

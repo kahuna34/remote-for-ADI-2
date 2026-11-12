@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -10,6 +11,8 @@ import '../analyzer/analyzer_routing.dart';
 import '../app_settings.dart';
 import '../device/adi2_controller.dart';
 import '../device/loopback.dart';
+import '../device/loopback_routing.dart';
+import 'loopback_feedback.dart';
 import '../l10n/l10n.dart';
 import '../protocol/adi2_params.dart';
 import '../protocol/adi2_codec.dart';
@@ -49,7 +52,14 @@ List<OutputInfo> analyzerOutputs(Adi2Controller? ctrl) => ctrl?.variant == null
           .toList();
 
 OutputInfo? analyzerLoopbackSource(Adi2Controller? ctrl) {
-  for (final output in analyzerOutputs(ctrl)) {
+  final outputs = analyzerOutputs(ctrl);
+  if (ctrl?.variant?.isDac == true) {
+    final address = dacLoopbackAddress(ctrl!);
+    return address == null || ctrl.value(address, OutIdx.loopback) == 0
+        ? null
+        : outputs.where((o) => o.address == address).firstOrNull;
+  }
+  for (final output in outputs) {
     final selection = decodeLoopback(
       ctrl!.value(output.address, OutIdx.loopback)!,
       hasInput: ctrl.variant!.hasInput,
@@ -89,14 +99,169 @@ class _AnalyzerSettingField extends StatelessWidget {
                   SizedBox(width: double.infinity, child: trailing),
                 ],
               )
+            : trailing is AnalyzerChoices
+            // Knöpfe beginnen direkt nach einer schmalen Beschriftungsspalte
+            // und nutzen die ganze restliche Breite; zu viele brechen um.
+            ? Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: math.min(170, constraints.maxWidth * 0.3),
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: title,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: trailing,
+                    ),
+                  ),
+                ],
+              )
             : Row(
                 children: [
                   Expanded(child: title),
+                  const SizedBox(width: 12),
                   SizedBox(width: controlWidth, child: trailing),
                 ],
               ),
       );
     },
+  );
+}
+
+/// Shared wrapping selection buttons for analyzer preferences.
+class AnalyzerChoices<T> extends StatelessWidget {
+  const AnalyzerChoices({
+    super.key,
+    required this.values,
+    required this.value,
+    required this.label,
+    required this.onSelected,
+    this.color,
+  });
+  final List<T> values;
+  final T value;
+  final String Function(T) label;
+  final ValueChanged<T>? onSelected;
+  final Color? Function(T)? color;
+
+  @override
+  Widget build(BuildContext context) => Wrap(
+    spacing: 6,
+    runSpacing: 4,
+    alignment: WrapAlignment.start,
+    children: [
+      for (final option in values)
+        ChoiceChip(
+          key: ValueKey((key, option)),
+          label: Text(label(option)),
+          avatar: color?.call(option) == null
+              ? null
+              : CircleAvatar(backgroundColor: color!(option), radius: 8),
+          selected: option == value,
+          showCheckmark: false,
+          visualDensity: VisualDensity.compact,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          onSelected: onSelected == null ? null : (_) => onSelected!(option),
+        ),
+    ],
+  );
+}
+
+class _AnalyzerHeaderField extends StatelessWidget {
+  const _AnalyzerHeaderField({required this.title, required this.child});
+  final String title;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: title,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.labelSmall,
+        ),
+        child,
+      ],
+    ),
+  );
+}
+
+class AnalyzerBallisticsSetting extends StatelessWidget {
+  const AnalyzerBallisticsSetting({
+    super.key,
+    required this.controller,
+    this.inline = false,
+  });
+  final AnalyzerController controller;
+  final bool inline;
+  @override
+  Widget build(BuildContext context) {
+    String label(AnalyzerBallistics b) =>
+        tr(['schnell', 'mittel', 'langsam'][b.index]);
+    if (inline) {
+      return _AnalyzerHeaderField(
+        title: tr('Ballistik'),
+        child: DropdownButton<AnalyzerBallistics>(
+          key: const ValueKey('analyzer-ballistics-header'),
+          isExpanded: true,
+          isDense: true,
+          underline: const SizedBox.shrink(),
+          value: controller.ballistics,
+          items: [
+            for (final b in AnalyzerBallistics.values)
+              DropdownMenuItem(
+                value: b,
+                child: Text(
+                  label(b),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+          ],
+          onChanged: (b) {
+            if (b != null) controller.setBallistics(b);
+          },
+        ),
+      );
+    }
+    return _AnalyzerSettingField(
+      title: Text(tr('Ballistik')),
+      trailing: AnalyzerChoices<AnalyzerBallistics>(
+        key: const ValueKey('analyzer-ballistics'),
+        values: AnalyzerBallistics.values,
+        value: controller.ballistics,
+        label: label,
+        onSelected: controller.setBallistics,
+      ),
+    );
+  }
+}
+
+class AnalyzerPeakHoldSetting extends StatelessWidget {
+  const AnalyzerPeakHoldSetting({super.key});
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: AppSettings.instance,
+    builder: (context, _) => _AnalyzerSettingField(
+      title: Text(tr('Peak-Hold-Zeit')),
+      trailing: AnalyzerChoices<int>(
+        key: const ValueKey('analyzer-peak-hold-seconds'),
+        values: AppSettings.analyzerPeakHoldOptions,
+        value: AppSettings.instance.analyzerPeakHoldSeconds,
+        label: (seconds) =>
+            seconds == 0 ? tr('∞') : trf('{seconds} s', {'seconds': seconds}),
+        onSelected: AppSettings.instance.setAnalyzerPeakHoldSeconds,
+      ),
+    ),
   );
 }
 
@@ -107,17 +272,13 @@ class AnalyzerColorSetting extends StatelessWidget {
     listenable: AppSettings.instance,
     builder: (context, _) => _AnalyzerSettingField(
       title: Text(tr('Analyzer-Farbe')),
-      trailing: DropdownButton<int>(
+      trailing: AnalyzerChoices<int>(
         key: const ValueKey('analyzer-color'),
-        isExpanded: true,
+        values: const [-1, 0, 1, 2, 3, 4, 5],
         value: AppSettings.instance.analyzerColor,
-        items: [
-          for (var i = -1; i < 6; i++)
-            DropdownMenuItem(value: i, child: Text(analyzerColorNames[i + 1])),
-        ],
-        onChanged: (value) {
-          if (value != null) AppSettings.instance.setAnalyzerColor(value);
-        },
+        label: (i) => analyzerColorNames[i + 1],
+        color: (i) => i < 0 ? null : analyzerColors[i],
+        onSelected: AppSettings.instance.setAnalyzerColor,
       ),
     ),
   );
@@ -145,7 +306,14 @@ class _AnalyzerLoopbackControlsState extends State<AnalyzerLoopbackControls> {
   @override
   void initState() {
     super.initState();
-    if (widget.routing == null) _ownedRouting = AnalyzerRouting(widget.ctrl);
+    if (widget.routing == null) {
+      _ownedRouting = AnalyzerRouting(
+        widget.ctrl,
+        onDisplaced: (a, p) {
+          if (mounted) showLoopbackDisplaced(context, widget.ctrl!, a, p);
+        },
+      );
+    }
   }
 
   @override
@@ -154,7 +322,12 @@ class _AnalyzerLoopbackControlsState extends State<AnalyzerLoopbackControls> {
     if (oldWidget.ctrl != widget.ctrl || oldWidget.routing != widget.routing) {
       _ownedRouting?.dispose();
       _ownedRouting = widget.routing == null
-          ? AnalyzerRouting(widget.ctrl)
+          ? AnalyzerRouting(
+              widget.ctrl,
+              onDisplaced: (a, p) {
+                if (mounted) showLoopbackDisplaced(context, widget.ctrl!, a, p);
+              },
+            )
           : null;
     }
   }
@@ -167,10 +340,16 @@ class _AnalyzerLoopbackControlsState extends State<AnalyzerLoopbackControls> {
 
   Future<void> _set(int output, int tap) async {
     final ctrl = widget.ctrl;
-    if (_changing || ctrl == null || ctrl.state != ConnState.connected) return;
+    if (_changing ||
+        ctrl == null ||
+        (ctrl.state != ConnState.connected && !ctrl.offline)) {
+      return;
+    }
     _changing = true;
     try {
-      if (tap != 0 && !AppSettings.instance.analyzerLoopbackConfirmed) {
+      if (tap != 0 &&
+          ctrl.variant?.hasInput == true &&
+          !AppSettings.instance.analyzerLoopbackConfirmed) {
         final accepted = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
@@ -195,10 +374,14 @@ class _AnalyzerLoopbackControlsState extends State<AnalyzerLoopbackControls> {
         if (accepted != true || !mounted) return;
         await AppSettings.instance.confirmAnalyzerLoopback();
       }
+      if (ctrl.variant?.isDac == true &&
+          !AppSettings.instance.analyzerLoopbackConfirmed) {
+        await AppSettings.instance.confirmAnalyzerLoopback();
+      }
       // The device may detach while the first-use confirmation is open.
       if (!mounted ||
           ctrl != widget.ctrl ||
-          ctrl.state != ConnState.connected) {
+          (ctrl.state != ConnState.connected && !ctrl.offline)) {
         return;
       }
       await _routing.configure(output: output, tap: tap);
@@ -222,7 +405,7 @@ class _AnalyzerLoopbackControlsState extends State<AnalyzerLoopbackControls> {
           ? settings.analyzerLoopbackOutput
           : 0;
       final enabled =
-          ctrl?.state == ConnState.connected &&
+          (ctrl?.state == ConnState.connected || ctrl?.offline == true) &&
           ctrl?.analyzerSelfTestActive == false &&
           selected != null;
       // Zeigt den Gerätezustand: Der gespeicherte Abgriff kann von einem anderen
@@ -238,78 +421,68 @@ class _AnalyzerLoopbackControlsState extends State<AnalyzerLoopbackControls> {
           : deviceLoopback.pair == 0
           ? deviceLoopback.tap
           : 0;
-      Widget field({required Widget title, required Widget trailing}) =>
-          widget.inline
-          ? Padding(
-              padding: const EdgeInsets.only(left: 8),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [title, const SizedBox(width: 8), trailing],
-              ),
-            )
-          : _AnalyzerSettingField(
-              title: title,
-              trailing: trailing,
-              controlWidth: 280,
-            );
       final fields = <Widget>[
-        // The source picker lives in the loopback sheet so ballistics and tap
-        // fit together in the fullscreen row.
-        if (outputs.length > 1 && !widget.inline)
-          field(
+        if (ctrl?.variant?.isDac != true &&
+            outputs.length > 1 &&
+            !widget.inline)
+          _AnalyzerSettingField(
             title: Text(tr('Ausgang')),
-            trailing: DropdownButton<int>(
+            controlWidth: 280,
+            trailing: AnalyzerChoices<int>(
               key: const ValueKey('analyzer-loopback-output'),
-              isDense: widget.inline,
-              underline: widget.inline ? const SizedBox.shrink() : null,
-              isExpanded: !widget.inline,
-              menuWidth: 320,
+              values: [0, for (final output in outputs) output.address],
               value: outputValue,
-              items: [
-                DropdownMenuItem(
-                  value: 0,
-                  child: Text(tr('Automatisch (aktiver Ausgang)')),
-                ),
-                for (final output in outputs)
-                  DropdownMenuItem(
-                    value: output.address,
-                    child: Text(output.name),
-                  ),
-              ],
-              onChanged: enabled
-                  ? (address) {
-                      if (address != null) _set(address, tap == 0 ? 2 : tap);
-                    }
+              label: (address) => address == 0
+                  ? tr('Automatisch (aktiver Ausgang)')
+                  : outputs.firstWhere((o) => o.address == address).name,
+              onSelected: enabled
+                  ? (address) => _set(address, tap == 0 ? 2 : tap)
                   : null,
             ),
           ),
-        field(
-          title: Text(tr('Abgriff')),
-          trailing: DropdownButton<int>(
-            key: const ValueKey('analyzer-loopback-tap'),
-            isDense: widget.inline,
-            underline: widget.inline ? const SizedBox.shrink() : null,
-            isExpanded: !widget.inline,
-            value: tap,
-            items: [
-              for (var i = 0; i < 4; i++)
-                DropdownMenuItem(
-                  value: i,
-                  child: Text(
-                    tr(['Aus', 'pre FX', 'post FX', 'post −6 dB'][i]),
+        if (widget.inline)
+          _AnalyzerHeaderField(
+            title: tr('Loopback-Quelle'),
+            child: DropdownButton<int>(
+              key: const ValueKey('analyzer-loopback-tap'),
+              menuWidth: 180,
+              isDense: true,
+              isExpanded: true,
+              underline: const SizedBox.shrink(),
+              value: tap,
+              items: [
+                for (var i = 0; i < 4; i++)
+                  DropdownMenuItem(
+                    value: i,
+                    child: Text(
+                      tr(['Aus', 'pre FX', 'post FX', 'post −6 dB'][i]),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
-            ],
-            onChanged: enabled
-                ? (tap) {
-                    if (tap != null) _set(outputValue, tap);
-                  }
-                : null,
+              ],
+              onChanged: enabled
+                  ? (value) {
+                      if (value != null) _set(outputValue, value);
+                    }
+                  : null,
+            ),
+          )
+        else
+          _AnalyzerSettingField(
+            title: Text(tr('Loopback-Quelle')),
+            controlWidth: 280,
+            trailing: AnalyzerChoices<int>(
+              key: const ValueKey('analyzer-loopback-tap'),
+              values: const [0, 1, 2, 3],
+              value: tap,
+              label: (i) => tr(['Aus', 'pre FX', 'post FX', 'post −6 dB'][i]),
+              onSelected: enabled ? (value) => _set(outputValue, value) : null,
+            ),
           ),
-        ),
       ];
       return widget.inline
-          ? Row(mainAxisSize: MainAxisSize.min, children: fields)
+          ? fields.single
           : Column(mainAxisSize: MainAxisSize.min, children: fields);
     },
   );
@@ -365,25 +538,8 @@ Future<void> showAnalyzerSettings(
                       value: controller.peakHold,
                       onChanged: controller.setPeakHold,
                     ),
-                    _AnalyzerSettingField(
-                      title: Text(tr('Ballistik')),
-                      trailing: DropdownButton<AnalyzerBallistics>(
-                        isExpanded: true,
-                        value: controller.ballistics,
-                        items: [
-                          for (final b in AnalyzerBallistics.values)
-                            DropdownMenuItem(
-                              value: b,
-                              child: Text(
-                                tr(['schnell', 'mittel', 'langsam'][b.index]),
-                              ),
-                            ),
-                        ],
-                        onChanged: (b) {
-                          if (b != null) controller.setBallistics(b);
-                        },
-                      ),
-                    ),
+                    AnalyzerBallisticsSetting(controller: controller),
+                    const AnalyzerPeakHoldSetting(),
                   ],
                 ),
               ),
@@ -414,17 +570,12 @@ class AnalyzerRangeSetting extends StatelessWidget {
     listenable: AppSettings.instance,
     builder: (context, _) => _AnalyzerSettingField(
       title: Text(tr('Pegelbereich')),
-      trailing: DropdownButton<int>(
+      trailing: AnalyzerChoices<int>(
         key: const ValueKey('analyzer-range'),
-        isExpanded: true,
+        values: const [60, 80, 100],
         value: AppSettings.instance.analyzerRange,
-        items: [
-          for (final range in [60, 80, 100])
-            DropdownMenuItem(value: range, child: Text('$range dB')),
-        ],
-        onChanged: (value) {
-          if (value != null) AppSettings.instance.setAnalyzerRange(value);
-        },
+        label: (range) => '$range dB',
+        onSelected: AppSettings.instance.setAnalyzerRange,
       ),
     ),
   );
@@ -437,34 +588,24 @@ class AnalyzerBandSetting extends StatelessWidget {
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: AppSettings.instance,
     builder: (context, _) {
-      final dropdown = DropdownButton<AnalyzerBandResolution>(
+      final choices = AnalyzerChoices<AnalyzerBandResolution>(
         key: const ValueKey('analyzer-band-resolution'),
-        isExpanded: !inline,
+        values: AnalyzerBandResolution.values,
         value: AppSettings.instance.analyzerBandResolution,
-        items: [
-          for (final resolution in AnalyzerBandResolution.values)
-            DropdownMenuItem(
-              value: resolution,
-              child: Text(
-                tr(switch (resolution) {
-                  AnalyzerBandResolution.third => '1/3 Oktave',
-                  AnalyzerBandResolution.sixth => '1/6 Oktave',
-                  AnalyzerBandResolution.twelfth => '1/12 Oktave',
-                }),
-              ),
-            ),
-        ],
-        onChanged: (value) {
-          if (value != null) {
-            AppSettings.instance.setAnalyzerBandResolution(value);
-          }
-        },
+        label: (resolution) => inline
+            ? '1/${resolution.bandsPerOctave}'
+            : tr(switch (resolution) {
+                AnalyzerBandResolution.third => '1/3 Oktave',
+                AnalyzerBandResolution.sixth => '1/6 Oktave',
+                AnalyzerBandResolution.twelfth => '1/12 Oktave',
+              }),
+        onSelected: AppSettings.instance.setAnalyzerBandResolution,
       );
       return inline
-          ? dropdown
+          ? Tooltip(message: tr('Bandauflösung'), child: choices)
           : _AnalyzerSettingField(
               title: Text(tr('Bandauflösung')),
-              trailing: dropdown,
+              trailing: choices,
             );
     },
   );
@@ -625,14 +766,16 @@ List<String> calibrationToneBlockers(
   final route = confirmed == null
       ? null
       : decodeLoopback(confirmed, hasInput: hasInput);
-  final competing = analyzerOutputs(ctrl).any((o) {
-    if (o.address == output?.address) return false;
-    final other = decodeLoopback(
-      ctrl.value(o.address, OutIdx.loopback)!,
-      hasInput: hasInput,
-    );
-    return other.pair == 0 && other.tap != 0 && other.tap != 2;
-  });
+  final competing =
+      !ctrl.variant!.isDac &&
+      analyzerOutputs(ctrl).any((o) {
+        if (o.address == output?.address) return false;
+        final other = decodeLoopback(
+          ctrl.value(o.address, OutIdx.loopback)!,
+          hasInput: hasInput,
+        );
+        return other.pair == 0 && other.tap != 0 && other.tap != 2;
+      });
   if (route == null || route.pair != 0 || route.tap != 2 || competing) {
     blockers.add(tr('Loopback auf post FX und USB 1/2 stellen'));
   }
@@ -851,7 +994,7 @@ class _AnalyzerCalibrationSettingState
                       children: [
                         Text(
                           tr(
-                            'Einen voll ausgesteuerten Sinus (0 dBFS) auf L und R einspielen. Abgriff post FX wählen und EQ sowie alle Effekte ausschalten. Anschließend wird der unkalibrierte Peak etwa 2 Sekunden gemessen.',
+                            'Einen voll ausgesteuerten Sinus (0 dBFS) auf L und R einspielen. Loopback-Quelle post FX wählen und EQ sowie alle Effekte ausschalten. Anschließend wird der unkalibrierte Peak etwa 2 Sekunden gemessen.',
                           ),
                         ),
                         AnalyzerCalibrationHint(

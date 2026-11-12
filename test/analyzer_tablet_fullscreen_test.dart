@@ -2,6 +2,8 @@ import 'package:adi2_remote/analyzer/analyzer_controller.dart';
 import 'package:adi2_remote/analyzer/analyzer_dsp.dart';
 import 'package:adi2_remote/app_settings.dart';
 import 'package:adi2_remote/ui/analyzer_panel.dart';
+import 'package:adi2_remote/ui/analyzer_controls.dart';
+import 'package:adi2_remote/l10n/l10n.dart';
 import 'package:adi2_remote/ui/eq_display_mode.dart';
 import 'package:adi2_remote/ui/theme.dart';
 import 'package:flutter/material.dart';
@@ -28,6 +30,7 @@ void main() {
   });
 
   Future<List<Object?>> openFullscreen(WidgetTester tester, Size size) async {
+    await AppSettings.instance.setAutoFullscreenEq(false);
     EqDisplayMode.setTablet(true);
     addTearDown(() => EqDisplayMode.setTablet(false));
     tester.view.devicePixelRatio = 1;
@@ -133,11 +136,100 @@ void main() {
     expect(native, isNot(contains('stop')));
   });
 
-  testWidgets('Tablet im Hochformat bleibt im Analyzer-Vollbild hochkant', (
+  for (final size in [
+    const Size(568, 320),
+    const Size(740, 360),
+    const Size(960, 600),
+    const Size(1280, 800),
+  ]) {
+    for (final language in AppLanguage.values) {
+      testWidgets(
+        'Vollbild-Kopfzeile und werkzeugeigene Knöpfe passen $size $language',
+        (tester) async {
+          final previous = AppLang.instance.language;
+          AppLang.instance.language = language;
+          addTearDown(() => AppLang.instance.language = previous);
+          await openFullscreen(tester, size);
+          final toolbar = find.byKey(
+            const ValueKey('analyzer-fullscreen-toolbar'),
+          );
+          final ballistics = find.byKey(
+            const ValueKey('analyzer-ballistics-header'),
+          );
+          final loopback = find.byKey(const ValueKey('analyzer-loopback-tap'));
+          for (final dropdown in [ballistics, loopback]) {
+            expect(
+              find.descendant(of: toolbar, matching: dropdown),
+              findsOneWidget,
+            );
+            expect(
+              tester.getRect(dropdown).right,
+              lessThan(tester.getRect(find.byIcon(Icons.hide_source)).left),
+            );
+            expect(
+              (tester.widget(dropdown) as DropdownButton).isExpanded,
+              isTrue,
+            );
+          }
+          expect(
+            find.byType(DropdownButton<AnalyzerBandResolution>),
+            findsNothing,
+          );
+          expect(
+            find.byType(AnalyzerChoices<AnalyzerBandResolution>),
+            findsOneWidget,
+          );
+          final tool = find.byType(DropdownButton<AnalyzerView>);
+          expect(tool, findsOneWidget);
+          for (final label in ['1/3', '1/6', '1/12']) {
+            final option = find.text(label);
+            expect(option, findsOneWidget);
+            expect(
+              tester.getRect(option).top,
+              greaterThanOrEqualTo(tester.getRect(tool).top),
+            );
+          }
+          await tester.tap(find.text('1/12'));
+          await tester.pumpAndSettle();
+          expect(
+            AppSettings.instance.analyzerBandResolution,
+            AnalyzerBandResolution.twelfth,
+          );
+          await tester.tap(ballistics);
+          await tester.pumpAndSettle();
+          await tester.tap(find.text(tr('langsam')).last);
+          await tester.pumpAndSettle();
+          expect(
+            AppSettings.instance.analyzerBallistics,
+            AnalyzerBallistics.slow,
+          );
+          expect(tester.takeException(), isNull);
+          await tester.pumpWidget(const SizedBox());
+          await tester.pumpAndSettle();
+        },
+      );
+    }
+  }
+
+  testWidgets('Tablet im Hochformat öffnet Analyzer-Vollbild im Querformat', (
     tester,
   ) async {
     final orientations = await openFullscreen(tester, const Size(600, 960));
-    expect(orientations, ['DeviceOrientation.portraitUp']);
+    expect(orientations, [
+      'DeviceOrientation.landscapeLeft',
+      'DeviceOrientation.landscapeRight',
+    ]);
+    tester.view.physicalSize = const Size(960, 600);
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.fullscreen_exit), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.fullscreen_exit));
+    await tester.pumpAndSettle();
+    expect(
+      calls
+          .lastWhere((c) => c.method == 'SystemChrome.setPreferredOrientations')
+          .arguments,
+      contains('DeviceOrientation.portraitUp'),
+    );
   });
 
   testWidgets('Tablet im Querformat bleibt im Analyzer-Vollbild quer', (

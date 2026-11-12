@@ -7,6 +7,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// Hauptliste der Seite; Knopfreihen scrollen zusätzlich waagerecht.
+final _vertical = find
+    .byWidgetPredicate(
+      (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
+    )
+    .first;
+
 void main() {
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
@@ -21,6 +28,7 @@ void main() {
     await tester.scrollUntilVisible(
       find.byKey(const ValueKey('update-check-switch')),
       300,
+      scrollable: _vertical,
     );
     expect(find.text('Check for updates automatically'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('update-check-switch')));
@@ -33,6 +41,7 @@ void main() {
     await tester.scrollUntilVisible(
       find.byKey(const ValueKey('update-check-now')),
       100,
+      scrollable: _vertical,
     );
     expect(find.text('Check for updates now'), findsOneWidget);
   });

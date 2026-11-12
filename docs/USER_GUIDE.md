@@ -1,6 +1,6 @@
 # Remote for ADI-2 — User guide
 
-Version **1.1.1 (3)** · [Project overview](../README.md) · [Deutsch](BENUTZERHANDBUCH.md)
+Version **1.1.2 (4)** · [Project overview](../README.md) · [Deutsch](BENUTZERHANDBUCH.md)
 
 This guide describes the current app. Controls depend on the selected model and values reported by the device. Screenshots show Android devices and the English interface. The app has been tested with all supported ADI-2 models on an Android smartphone and an Android tablet, and with the ADI-2 DAC on a Mac, also through the host. An iPhone version is planned. The Player integration currently supports Android only.
 
@@ -65,9 +65,11 @@ After connecting the same model, open **Setups → More → Transfer offline set
 
 ## Control through a computer (host)
 
-When the ADI-2 is connected by USB to a Mac or Windows PC, the smartphone can control it over Wi-Fi. The computer runs the small background program **Remote for ADI-2 Host**. It has no device controls of its own and only passes commands between smartphone and ADI-2. Control on the computer itself is left to the RME software; both can run at the same time.
+When the ADI-2 is connected by USB to a Mac or Windows PC, the smartphone can control it over Wi-Fi. The computer runs the small background program **Remote for ADI-2 Host**. It has no device controls of its own and only passes commands between smartphones/tablets and ADI-2. Control on the computer itself is left to the RME software; both can run at the same time.
 
-### Starting the host
+### Installing and starting the host
+
+On Windows, run **Remote-for-ADI-2-Host-Windows-Setup.exe**. The host installs for your user account only and needs no administrator rights. Start it at the end of setup or any time from the Start menu (**All apps → Remote for ADI-2 Host**). Remove it under **Settings → Apps → Installed apps**; the uninstaller asks whether settings and pairings should be deleted too. The ZIP file remains available as a version without installation. On a Mac, drag the app into Applications; remove it by deleting it from Applications.
 
 On a Mac, open **Remote for ADI-2 Host** like any program. No window appears; an icon appears in the menu bar. On Windows the icon sits in the notification area of the taskbar; on Windows 11 it first appears in the hidden-icons area (^ arrow). Clicking the icon opens the menu:
 
@@ -77,16 +79,19 @@ On a Mac, open **Remote for ADI-2 Host** like any program. No window appears; an
 
 | Item | Effect |
 | --- | --- |
-| Status | Shows whether the host is ready, a smartphone is connected, no ADI-2 was found or USB MIDI is busy. |
-| Detected | Shows model and serial number of the connected ADI-2, such as **ADI-2 DAC** or **ADI-2 Pro EX**, or **No ADI-2 detected**. Detection only reads the device list and does not open the MIDI port. |
+| Client | Names of all connected smartphones/tablets in connection order, **–** without a connection. |
+| RME device | Model and serial number of the connected ADI-2, such as **ADI-2 DAC** or **ADI-2 Pro EX**, **–** without a device. Detection only reads the device list and does not open the MIDI port. Errors such as “USB MIDI busy” appear in a line below when needed. |
 | Pair smartphone… | Shows a 6-digit code and a QR code. The code is valid for 2 minutes and only once. |
 | Paired devices… | Lists paired smartphones; **Revoke** removes a smartphone's access. |
-| Start at login / Start with Windows | Starts the host automatically after signing in to the computer. |
+| Start at login / Start with Windows | Starts the host automatically after signing in to the computer. On Windows it is switched on at first start. |
+| Info | Shows the installed host version. |
 | Exit | Quits the host. |
 
-On Windows, allow the host through the firewall for private networks on first start.
+Allow **Private networks** when Windows Firewall asks. If access was granted only for Public networks, open **Windows Security → Firewall & network protection → Allow an app through firewall** and check **Private** for **Remote for ADI-2 Host**.
 
-**Check for updates** is enabled by default and can be disabled in the host menu. At startup and then at most once a day, the host asks GitHub for the latest version without sending user data. An available update adds a tooltip hint and **Download update X…** to the menu; only clicking this opens the ZIP download for your platform in the browser. Nothing is downloaded or installed automatically.
+On Windows, the host detects devices being connected or disconnected and opens each MIDI port through one small helper program shared by all connected clients. The host keeps running and its icon stays visible. Pairings and settings are preserved.
+
+**Check for updates** is enabled by default and can be disabled in the host menu. At startup and then at most once a day, the host asks GitHub for the latest version without sending user data. An available update adds a tooltip hint and **Download update X…** to the menu; only clicking this opens the download for your platform in the browser (the setup on Windows). Nothing is downloaded or installed automatically.
 
 For **Remote for ADI-2 Host**, pairing and local network privacy, see the [privacy policy](../PRIVACY.md).
 
@@ -96,13 +101,15 @@ For **Remote for ADI-2 Host**, pairing and local network privacy, see the [priva
 2. In the app, open **Connect via host** on the connection screen. Discovered hosts appear in the list; otherwise enter address and port manually.
 3. Scan the QR code or enter the code.
 
-The app then connects to this host automatically on every start. A direct USB connection on the smartphone takes priority. Being on the same Wi-Fi is not enough: without pairing, the host forwards nothing. The header shows the green **HOST** field with the computer's name next to **Custom Mode**.
+Up to four smartphones/tablets can control the same host at the same time. Pair each device separately using a new code; pairing also works while other devices are connected. A fifth simultaneous connection is refused until a client disconnects.
+
+The app then connects to this host automatically on every start. A direct USB connection on the smartphone takes priority. Being on the same Wi-Fi is not enough: without pairing, the host forwards nothing. The header shows the green **HOST** field next to **Custom Mode**. A long press on **HOST** opens a menu with the computer's name, **Remove pairing** (disconnects; you need to pair again afterwards) and **Manage hosts…**.
 
 ### Behaviour through the host
 
-The host opens USB MIDI only while a paired smartphone is connected and releases it afterwards. It queries the ADI-2 continuously, because the device does not report changes made by other software on its own. Volume therefore appears almost immediately, EQ and other values after about one second; the EQ graph glides to the new state.
+The first authenticated client opens USB MIDI; all connected clients share this port. The host releases it three seconds after the last client disconnects. One shared query cycle forwards the device responses and changes from other clients or the RME software to every connected app. Volume therefore appears almost immediately, EQ and other values after about one second; the EQ graph glides to the new state.
 
-Through the host, volume rises only while the app is in the foreground and keeps signalling the host, and never faster than the volume ramp. If the connection drops or the app goes to the background, any increase stops and nothing is caught up later. Lowering, muting and Dim always work immediately. Device setups and factory settings cannot be loaded through the host, because they could raise volumes unnoticed. The analyzer is not yet available through the host.
+Through the host, volume rises only while the app is in the foreground and keeps signalling the host, and never faster than the volume ramp. If the connection drops or the app goes to the background, that app’s increase stops and nothing is caught up later; other connected apps keep their own grants. All clients share the same maximum rise rate per output. Lowering, muting and Dim always work immediately. Device setups and factory settings cannot be loaded through the host, because they could raise volumes unnoticed. The analyzer is not yet available through the host. On tablets, its reserved display area shows a centred notice and keeps the channel rows in the same positions as USB mode.
 
 ## Outputs
 
@@ -125,7 +132,7 @@ Use **Bal** to move balance left or right. Holding the balance value in the stan
 
 ### Output buttons
 
-| Control | Tap | Hold / detail |
+| Control | Loopback source | Hold / detail |
 | --- | --- | --- |
 | Mute | Mute or unmute the output | Open headphone/Line muting and toggle settings |
 | Dim | Toggle a 20 dB reduction | Show the explanation; there is no separate device Dim configuration |
@@ -422,14 +429,16 @@ The app shows the stereo/multi-channel selectors only for the USB diagram. The D
 
 Loopback sends an output signal internally back to USB recording so you can capture it or inspect it in the analyzer.
 
-You do not need a cable from analog output back to input. Loopback is a digital tap inside the device. Under **Device → Loopback to USB**, choose a tap for each available output and, on input-equipped models, the **USB target**. **Info** explains the choices.
+You do not need a cable from analog output back to input. Loopback is a digital tap inside the device. Under **Device → Loopback to USB**, DAC offers one **Loopback source** shared by Line, Phones and IEM. Which output is tapped by post FX has not yet been measured. On Pro and 2/4, choose a loopback source and **USB target** for each output. **Info** explains the choices.
 
-| Tap | What reaches USB | Example |
+| Loopback source | What reaches USB | Example |
 | --- | --- | --- |
 | Off | No loopback from this output; the pair's normal recording signal is available unless another loopback replaces it. | Record analog input on USB 1/2 again. |
 | pre FX | Signal before output EQ and effects. | Record a source without its output sound correction. |
 | post FX | Signal after EQ/effects, before output volume. Loudness still depends on that volume setting. | Record processing or compare it in the analyzer. |
 | post −6 dB | Post-FX tap attenuated by 6 dB. | Extra headroom on the USB recording path; the analyzer reads 6 dB lower accordingly. |
+
+**Pro / 2/4:** On the ADI-2 Pro (including EX), loopback exists only for Line and Phones 3/4; Phones 1/2 has no value of its own. On the ADI-2/4, each output has its own. Each USB pair can be assigned to only one output; the device itself does not prevent double assignment. Occupied pairs are marked in the selection button and remain selectable. Reassigning a pair first switches off its previous output in a separate message and shows a brief notification. The same rule applies in the analyzer and offline.
 
 **USB target** identifies the recording channel pair at the host, not the output you hear. The choice appears when loopback is enabled. With **Off**, the device value does not store the target pair; check and select it again when re-enabling loopback.
 
@@ -442,13 +451,13 @@ Input-equipped models offer **1/2**, **3/4** and **5/6**; DAC uses **1/2**. Pair
 To capture an output's sound with its processing:
 
 1. Connect the ADI-2 to the recording USB host and select the actual music source for the desired output.
-2. For that output under **Loopback to USB**, choose **post FX** and a **USB target** available to the host, for example **1/2**. Choose **post −6 dB** for extra headroom if needed.
+2. On Pro / 2/4: For that output under **Loopback to USB**, choose **post FX** and a **USB target** available to the host, for example **1/2**. On DAC, select the shared source instead; which output supplies the post FX tap remains unmeasured. Choose **post −6 dB** for extra headroom if needed.
 3. Select the corresponding ADI-2 input pair in a recording application on that same host and start recording. The remote app has no audio recorder. A mobile device and a computer cannot both act as the direct USB host on the same port at once.
 4. After recording, check loopback and choose **Off** when you want to record the original input signal again.
 
 ### Example: feeding the analyzer
 
-The app analyzer reads only **USB 1/2**. For the output to inspect, choose **post FX** and **USB target → 1/2**, or use the analyzer's source/loopback selector. Play a signal through the selected output source. Routing to 3/4 or 5/6 does not feed the app analyzer. Level calibration also requires the complete checklist and rules in the Analyzer chapter.
+The app analyzer reads only **USB 1/2**. On DAC, choose the shared **post FX** source; on Pro / 2/4, choose **post FX** and **USB target → 1/2** for the output to inspect, or use the analyzer's source/loopback selector. Play a signal through the selected output source. Routing to 3/4 or 5/6 does not feed the app analyzer. Level calibration also requires the complete checklist and rules in the Analyzer chapter.
 
 ## EQ and fullscreen graph
 
@@ -685,25 +694,29 @@ Choose **Analyzer** under **Display below the header**, or use the tablet’s la
 
 ### Platforms and limitations
 
+The analyzer is not yet available through the host. On tablets, its display area remains reserved and shows a centred notice, so channel rows stay in their USB-mode positions.
+
 On **Android**, the app processes USB audio and checks the recording route. A message about the smartphone microphone or another recording device means that a valid ADI-2 recording is unavailable; do not use those readings for calibration. **Grant permission** allows access; **Try again** restarts capture after resolving an interruption.
 
 On Mac, the analyzer has not yet been confirmed on real hardware.
 
 ### Source and loopback
 
-The capture pair is **USB 1/2**. With loopback active on that pair, the analyzer shows the routed output; otherwise input-equipped models can show the analog input. The information line identifies the route and capture sample rate. Open the source/loopback controls to choose **Automatic (active output)** or a particular output, then **Tap**: **Off**, **pre FX**, **post FX** or **post −6 dB**. Enabling loopback on USB 1/2 replaces analog input recording on that pair and requires confirmation on first use. Competing output loopbacks on USB 1/2 are disabled; routes on other USB pairs are preserved. On DAC, Automatic follows the device-reported active output; on Pro models it follows the output selected in the app. While the analyzer is visible, a confirmed automatic route follows a change of output after about one second. Merely reopening the analyzer does not overwrite an existing route.
+The capture pair is **USB 1/2**. On DAC, select only the shared **Loopback source**: **Off**, **pre FX**, **post FX** or **post −6 dB**. There is no output selector; changing outputs does not write a new loopback value. Which output supplies post FX has not yet been measured. On Pro / 2/4, choose **Automatic (active output)** or a particular output and the loopback source. Each USB pair can be assigned to only one output: a competing route is switched off first with a brief notification; other pairs are preserved. Loopback on USB 1/2 replaces analog input recording on that pair and requires confirmation on first use on Pro / 2/4. While visible, a confirmed automatic Pro/2/4 route follows the output selected in the app after about one second. Reopening the analyzer does not overwrite an existing route. The information line identifies routing and capture sample rate; on DAC, the shared source is shown without assigning it to an output.
 
 Use **post FX** for comparison with the device: the signal is after EQ/effects and before Volume. Loudness remains dependent on volume. pre FX excludes those effects; post −6 dB lowers the USB readings by 6 dB. The device's Post level meters are after Volume, so they are not the same measurement point.
 
 ### Display and readings
 
 - **Lines** and **Bars** choose the spectrum presentation. The frequency axis runs from 20 Hz to 20 kHz; Bars cover 25 Hz–20 kHz. **Band resolution** offers **1/3 octave**, **1/6 octave** and **1/12 octave**. For comparison with the device, use Bars and 1/3 octave.
-- **Peak hold** retains peak indications. **Ballistics** offers **fast**, **medium** and **slow** response. Lines/Bars, Peak hold and Ballistics are remembered when the device is rotated or the app restarts.
+- **Peak hold** retains peak indications. **Peak hold time** offers 1 s (default), 2 s, 3 s, 5 s, 10 s and ∞; changes apply immediately and are saved. With ∞, markers stay until higher peaks. **A long press on Peak hold** resets the markers to the current level immediately. The **Peak hold** button is also available in portrait view at the top right of the analyzer whenever the selected tool supports peak hold. **Ballistics** offers **fast**, **medium** and **slow** response. Lines/Bars, Peak hold and Ballistics are remembered when the device is rotated or the app restarts.
 - **Level range** selects 60, 80 or 100 dB of vertical range.
 - **Analyzer color** offers **Follow device**, **Green**, **Cyan**, **Amber**, **Mono**, **Red** and **Orange**.
 - **Peak / RMS · dBFS** shows left/right captured audio levels with the saved calibration offset. A full-scale sine has 0 dBFS peak and about −3 dBFS RMS. Clipping is shown separately. Spectrum bands reference a full-scale sine at the band centre to 0 dB. Filter responses and ballistics can differ from the device; its lowest band also includes DC.
 
-Open **Analyzer settings** for these options and calibration. In fullscreen, **Spectrum only** hides the control bar and **Show controls** restores it. The fullscreen illustrations below are landscape. On tablets, fullscreen keeps the current orientation.
+Open **Analyzer settings** for these options and calibration. In fullscreen, **Spectrum only** hides the control bar and **Show controls** restores it. The fullscreen illustrations below are landscape. Opening fullscreen manually switches to landscape on tablets too; leaving restores the previous orientation policy. Band resolution uses buttons beside **Spectrum**. **Ballistics** and **Loopback source** are compact dropdowns to the left of the top-right icons; long labels are shortened on narrow screens. Analyzer settings uses wrapping selection buttons for Ballistics, Band resolution, Analyzer color, Level range, Output (Pro / 2/4 only) and Loopback source; color buttons include swatches.
+
+The screenshots below show an earlier control arrangement. The selection buttons and fullscreen header controls described above apply to the current version.
 
 | Smartphone: Lines, compact | Smartphone: Bars, compact |
 | --- | --- |
@@ -730,11 +743,11 @@ Open **Analyzer settings** for these options and calibration. In fullscreen, **S
 
 Low frequencies are on the left, high frequencies on the right; a taller indication means more level in that region. **Lines** shows a more continuous spectrum, while **Bars** groups energy into frequency bands. Finer **Band resolution** divides a range into more, narrower bands; readings using different bandwidths are therefore not directly equivalent.
 
-**Peak** describes peak values; **RMS** describes an averaged effective level. Two music signals can have equal peaks but different RMS levels. **Peak hold** briefly retains spectrum peaks: markers start falling again after about one second. **Ballistics** affects how quickly the spectrum falls; **slow** makes observation easier, while **fast** follows changes more quickly. **Level range** changes only the visible dB span, not recording gain.
+**Peak** describes peak values; **RMS** describes an averaged effective level. Two music signals can have equal peaks but different RMS levels. **Peak hold** briefly retains spectrum peaks: markers start falling again after the selected hold time (one second by default); ∞ keeps them until reset or higher peaks. **Ballistics** affects how quickly the spectrum falls; **slow** makes observation easier, while **fast** follows changes more quickly. **Level range** changes only the visible dB span, not recording gain.
 
 Tap the compact analyzer or **Fullscreen** to enlarge it. The information line can be expanded when shortened. **Spectrum only** hides the controls; tapping the display or **Show controls** restores them. These display actions do not change device EQ.
 
-**Note:** A calibration offset shifts the level display but improves neither frequency resolution nor a frequency response altered by Android effects. A difference from device metering is not automatically a fault: first match tap, presentation, band resolution and calibration.
+**Note:** A calibration offset shifts the level display but improves neither frequency resolution nor a frequency response altered by Android effects. A difference from device metering is not automatically a fault: first match loopback source, presentation, band resolution and calibration.
 
 ### Level calibration: why and how
 
@@ -891,7 +904,7 @@ Use these checks to resolve connection, control and measurement problems.
 | Analyzer asks for permission | Grant recording permission for ADI-2 USB audio |
 | Mac test tone unavailable | Set the device sample rate to 44.1–192 kHz and check the displayed start conditions |
 | Device confirmation for test tone missing | Keep outputs muted, check volume on the device, then check connection and fresh mute/volume reports from every output |
-| No analyzer signal | USB 1/2 routing, active source, loopback tap, and actual source audio; pair 3/4 or 5/6 does not feed the analyzer |
+| No analyzer signal | USB 1/2 routing, active source, loopback source, and actual source audio; pair 3/4 or 5/6 does not feed the analyzer |
 | USB recording interrupted or unavailable | Reconnect USB, close other recording users if needed, return to the analyzer and use Try again; check the reported recording route |
 | Analyzer differs from the device | Compare post FX, Bars, 1/3 octave; check calibration, media volume, Android effects and the position of device meters after Volume |
 | Calibration rejected | Stable equal-level signal on both channels, sufficient level and uninterrupted USB capture; read the displayed reason |

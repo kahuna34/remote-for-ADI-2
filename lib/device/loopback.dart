@@ -1,3 +1,6 @@
+import '../protocol/adi2_codec.dart';
+import '../protocol/adi2_params.dart';
+
 /// Abgriff 0 = Aus, 1 = pre FX, 2 = post FX, 3 = post −6 dB.
 /// Bei Aus ist das USB-Paar im Rohwert nicht gespeichert und wird als 0 gelesen.
 ({int tap, int pair}) decodeLoopback(int raw, {required bool hasInput}) {
@@ -17,3 +20,8 @@ int encodeLoopback({
   if (tap == 0 || !hasInput) return tap;
   return 3 * pair + tap;
 }
+
+/// Gemessen am ADI-2 Pro (2026-11-12, Dual Phones aus und an): Phones 1/2
+/// hat keinen eigenen Loopback-Wert; Schreiben ändert den Wert von Line.
+bool hasOwnLoopback(Adi2Variant v, int address) =>
+    !(v == Adi2Variant.pro && address == Adi2Addr.ph12);

@@ -46,6 +46,9 @@ class _Controller extends Adi2Controller {
   @override
   final Adi2Variant variant;
   final Map<int, int> values;
+  bool hostMode = false;
+  @override
+  bool get viaHost => hostMode;
   final eqWrites = <(int, int, int)>[];
 
   @override
@@ -266,6 +269,103 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
+
+  for (final size in [const Size(600, 960), const Size(800, 1280)]) {
+    testWidgets(
+      'Host-Analyzer reserviert dieselbe Fläche und Kanalpositionen wie USB $size',
+      (tester) async {
+        await AppSettings.instance.setHeaderContent(HeaderContent.analyzer);
+        await prepare(tester, size);
+        final usbPanel = tester.getRect(find.byType(AnalyzerPanel));
+        final keys = [
+          'output-ring-area',
+          'output-volume-buttons',
+          'output-function-keys',
+          'output-tiles',
+        ];
+        final positions = {
+          for (final key in keys)
+            key: tester.getRect(find.byKey(ValueKey(key))),
+        };
+        final outputRect = tester.getRect(find.byType(OutputsPage));
+        ctrl.hostMode = true;
+        ctrl.notifyListeners();
+        await tester.pumpAndSettle();
+        final slot = tester.getRect(
+          find.byKey(const ValueKey('host-analyzer-slot')),
+        );
+        expect(slot.top, usbPanel.top);
+        expect(slot.height, usbPanel.height - 8);
+        expect(tester.getRect(find.byType(OutputsPage)), outputRect);
+        for (final key in keys) {
+          expect(tester.getRect(find.byKey(ValueKey(key))), positions[key]);
+        }
+        final notice = tester.getRect(
+          find.text('Analyzer über Host folgt in einer späteren Stufe.'),
+        );
+        expect(notice.center, slot.center);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets(
+    'Tablet-Analyzer bleibt beim Umbau der Hauptseite ins Querformat offen',
+    (tester) async {
+      final captureCalls = <String>[];
+      final messenger = tester.binding.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(const MethodChannel('adi2/analyzer'), (
+        call,
+      ) async {
+        captureCalls.add(call.method);
+        return call.method == 'permission' ? true : null;
+      });
+      messenger.setMockMethodCallHandler(
+        const MethodChannel('adi2/analyzer/events'),
+        (_) async => null,
+      );
+      addTearDown(() {
+        messenger.setMockMethodCallHandler(
+          const MethodChannel('adi2/analyzer'),
+          null,
+        );
+        messenger.setMockMethodCallHandler(
+          const MethodChannel('adi2/analyzer/events'),
+          null,
+        );
+      });
+      await AppSettings.instance.setHeaderContent(HeaderContent.analyzer);
+      await prepare(tester, const Size(600, 960));
+      await tester.tap(find.byIcon(Icons.fullscreen));
+      await tester.pumpAndSettle();
+      tester.view.physicalSize = const Size(960, 600);
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.fullscreen_exit), findsOneWidget);
+      expect(captureCalls.where((call) => call == 'start'), hasLength(1));
+      expect(captureCalls, isNot(contains('stop')));
+      await tester.tap(find.byIcon(Icons.settings_outlined).last);
+      await tester.pumpAndSettle();
+      expect(find.text('Peak-Hold-Zeit'), findsOneWidget);
+      await tester.tap(find.byIcon(Icons.close).last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.fullscreen_exit));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('tablet-output-columns')),
+        findsOneWidget,
+      );
+      expect(
+        platformCalls
+            .lastWhere(
+              (c) => c.method == 'SystemChrome.setPreferredOrientations',
+            )
+            .arguments,
+        contains('DeviceOrientation.portraitUp'),
+      );
+      expect(captureCalls.where((call) => call == 'stop'), hasLength(1));
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('Breites Hochformat zentriert Inhalt auf 720 dp', (tester) async {
     await prepare(tester, const Size(900, 1200));

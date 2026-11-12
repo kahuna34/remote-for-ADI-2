@@ -185,7 +185,15 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(theme: buildTheme(), home: const AppSettingsPage()),
     );
-    await tester.scrollUntilVisible(find.textContaining('ADI-2 Pro EX'), 200);
+    await tester.scrollUntilVisible(
+      find.textContaining('ADI-2 Pro EX'),
+      200,
+      scrollable: find
+          .byWidgetPredicate(
+            (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
+          )
+          .first,
+    );
     final info = tester.widget<Text>(find.textContaining('ADI-2 Pro EX')).data!;
     for (final model in supportedModels) {
       expect(info, contains(model.name));

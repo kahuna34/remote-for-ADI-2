@@ -115,7 +115,12 @@ class _VolumeRingState extends State<VolumeRing> {
         final size = Size(side, side * _heightRatio);
         _size = size;
         return Align(
-          alignment: Alignment.bottomCenter,
+          // Tablet: in der Höhe mittig, auch wenn die Kopfzeile (z. B. Status
+          // statt Analyzer) mehr Platz frei lässt. Smartphone: wie bisher
+          // unten an den Knöpfen.
+          alignment: isTablet(context)
+              ? Alignment.center
+              : Alignment.bottomCenter,
           child: RawGestureDetector(
             gestures: widget.enabled
                 ? {

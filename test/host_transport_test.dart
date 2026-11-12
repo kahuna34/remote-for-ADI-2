@@ -1,5 +1,10 @@
+import 'dart:async';
+
 import 'package:adi2_remote/device/adi2_controller.dart';
+import 'package:adi2_remote/eq/eq_model.dart';
 import 'package:adi2_remote/host/host_client.dart';
+import 'package:adi2_remote/host/host_errors.dart';
+import 'package:adi2_remote/l10n/l10n.dart';
 import 'package:adi2_remote/host/host_protocol.dart';
 import 'package:adi2_remote/host/host_discovery.dart';
 import 'package:adi2_remote/protocol/adi2_codec.dart';
@@ -31,6 +36,7 @@ class _Midi implements MidiCommand {
 class _Host extends HostClient {
   bool online = false;
   final sent = <Uint8List>[];
+  void Function(Uint8List)? onSend;
   @override
   bool get connected => online;
   @override
@@ -48,7 +54,10 @@ class _Host extends HostClient {
 
   @override
   void sendMidi(Uint8List bytes) {
-    if (online) sent.add(bytes);
+    if (online) {
+      sent.add(bytes);
+      onSend?.call(bytes);
+    }
   }
 
   void drop() {
@@ -132,6 +141,90 @@ void main() {
     },
   );
 
+  test(
+    'Änderungen anderer Host-Clients kommen als normale Geräteantworten an',
+    () async {
+      await controller.start();
+      await controller.connectHost(credentials);
+      void receive(int volume, int polarity) {
+        final packet = buildSetParams(0x72, [
+          Adi2Param(3, OutIdx.volume, volume),
+          Adi2Param(3, OutIdx.polarity, polarity),
+        ]).single..[5] = Adi2Cmd.paramsToRemote;
+        host.packets.add(packet);
+      }
+
+      receive(-500, 0);
+      receive(-600, 2);
+      expect(controller.value(3, OutIdx.volume), -600);
+      expect(controller.value(3, OutIdx.polarity), 2);
+      expect(controller.volGuard.isIdle, isTrue);
+      receive(-550, 1);
+      expect(controller.value(3, OutIdx.volume), -550);
+      expect(controller.value(3, OutIdx.polarity), 1);
+      expect(host.connected, isTrue);
+      await Future<void>.delayed(const Duration(milliseconds: 650));
+    },
+  );
+
+  test('Presetantworten anderer Clients verunreinigen den eigenen Lesevorgang nicht', () async {
+    await controller.start();
+    await controller.connectHost(credentials);
+    final initial = buildSetParams(0x72, [
+      const Adi2Param(3, OutIdx.volume, -500),
+    ]).single..[5] = Adi2Cmd.paramsToRemote;
+    host.packets.add(initial);
+    void response(int n, int gain) {
+      final packet = buildSetParams(0x72, [
+        Adi2Param(Adi2Addr.presetEqL, EqIdx2.presetFlags, (n << 4) | 1),
+        Adi2Param(Adi2Addr.presetEqL, 4, gain),
+        Adi2Param(Adi2Addr.presetEqR, 4, -gain),
+      ]).single..[5] = Adi2Cmd.paramsToRemote;
+      host.packets.add(packet);
+    }
+
+    host.onSend = (bytes) {
+      if (bytes[5] != Adi2Cmd.request || bytes[6] < 0x0a || bytes[6] > 0x1d) {
+        return;
+      }
+      final n = bytes[6] - 0x0a;
+      response((n + 1) % 20, 99); // Antwort auf fremde Abfrage vor unserer.
+      void ownResponse() {
+        response(n, n + 1);
+        response((n + 1) % 20, 99); // Fremde Antwort nach unserer.
+      }
+
+      if (n == 0) {
+        // Gemeinsame Warteschlange plus Statuspause dürfen länger als 2 s dauern.
+        Timer(const Duration(milliseconds: 2100), ownResponse);
+      } else {
+        ownResponse();
+      }
+    };
+    final presets = await controller.readEqPresets();
+    expect(presets, hasLength(20));
+    for (var n = 0; n < 20; n++) {
+      expect(presets[n].left[4], n + 1);
+      expect(presets[n].right[4], -n - 1);
+    }
+  });
+
+  test('busy erklärt das Clientlimit auf Deutsch und Englisch', () {
+    final previous = AppLang.instance.language;
+    addTearDown(() => AppLang.instance.language = previous);
+    AppLang.instance.language = AppLanguage.de;
+    expect(
+      hostErrorText('FormatException: busy'),
+      'Zu viele Clients am Host verbunden (maximal 4)',
+    );
+    AppLang.instance.language = AppLanguage.en;
+    expect(
+      hostErrorText('FormatException: busy'),
+      'Too many clients connected to the host (maximum 4)',
+    );
+    expect(hostErrorText('usb_busy'), 'USB MIDI is busy on the host');
+  });
+
   test('USB übernimmt eine bestehende Host-Sitzung', () async {
     await controller.start();
     await controller.connectHost(credentials);
@@ -192,4 +285,37 @@ void main() {
       disposed = true;
     },
   );
+
+  testWidgets('Langdruck-Menü entfernt die Kopplung und trennt', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    await controller.start();
+    await controller.savePairedHost(credentials);
+    await controller.connectHost(credentials);
+    expect(controller.hostId, credentials.host.id);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showHostMenu(context, controller),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('host-menu-manage')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('host-menu-forget')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('host-menu-forget-confirm')));
+    await tester.pumpAndSettle();
+    expect(controller.pairedHosts, isEmpty);
+    expect(controller.viaHost, isFalse);
+    controller.dispose();
+    disposed = true;
+  });
 }

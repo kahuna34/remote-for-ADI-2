@@ -350,10 +350,26 @@ class AnalyzerDsp {
   }
 }
 
-/// Time-based display ballistics. Hold for 1 s, then decay by 12 dB/s.
+/// Time-based display ballistics. Configurable hold, then decay by 12 dB/s.
 class AnalyzerEnvelope {
   AnalyzerBallistics ballistics = AnalyzerBallistics.medium;
+  double _holdSeconds = 1;
+  double get holdSeconds => _holdSeconds;
+  set holdSeconds(double value) {
+    if (_holdSeconds == value) return;
+    _holdSeconds = value;
+    // Restart existing markers with the newly selected duration immediately.
+    _hold = List.filled(_hold.length, value);
+  }
+
   List<double> values = [], held = [], _hold = [];
+
+  /// Peak-Marken auf den aktuellen Pegel zurücksetzen (z. B. bei ∞ Hold).
+  void resetHeld() {
+    held = List.of(values);
+    _hold = List.filled(values.length, holdSeconds);
+  }
+
   void reset() {
     values = [];
     held = [];
@@ -375,7 +391,7 @@ class AnalyzerEnvelope {
       values[i] = math.max(db[i], values[i] - release * seconds);
       if (db[i] >= held[i]) {
         held[i] = db[i];
-        _hold[i] = 1;
+        _hold[i] = holdSeconds;
       } else {
         final decayTime = math.max(0.0, seconds - _hold[i]);
         _hold[i] = math.max(0, _hold[i] - seconds);

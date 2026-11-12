@@ -157,9 +157,11 @@ class ParamChoices extends StatelessWidget {
     this.onLongPress,
     this.disabledIndices = const {},
     this.markedIndices = const {},
+    this.subtitles = const [],
   });
 
   final List<String> labels;
+  final List<String?> subtitles;
   final int selected;
   final ValueChanged<int> onSelected;
   final ValueChanged<int>? onLongPress;
@@ -169,7 +171,10 @@ class ParamChoices extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      final short = labels.length <= 6 && labels.every((s) => s.length <= 8);
+      final short =
+          subtitles.every((s) => s == null) &&
+          labels.length <= 6 &&
+          labels.every((s) => s.length <= 8);
       if (!short) {
         return Wrap(
           spacing: 6,
@@ -178,6 +183,7 @@ class ParamChoices extends StatelessWidget {
             for (var i = 0; i < labels.length; i++)
               _ChoiceTile(
                 label: labels[i],
+                subtitle: i < subtitles.length ? subtitles[i] : null,
                 selected: i == selected,
                 enabled: !disabledIndices.contains(i),
                 marked: markedIndices.contains(i),
@@ -211,6 +217,7 @@ class ParamChoices extends StatelessWidget {
               width: width,
               child: _ChoiceTile(
                 label: labels[i],
+                subtitle: i < subtitles.length ? subtitles[i] : null,
                 selected: i == selected,
                 compact: true,
                 enabled: !disabledIndices.contains(i),
@@ -326,8 +333,10 @@ class _ChoiceTile extends StatelessWidget {
     this.onLongPress,
     this.enabled = true,
     this.marked = false,
+    this.subtitle,
   });
   final String label;
+  final String? subtitle;
   final bool selected;
   final VoidCallback onTap;
   final bool compact;
@@ -337,7 +346,7 @@ class _ChoiceTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final text = Text(
+    final labelText = Text(
       label,
       textAlign: TextAlign.center,
       style: ts(
@@ -346,6 +355,19 @@ class _ChoiceTile extends StatelessWidget {
         color: selected && enabled ? Palette.text : Palette.muted,
       ),
     );
+    final text = subtitle == null
+        ? labelText
+        : Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              labelText,
+              Text(
+                subtitle!,
+                textAlign: TextAlign.center,
+                style: ts(12, color: Palette.muted),
+              ),
+            ],
+          );
     return Material(
       color: selected && enabled ? Palette.surf2 : Palette.bg,
       shape: RoundedRectangleBorder(

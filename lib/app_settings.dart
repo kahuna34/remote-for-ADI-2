@@ -239,6 +239,20 @@ class AppSettings extends ChangeNotifier {
   /// Ohne notifyListeners: Nur der AnalyzerController liest sie beim Erzeugen.
   bool analyzerBars = false;
   bool analyzerPeakHold = true;
+
+  /// Zero means infinite hold; the previous fixed duration was one second.
+  static const analyzerPeakHoldOptions = [1, 2, 3, 5, 10, 0];
+  int analyzerPeakHoldSeconds = 1;
+
+  Future<void> setAnalyzerPeakHoldSeconds(int value) {
+    if (!analyzerPeakHoldOptions.contains(value)) return Future.value();
+    analyzerPeakHoldSeconds = value;
+    notifyListeners();
+    return _persistEasy(
+      (prefs) => prefs.setInt('analyzer_peak_hold_seconds', value),
+    );
+  }
+
   AnalyzerBallistics analyzerBallistics = AnalyzerBallistics.medium;
 
   Future<void> setAnalyzerBars(bool value) {
@@ -490,6 +504,10 @@ class AppSettings extends ChangeNotifier {
           AnalyzerBandResolution.third;
       analyzerBars = prefs.getBool('analyzer_bars') ?? false;
       analyzerPeakHold = prefs.getBool('analyzer_peak_hold') ?? true;
+      analyzerPeakHoldSeconds = prefs.getInt('analyzer_peak_hold_seconds') ?? 1;
+      if (!analyzerPeakHoldOptions.contains(analyzerPeakHoldSeconds)) {
+        analyzerPeakHoldSeconds = 1;
+      }
       analyzerBallistics =
           AnalyzerBallistics.values
               .where((b) => b.name == prefs.getString('analyzer_ballistics'))

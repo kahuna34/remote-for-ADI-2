@@ -139,6 +139,82 @@ class _HeaderLayout extends MultiChildLayoutDelegate {
 Widget? connectionBadge(Adi2Controller controller) =>
     controller.offline && !controller.viaHost ? const _OfflineBadge() : null;
 
+/// Langdruck auf „HOST“: Host anzeigen, Kopplung entfernen, Hosts verwalten.
+Future<void> showHostMenu(BuildContext context, Adi2Controller c) =>
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheet) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.computer),
+              title: Text(tr('Verbunden über Host')),
+              subtitle: Text(c.hostName ?? ''),
+            ),
+            ListTile(
+              key: const ValueKey('host-menu-forget'),
+              leading: const Icon(Icons.link_off),
+              title: Text(tr('Kopplung entfernen')),
+              subtitle: Text(
+                tr('Trennt die Verbindung. Danach muss neu gekoppelt werden.'),
+              ),
+              onTap: () async {
+                final id = c.hostId;
+                final ok = await showDialog<bool>(
+                  context: sheet,
+                  builder: (d) => AlertDialog(
+                    title: Text(tr('Kopplung entfernen?')),
+                    content: Text(
+                      trf(
+                        'Die Kopplung mit {name} wird gelöscht. Zum erneuten '
+                        'Verbinden im Host „Smartphone koppeln…“ öffnen.',
+                        {'name': c.hostName ?? 'Host'},
+                      ),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(d, false),
+                        child: Text(tr('Abbrechen')),
+                      ),
+                      TextButton(
+                        key: const ValueKey('host-menu-forget-confirm'),
+                        onPressed: () => Navigator.pop(d, true),
+                        child: Text(tr('Entfernen')),
+                      ),
+                    ],
+                  ),
+                );
+                if (ok != true || !sheet.mounted) return;
+                Navigator.pop(sheet);
+                if (id != null) {
+                  try {
+                    await c.forgetHost(id);
+                  } catch (_) {}
+                }
+                if (c.viaHost) c.disconnect();
+              },
+            ),
+            ListTile(
+              key: const ValueKey('host-menu-manage'),
+              leading: const Icon(Icons.settings_ethernet),
+              title: Text(tr('Hosts verwalten…')),
+              onTap: () {
+                Navigator.pop(sheet);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => HostConnectPage(ctrl: c),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+
 class HostBadge extends StatelessWidget {
   const HostBadge({super.key});
 
@@ -181,12 +257,30 @@ class HostBadge extends StatelessWidget {
 }
 
 class _HostAnalyzerNotice extends StatelessWidget {
-  const _HostAnalyzerNotice();
+  const _HostAnalyzerNotice({this.expanded = false});
+  final bool expanded;
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.all(16),
-    child: Text(tr('Analyzer über Host folgt in einer späteren Stufe.')),
-  );
+  Widget build(BuildContext context) {
+    final message = Text(
+      tr('Analyzer über Host folgt in einer späteren Stufe.'),
+      textAlign: isTablet(context) ? TextAlign.center : null,
+    );
+    if (!isTablet(context)) {
+      return Padding(padding: const EdgeInsets.all(16), child: message);
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: SizedBox(
+        key: const ValueKey('host-analyzer-slot'),
+        height: expanded ? null : headerSlotHeight(context) - 8,
+        child: Panel(
+          child: Center(
+            child: Padding(padding: const EdgeInsets.all(16), child: message),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _OfflineBadge extends StatelessWidget {
@@ -417,22 +511,31 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     Row(
                       children: [
                         Flexible(
-                          child: c.offline || c.viaHost
-                              ? FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(
+                          child: SizedBox(
+                            // A fitted Host title must retain the USB title's
+                            // line height so the analyzer and channels stay put.
+                            height:
+                                isTablet(context) &&
+                                    header == HeaderContent.analyzer
+                                ? MediaQuery.textScalerOf(context).scale(28)
+                                : null,
+                            child: c.offline || c.viaHost
+                                ? FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(
+                                      c.deviceLabel,
+                                      maxLines: 1,
+                                      style: ts(22, weight: 600),
+                                    ),
+                                  )
+                                : Text(
                                     c.deviceLabel,
                                     maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                     style: ts(22, weight: 600),
                                   ),
-                                )
-                              : Text(
-                                  c.deviceLabel,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: ts(22, weight: 600),
-                                ),
+                          ),
                         ),
                       ],
                     ),
@@ -485,7 +588,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     if (c.viaHost)
                       Padding(
                         padding: const EdgeInsets.only(left: 6),
-                        child: const HostBadge(),
+                        child: GestureDetector(
+                          key: const ValueKey('host-badge-menu'),
+                          onLongPress: () => showHostMenu(context, c),
+                          child: const HostBadge(),
+                        ),
                       ),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -730,7 +837,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             ),
             TabletExtraContent.analyzer =>
               ctrl.viaHost
-                  ? const _HostAnalyzerNotice()
+                  ? const _HostAnalyzerNotice(expanded: true)
                   : AnalyzerPanel(
                       controller: _analyzer,
                       deviceController: ctrl,

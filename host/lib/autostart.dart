@@ -21,6 +21,14 @@ class HostAutostart {
   static const label = 'de.markus.adi2Host';
   String get agentPath => '$home/Library/LaunchAgents/$label.plist';
 
+  /// Übernimmt bei aktivem Windows-Autostart den aktuellen Installationspfad.
+  /// Ein bewusst ausgeschalteter Autostart bleibt ausgeschaltet.
+  Future<bool> refreshEnabledPath() async {
+    final active = await enabled();
+    if (platform == 'windows' && active) await setEnabled(true);
+    return active;
+  }
+
   Future<bool> enabled() async {
     if (platform == 'windows') {
       final result = await run('reg.exe', [

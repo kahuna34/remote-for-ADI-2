@@ -19,28 +19,43 @@ class HostVolumeFilter {
   final Map<int, int> _values = {};
   final Map<int, Duration> _lastRise = {};
   final Map<int, double> _carry = {};
-  final Map<int, (int, Duration)> _lowering = {};
-  Duration? _grant;
+  final Map<Object, Map<int, (int, Duration)>> _lowering = {};
+  final Map<Object, Duration> _grants = {};
+  static const _defaultClient = 'default';
   Adi2Variant? _variant;
   bool limited = false;
   static const outputs = [Adi2Addr.line, Adi2Addr.ph12, Adi2Addr.ph34];
 
-  void heartbeat() => _grant = clock();
-  bool get granted => _grant != null && clock() - _grant! < hostGrantLifetime;
-  void release() {
-    _grant = null;
-    for (final address in outputs) {
-      _lastRise[address] = clock();
+  void heartbeat([Object client = _defaultClient]) => _grants[client] = clock();
+  bool grantedFor(Object client) =>
+      _grants[client] != null && clock() - _grants[client]! < hostGrantLifetime;
+  bool get granted => _grants.keys.any(grantedFor);
+
+  void release([Object client = _defaultClient]) {
+    _grants.remove(client);
+    _lowering.remove(client);
+    // Eine andere Sitzung darf weder Zeitbudget noch Bruchteile verlieren.
+    if (!granted) {
+      for (final address in outputs) {
+        _lastRise[address] = clock();
+      }
+      _carry.clear();
     }
-    _carry.clear();
-    _lowering.clear();
   }
 
   void reset() {
-    release();
+    _grants.clear();
+    _lowering.clear();
+    _carry.clear();
     _values.clear();
     _lastRise.clear();
     _variant = null;
+  }
+
+  void _forgetLowering(int address) {
+    for (final lowering in _lowering.values) {
+      lowering.remove(address);
+    }
   }
 
   void observe(Uint8List bytes) {
@@ -62,7 +77,7 @@ class HostVolumeFilter {
               OutIdx.dim,
             }.contains(p.index)) {
           if (p.index == OutIdx.volume && _values[p.key] != p.value) {
-            _lowering.remove(p.address);
+            _forgetLowering(p.address);
           }
           _values[p.key] = p.value;
           if (p.index == OutIdx.volume) {
@@ -95,7 +110,7 @@ class HostVolumeFilter {
     return step.floor();
   }
 
-  Uint8List? filter(Uint8List bytes) {
+  Uint8List? filter(Uint8List bytes, {Object client = _defaultClient}) {
     limited = false;
     if (bytes.length < 7 ||
         bytes.length > 256 ||
@@ -139,17 +154,18 @@ class HostVolumeFilter {
           continue;
         }
         if (next > old) {
-          if (!granted) {
-            release();
+          if (!grantedFor(client)) {
+            release(client);
             limited = true;
             continue;
           }
           next = math.min(next, old + _allowance(p.address, old));
           if (next != p.value) limited = true;
           if (next == old) continue;
-          _lowering.remove(p.address);
+          _forgetLowering(p.address);
         } else if (next < old) {
-          _lowering[p.address] = (old - next, clock());
+          _forgetLowering(p.address);
+          (_lowering[client] ??= {})[p.address] = (old - next, clock());
           _carry.remove(p.address);
           _lastRise[p.address] = clock();
         }
@@ -170,15 +186,19 @@ class HostVolumeFilter {
         final delta = ((table[next] - table[old]) * 10).round();
         if (delta > 0) {
           final volume = _values[p.address << 8 | OutIdx.volume];
-          final lowering = _lowering.remove(p.address);
+          final lowering = _lowering[client]?.remove(p.address);
           final compensation =
               lowering != null &&
                   clock() - lowering.$2 <= const Duration(milliseconds: 100)
               ? lowering.$1
               : 0;
-          if (!granted ||
-              volume == null ||
-              delta - compensation > _allowance(p.address, volume)) {
+          // Vollständig ausgeglichen (Lautstärke zuvor um denselben Betrag
+          // gesenkt): nichts wird lauter, also auch ohne Freigabe erlaubt.
+          final residual = delta - compensation;
+          if (residual > 0 &&
+              (!grantedFor(client) ||
+                  volume == null ||
+                  residual > _allowance(p.address, volume))) {
             limited = true;
             continue;
           }
@@ -187,10 +207,13 @@ class HostVolumeFilter {
           next == 0 &&
           old != 0) {
         // Entstummen/Dim aus kann einen sprunghaften Pegelanstieg auslösen.
-        if (!granted) {
+        if (!grantedFor(client)) {
           limited = true;
           continue;
         }
+      }
+      if (p.index == OutIdx.refLevel && next != old) {
+        _forgetLowering(p.address);
       }
       if ({
         OutIdx.volume,

@@ -108,6 +108,7 @@ abstract class SelfTestDevice {
   Future<void> disableAutomaticLoopback() async {}
   int defaultSource(int output) => 0;
   List<int> get outputs;
+  List<int> get loopbackOutputs => outputs;
   int get usbSource;
   String sourceLabel(int output, int value) => 'Wert $value';
   bool get hasInput;
@@ -193,6 +194,11 @@ class MidiSelfTestDevice extends SelfTestDevice {
 
   @override
   List<int> get outputs => Adi2Controller.volumeAddresses;
+  @override
+  List<int> get loopbackOutputs => [
+    for (final a in outputs)
+      if (hasOwnLoopback(ctrl.variant!, a)) a,
+  ];
   ParamDef _source(int output) => outputParams(
     ctrl.variant!,
     phones: output != Adi2Addr.line,
@@ -276,7 +282,7 @@ class MidiSelfTestDevice extends SelfTestDevice {
         OutIdx.loopback,
         OutIdx.source,
       ])
-        a << 8 | i,
+        if (i != OutIdx.loopback || loopbackOutputs.contains(a)) a << 8 | i,
   });
   @override
   Future<void> write(SelfTestValues values) async {
@@ -901,7 +907,7 @@ class AnalyzerSelfTest extends ChangeNotifier {
       _recoveryIdentity = device.recoveryIdentity;
       _snapshot = await device.read();
       _check();
-      if (!device.outputs.contains(output)) {
+      if (!device.loopbackOutputs.contains(output)) {
         throw StateError('Ungültiger Ausgang');
       }
       await audio.save('analyzer_selftest_recovery.json', {
@@ -917,7 +923,7 @@ class AnalyzerSelfTest extends ChangeNotifier {
       });
       _check();
       await device.write({
-        for (final a in device.outputs) a << 8 | OutIdx.loopback: 0,
+        for (final a in device.loopbackOutputs) a << 8 | OutIdx.loopback: 0,
         output << 8 | OutIdx.source: device.usbSource,
       });
       _check();
@@ -1203,7 +1209,8 @@ class AnalyzerSelfTest extends ChangeNotifier {
             OutIdx.source,
             OutIdx.loopback,
           ])
-            a << 8 | i,
+            if (i != OutIdx.loopback || device.loopbackOutputs.contains(a))
+              a << 8 | i,
       };
       if (snapshot.length != expected.length ||
           !snapshot.keys.every(expected.contains)) {
@@ -1265,7 +1272,7 @@ class AnalyzerSelfTest extends ChangeNotifier {
       await device.disableAutomaticLoopback();
       _checkRestoreDevice();
       final defaults = <int, int>{
-        for (final a in device.outputs) a << 8 | OutIdx.loopback: 0,
+        for (final a in device.loopbackOutputs) a << 8 | OutIdx.loopback: 0,
         for (final a in device.outputs)
           a << 8 | OutIdx.source: device.defaultSource(a),
       };

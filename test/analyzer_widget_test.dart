@@ -11,6 +11,7 @@ import 'package:adi2_remote/media/now_playing.dart';
 import 'package:adi2_remote/protocol/adi2_params.dart';
 import 'package:adi2_remote/protocol/adi2_codec.dart';
 import 'package:adi2_remote/ui/analyzer_panel.dart';
+import 'package:adi2_remote/ui/analyzer_controls.dart';
 import 'package:adi2_remote/ui/header_content_picker.dart';
 import 'package:adi2_remote/ui/home_page.dart';
 import 'package:adi2_remote/ui/player_bar.dart';
@@ -434,12 +435,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(controller.bars, isTrue);
       expect(
-        find.byType(DropdownButton<AnalyzerBandResolution>),
+        find.byType(AnalyzerChoices<AnalyzerBandResolution>),
         findsOneWidget,
       );
-      await tester.tap(find.byType(DropdownButton<AnalyzerBandResolution>));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('1/12 Oktave').last);
+      await tester.tap(find.text('1/12').last);
       await tester.pumpAndSettle();
       expect(controller.bandResolution, AnalyzerBandResolution.twelfth);
       await controller.setBandResolution(AnalyzerBandResolution.third);
@@ -537,20 +536,14 @@ void main() {
               final viewControls = tester.getRect(
                 find.byKey(const ValueKey('analyzer-view-controls')),
               );
-              final ballisticControls = tester.getRect(
-                find.byKey(
-                  const ValueKey('analyzer-ballistics-loopback-controls'),
-                ),
-              );
+              // Quick dropdowns belong to the fullscreen route's top bar.
               expect(
-                ballisticControls.top,
-                greaterThanOrEqualTo(viewControls.bottom),
+                find.byKey(const ValueKey('analyzer-ballistics-header')),
+                findsNothing,
               );
-              expect(ballisticControls.right, lessThan(levels.left));
+              expect(viewControls.right, lessThan(levels.left));
               expect(levels.top, viewControls.top);
               expect(viewControls.height, greaterThanOrEqualTo(28));
-              expect(ballisticControls.height, greaterThan(0));
-              expect(ballisticControls.top, viewControls.bottom);
               final tracks = tester.getRect(
                 find.byKey(const ValueKey('analyzer-track-0')),
               );

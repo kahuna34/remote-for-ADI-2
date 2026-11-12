@@ -83,6 +83,9 @@ class Adi2Controller extends ChangeNotifier {
   bool _viaHost = false;
   bool get viaHost => _viaHost;
   String? get hostName => _viaHost ? host.hostName : null;
+
+  /// Kennung des Hosts, über den gerade verbunden ist.
+  String? get hostId => _viaHost ? _preferredHost?.host.id : null;
   bool get hostAvailable => Platform.isAndroid || Platform.isIOS;
   List<HostCredentials> pairedHosts = [];
   final HostDiscovery _hostDiscovery = HostDiscovery();
@@ -224,6 +227,7 @@ class Adi2Controller extends ChangeNotifier {
   VolumeOptions opts = VolumeOptions();
   final Map<int, int> _eqTarget = {}; // key: address<<8|index
   List<Adi2Param>? _capture; // Daten einer laufenden Preset-Abfrage
+  int? _capturePreset, _incomingPreset;
   List<EqPresetData>? _eqPresets;
   Future<List<EqPresetData>>? _presetRead;
   int _presetSession = 0;
@@ -299,12 +303,19 @@ class Adi2Controller extends ChangeNotifier {
         index < table.length) {
       final deltaRaw = ((table[index] - table[cur]) * 10).round();
       if (deltaRaw > 0) {
-        // lauter: erst Lautstärke sofort senken, dann umschalten
+        // lauter: Lautstärke senken und umschalten in EINER Nachricht
+        // (Absenkung zuerst). Über den Host darf keine Geräteantwort
+        // zwischen beide geraten, sonst gilt die Umschaltung als
+        // unausgeglichen und wird gesperrt.
         final lowered = (vol - deltaRaw).clamp(volMinRaw, volMaxRaw);
         volGuard.cancel(address);
         _lastSentVol[address] = lowered;
-        setMany([Adi2Param(address, OutIdx.volume, lowered)]);
-        set(address, OutIdx.refLevel, index);
+        setMany([
+          Adi2Param(address, OutIdx.volume, lowered),
+          Adi2Param(address, OutIdx.refLevel, index),
+        ]);
+        // Grenze des neuen Ref Levels danach anwenden (senkt nur).
+        _applyLimits(sendNow: true);
         return;
       }
       if (deltaRaw < 0) {
@@ -780,6 +791,7 @@ class Adi2Controller extends ChangeNotifier {
     _presetRead = null;
     _presetAccess = Future.value();
     _capture = null;
+    _capturePreset = _incomingPreset = null;
     eqPresetReadProgress = null;
   }
 
@@ -823,7 +835,14 @@ class Adi2Controller extends ChangeNotifier {
           _values[p.key] = p.value;
           _confirmedValues[p.key] = p.value;
           _confirmedMessages[p.key] = _paramsMessages;
+          // Der Host verteilt auch Presetantworten anderer Clients. Der
+          // vorangestellte Flag-Wert ordnet die folgenden Daten einem Slot zu.
+          if (p.address == Adi2Addr.presetEqL &&
+              p.index == EqIdx2.presetFlags) {
+            _incomingPreset = p.value >> 4;
+          }
           if (_capture != null &&
+              _incomingPreset == _capturePreset &&
               (p.address == Adi2Addr.presetEqL ||
                   p.address == Adi2Addr.presetEqR)) {
             _capture!.add(p);
@@ -900,6 +919,15 @@ class Adi2Controller extends ChangeNotifier {
       _applyLimits(sendNow: true);
     }
     _values[address << 8 | index] = value;
+    if (variant?.isDac == true &&
+        volumeAddresses.contains(address) &&
+        index == OutIdx.loopback) {
+      for (final output in volumeAddresses) {
+        if (_values.containsKey(output << 8 | index)) {
+          _values[output << 8 | index] = value;
+        }
+      }
+    }
     _noteOwnWrites([Adi2Param(address, index, value)]);
     notifyListeners();
     if (offline) _scheduleOfflineSave();
@@ -1578,6 +1606,7 @@ class Adi2Controller extends ChangeNotifier {
       if (session == _presetSession) {
         _presetRead = null;
         _capture = null;
+        _capturePreset = _incomingPreset = null;
         eqPresetReadProgress = null;
         requestAll();
         _maybeProbeDaFilter();
@@ -1605,8 +1634,14 @@ class Adi2Controller extends ChangeNotifier {
     for (var n = 0; n < 20; n++) {
       checkConnection();
       _capture = [];
+      _capturePreset = n;
+      _incomingPreset = null;
       _send(buildRequestEqPreset(id, n));
-      // Warten, bis die Daten da sind (Flags + Ruhe von 200 ms), max. 2 s.
+      // Über den Host teilen mehrere Clients die Abfragewarteschlange und
+      // die Statuspause. USB behält das bisherige Zeitlimit von zwei Sekunden.
+      final timeout = _viaHost
+          ? const Duration(seconds: 5)
+          : const Duration(seconds: 2);
       final start = DateTime.now();
       while (true) {
         await Future.delayed(const Duration(milliseconds: 50));
@@ -1622,12 +1657,13 @@ class Adi2Controller extends ChangeNotifier {
         if ((gotFlags &&
                 quiet &&
                 elapsed > const Duration(milliseconds: 200)) ||
-            elapsed > const Duration(seconds: 2)) {
+            elapsed > timeout) {
           break;
         }
       }
       final cap = _capture!;
       _capture = null;
+      _capturePreset = _incomingPreset = null;
       final flags = cap
           .where(
             (p) =>
@@ -1829,6 +1865,7 @@ class Adi2Controller extends ChangeNotifier {
     _ccModeRequest++;
     _presetSession++;
     _capture = null;
+    _capturePreset = _incomingPreset = null;
     _rxSub?.cancel();
     _setupSub?.cancel();
     _probeTimer?.cancel();

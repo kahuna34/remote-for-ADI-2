@@ -77,7 +77,7 @@ class _AnalyzerSelfTestPageState extends State<AnalyzerSelfTestPage>
                 SelfTestAudio(),
               ));
     output = widget.ctrl == null
-        ? session?.device.outputs.firstOrNull
+        ? session?.device.loopbackOutputs.firstOrNull
         : activeAnalyzerOutput(widget.ctrl!);
     session?.addListener(_changed);
     unawaited(_load());
@@ -274,7 +274,7 @@ class _AnalyzerSelfTestPageState extends State<AnalyzerSelfTestPage>
                 initialValue: output,
                 decoration: const InputDecoration(labelText: 'Testausgang'),
                 items: [
-                  for (final a in s.device.outputs)
+                  for (final a in s.device.loopbackOutputs)
                     DropdownMenuItem(
                       value: a,
                       child: Text(

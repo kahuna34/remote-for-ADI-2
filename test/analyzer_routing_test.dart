@@ -17,12 +17,22 @@ class _Device extends Adi2Controller {
   @override
   void set(int address, int index, int value) {
     writes.add((address, index, value));
-    if (echo) actual[address << 8 | index] = value;
+    if (echo) {
+      actual[address << 8 | index] = value;
+      if (variant!.isDac && index == OutIdx.loopback) {
+        for (final a in analyzerOutputAddresses(this)) {
+          actual[a << 8 | index] = value;
+        }
+      }
+    }
     super.set(address, index, value);
   }
 
   void active(int output) {
     status = Adi2Status([output]);
+    if (variant?.isDac == false) {
+      selectedOutput = [Adi2Addr.line, Adi2Addr.ph12, Adi2Addr.ph34][output];
+    }
     notifyListeners();
   }
 }
@@ -38,7 +48,7 @@ void main() {
     await settings.load();
   });
 
-  Future<_Device> device([Adi2Variant variant = Adi2Variant.dac]) async {
+  Future<_Device> device([Adi2Variant variant = Adi2Variant.pro]) async {
     final c = _Device();
     await c.startOffline(variant);
     for (final a in analyzerOutputAddresses(c)) {
@@ -77,28 +87,42 @@ void main() {
     final c = await device();
     await routing(c);
     c.echo = false;
-    c.active(1);
+    c.active(2);
     for (var i = 0; i < 15; i++) {
-      c.actual[Adi2Addr.ph12 << 8 | OutIdx.volume] = -i;
-      c.active(1);
+      c.actual[Adi2Addr.ph34 << 8 | OutIdx.volume] = -i;
+      c.active(2);
     }
     await settle();
-    expect(c.writes, [(Adi2Addr.ph12, OutIdx.loopback, 2)]);
+    expect(c.writes, [(Adi2Addr.ph34, OutIdx.loopback, 2)]);
     // Late old device values must never start a reconciliation loop.
     for (var i = 0; i < 15; i++) {
-      c.actual[Adi2Addr.ph12 << 8 | OutIdx.loopback] = 0;
-      c.active(1);
+      c.actual[Adi2Addr.ph34 << 8 | OutIdx.loopback] = 0;
+      c.active(2);
     }
     await settle();
     expect(c.writes.length, 1);
   });
 
-  test('one second debounce coalesces rapid output changes', () async {
+  test('Pro Phones 1/2 has no loopback and falls back to Line', () async {
     final c = await device();
     await routing(c);
     c.active(1);
+    await settle();
+    expect(analyzerOutputAddresses(c), [Adi2Addr.line, Adi2Addr.ph34]);
+    expect(c.value(Adi2Addr.ph12, OutIdx.loopback), isNull);
+    expect(activeAnalyzerOutput(c), Adi2Addr.line);
+    routeAnalyzerLoopback(c, Adi2Addr.ph12, 2);
+    expect(c.writes, isEmpty);
+  });
+
+  test('one second debounce coalesces rapid output changes', () async {
+    final c = await device();
+    await routing(c);
+    c.active(2);
     await Future<void>.delayed(const Duration(milliseconds: 500));
     expect(c.writes, isEmpty);
+    c.active(0);
+    await Future<void>.delayed(const Duration(milliseconds: 100));
     c.active(2);
     await Future<void>.delayed(const Duration(milliseconds: 600));
     expect(c.writes, isEmpty);
@@ -113,18 +137,21 @@ void main() {
       await routing(c);
       c.echo = false;
       // UI says 2, device still says 0: the actual transition must write.
-      c.set(Adi2Addr.ph12, OutIdx.loopback, 2);
-      c.writes.clear();
-      c.active(1);
-      await settle();
-      expect(c.writes, [(Adi2Addr.ph12, OutIdx.loopback, 2)]);
-      // Device already has the desired route, UI says 0: no redundant command.
-      c.actual[Adi2Addr.ph34 << 8 | OutIdx.loopback] = 2;
-      c.set(Adi2Addr.ph34, OutIdx.loopback, 0);
+      c.set(Adi2Addr.ph34, OutIdx.loopback, 2);
       c.writes.clear();
       c.active(2);
       await settle();
-      expect(c.writes, isEmpty);
+      expect(c.writes, [(Adi2Addr.ph34, OutIdx.loopback, 2)]);
+      // Device already has the desired route, UI says 0: no redundant command.
+      c.actual[Adi2Addr.line << 8 | OutIdx.loopback] = 2;
+      c.set(Adi2Addr.line, OutIdx.loopback, 0);
+      c.writes.clear();
+      c.active(0);
+      await settle();
+      expect(c.writes, [
+        (Adi2Addr.ph34, OutIdx.loopback, 0),
+        (Adi2Addr.line, OutIdx.loopback, 2),
+      ]);
     },
   );
 
@@ -132,7 +159,7 @@ void main() {
     final c = await device();
     await routing(c);
     c.actual.clear();
-    c.active(1);
+    c.active(2);
     await settle();
     expect(c.writes, isEmpty);
   });
@@ -142,24 +169,25 @@ void main() {
     () async {
       final c = await device();
       final r = await routing(c);
-      c.active(1);
-      c.analyzerSelfTestActive = true;
       c.active(2);
+      c.analyzerSelfTestActive = true;
+      c.active(0);
       await r.configure(output: 0, tap: 3);
       await settle();
       expect(c.writes, isEmpty);
       expect(settings.analyzerLoopbackTap, 2);
-      c.actual[Adi2Addr.line << 8 | OutIdx.loopback] = 1;
+      c.set(Adi2Addr.line, OutIdx.loopback, 1);
+      c.writes.clear();
       c.analyzerSelfTestActive = false;
       c.notifyListeners();
       await settle();
       expect(c.writes, isEmpty);
       // Only a fresh, real output switch after restoration may route again.
-      c.active(1);
+      c.active(2);
       await settle();
       expect(c.writes, [
         (Adi2Addr.line, OutIdx.loopback, 0),
-        (Adi2Addr.ph12, OutIdx.loopback, 2),
+        (Adi2Addr.ph34, OutIdx.loopback, 2),
       ]);
     },
   );
@@ -169,18 +197,18 @@ void main() {
     () async {
       final c = await device();
       final r = await routing(c);
-      c.active(1);
-      r.setActive(false);
       c.active(2);
+      r.setActive(false);
+      c.active(0);
       await settle();
       expect(c.writes, isEmpty);
       r.setActive(true);
       c.notifyListeners();
       await settle();
       expect(c.writes, isEmpty);
-      c.active(0);
+      c.active(2);
       await settle();
-      expect(c.writes, [(Adi2Addr.line, OutIdx.loopback, 2)]);
+      expect(c.writes, [(Adi2Addr.ph34, OutIdx.loopback, 2)]);
     },
   );
 
@@ -189,12 +217,12 @@ void main() {
     () async {
       final c = await device();
       final r = await routing(c);
-      await r.configure(output: Adi2Addr.ph12, tap: 3);
-      expect(c.writes, [(Adi2Addr.ph12, OutIdx.loopback, 3)]);
+      await r.configure(output: Adi2Addr.ph34, tap: 3);
+      expect(c.writes, [(Adi2Addr.ph34, OutIdx.loopback, 3)]);
       // Device page/hardware changes are respected, including another USB pair.
-      c.actual[Adi2Addr.ph12 << 8 | OutIdx.loopback] = 1;
+      c.actual[Adi2Addr.ph34 << 8 | OutIdx.loopback] = 1;
       c.writes.clear();
-      c.active(2);
+      c.active(0);
       c.selectedOutput = Adi2Addr.line;
       await settle();
       expect(c.writes, isEmpty);
@@ -211,7 +239,7 @@ void main() {
           await r.configure(output: a, tap: 1);
           expect(c.confirmedValue(a, OutIdx.loopback), 1);
           await settings.load();
-          expect(settings.analyzerLoopbackOutput, a);
+          expect(settings.analyzerLoopbackOutput, variant.isDac ? 0 : a);
           expect(settings.analyzerLoopbackTap, 1);
         }
         await r.configure(output: 0, tap: 2);
@@ -229,36 +257,36 @@ void main() {
   test('competing USB 1/2 disabled first, other USB pairs survive', () async {
     final c = await device(Adi2Variant.pro);
     final r = await routing(c);
-    c.set(Adi2Addr.line, OutIdx.loopback, 2);
-    c.set(Adi2Addr.ph12, OutIdx.loopback, 5);
+    c.set(Adi2Addr.line, OutIdx.loopback, 5);
     c.set(Adi2Addr.ph34, OutIdx.loopback, 9);
     c.writes.clear();
-    await r.configure(output: Adi2Addr.ph12, tap: 2);
+    await r.configure(output: Adi2Addr.ph34, tap: 2);
+    expect(c.writes, [(Adi2Addr.ph34, OutIdx.loopback, 2)]);
+    expect(c.value(Adi2Addr.line, OutIdx.loopback), 5);
+    c.set(Adi2Addr.line, OutIdx.loopback, 2);
+    c.writes.clear();
+    await r.configure(output: Adi2Addr.ph34, tap: 2);
     expect(c.writes, [
       (Adi2Addr.line, OutIdx.loopback, 0),
-      (Adi2Addr.ph12, OutIdx.loopback, 2),
+      (Adi2Addr.ph34, OutIdx.loopback, 2),
     ]);
-    expect(c.value(Adi2Addr.ph34, OutIdx.loopback), 9);
-    c.set(Adi2Addr.ph12, OutIdx.loopback, 5);
+    c.set(Adi2Addr.ph34, OutIdx.loopback, 5);
     c.writes.clear();
-    await r.configure(output: Adi2Addr.ph12, tap: 0);
+    await r.configure(output: Adi2Addr.ph34, tap: 0);
     expect(c.writes, isEmpty);
   });
 
-  test(
-    'DAC status overrides page selection and auto-switch preference',
-    () async {
-      final c = await device();
-      await routing(c);
-      settings.autoSwitchOutput = false;
-      c.selectedOutput = Adi2Addr.ph34;
-      await settle();
-      expect(c.writes, isEmpty);
-      c.active(1);
-      await settle();
-      expect(c.writes, [(Adi2Addr.ph12, OutIdx.loopback, 2)]);
-    },
-  );
+  test('DAC status changes never rewrite the shared loopback source', () async {
+    final c = await device(Adi2Variant.dac);
+    await routing(c);
+    settings.autoSwitchOutput = false;
+    c.selectedOutput = Adi2Addr.ph34;
+    await settle();
+    expect(c.writes, isEmpty);
+    c.active(1);
+    await settle();
+    expect(c.writes, isEmpty);
+  });
 
   test(
     'Pro follows selected output without interpreting DAC status bits',
@@ -266,7 +294,8 @@ void main() {
       final c = await device(Adi2Variant.pro);
       c.selectedOutput = Adi2Addr.line;
       await routing(c);
-      c.active(2);
+      c.status = Adi2Status([2]);
+      c.notifyListeners();
       await settle();
       expect(c.writes, isEmpty);
       c.selectedOutput = Adi2Addr.ph34;
@@ -280,15 +309,15 @@ void main() {
     () async {
       final c = await device();
       final r = await routing(c);
-      c.active(1);
+      c.active(2);
       c.state = ConnState.waitingForDevice;
       c.notifyListeners();
-      c.active(2);
+      c.active(0);
       c.state = ConnState.connected;
       c.notifyListeners();
       await settle();
       expect(c.writes, isEmpty);
-      c.active(0);
+      c.active(2);
       r.dispose();
       await settle();
       expect(c.writes, isEmpty);
@@ -302,15 +331,15 @@ void main() {
       await settings.setAnalyzerRouting(output: 0, tap: 2);
       final r = AnalyzerRouting(c)..setActive(true);
       addTearDown(r.dispose);
-      c.active(1);
+      c.active(2);
       await settle();
       expect(c.writes, isEmpty);
       await settings.confirmAnalyzerLoopback();
       await settings.load();
       expect(settings.analyzerLoopbackConfirmed, isTrue);
-      c.active(2);
+      c.active(0);
       await settle();
-      expect(c.writes, [(Adi2Addr.ph34, OutIdx.loopback, 2)]);
+      expect(c.writes, [(Adi2Addr.line, OutIdx.loopback, 2)]);
     },
   );
 

@@ -78,8 +78,21 @@ void main() {
     expect(filter.filter(set([volume(-460), ref(1)])), isNotNull);
     expect(filter.filter(set([ref(0)])), isNotNull);
     filter.release();
+    // Ohne Freigabe nur, wenn die Absenkung den Pegelsprung voll ausgleicht.
     final result = filter.filter(set([volume(-520), ref(1)]))!;
-    expect((parseSysex(result) as Adi2ParamsMessage).params, [volume(-520)]);
+    expect((parseSysex(result) as Adi2ParamsMessage).params, [
+      volume(-520),
+      ref(1),
+    ]);
+    expect(filter.filter(set([ref(0)])), isNotNull);
+    final partial = filter.filter(set([volume(-540), ref(1)]))!;
+    expect((parseSysex(partial) as Adi2ParamsMessage).params, [volume(-540)]);
+  });
+
+  test('App-Ablauf: getrennte Absenkung, dann Ref-Level ohne Freigabe', () {
+    expect(filter.filter(set([volume(-460)])), isNotNull);
+    now += const Duration(milliseconds: 20);
+    expect(filter.filter(set([ref(1)])), isNotNull);
   });
 
   test('Geräteänderung verwirft eine frühere Ref-Level-Kompensation', () {
@@ -107,5 +120,108 @@ void main() {
     expect(filter.filter(buildLoadFactory(0x71)), isNull);
     expect(filter.filter(buildSaveSetup(0x71, 1)), isNotNull);
     expect(filter.filter(buildRequestAll(0x71)), isNotNull);
+  });
+  test(
+    'Freigabe gilt nur für den sendenden Client, Release lässt B laufen',
+    () {
+      filter.heartbeat('B');
+      now += const Duration(milliseconds: volTickMs);
+      expect(filter.filter(set([volume(0)]), client: 'A'), isNull);
+      expect(filter.grantedFor('B'), isTrue);
+      filter.heartbeat('A');
+      filter.release('A');
+      expect(filter.grantedFor('A'), isFalse);
+      expect(filter.grantedFor('B'), isTrue);
+      // A hat weder das Zeitbudget noch den beobachteten Gerätestand gelöscht.
+      expect(
+        value(filter.filter(set([volume(0)]), client: 'B')!, OutIdx.volume),
+        -390,
+      );
+      expect(filter.filter(set([volume(-700)]), client: 'A'), isNotNull);
+      expect(
+        filter.filter(set([const Adi2Param(3, OutIdx.mute, 1)]), client: 'A'),
+        isNotNull,
+      );
+      expect(
+        filter.filter(set([const Adi2Param(3, OutIdx.mute, 0)]), client: 'A'),
+        isNull,
+      );
+      expect(
+        filter.filter(set([const Adi2Param(3, OutIdx.mute, 0)]), client: 'B'),
+        isNotNull,
+      );
+      expect(
+        filter.filter(set([const Adi2Param(3, OutIdx.dim, 1)]), client: 'A'),
+        isNotNull,
+      );
+      expect(
+        filter.filter(set([const Adi2Param(3, OutIdx.dim, 0)]), client: 'A'),
+        isNull,
+      );
+    },
+  );
+
+  test('Zwei Anheber teilen pro Ausgang Rate und Bruchteile', () {
+    filter.observe(reply([volume(0)]));
+    filter.heartbeat('A');
+    filter.heartbeat('B');
+    var last = 0;
+    for (var tick = 0; tick < 10; tick++) {
+      now += const Duration(milliseconds: volTickMs);
+      for (final client in ['A', 'B']) {
+        final bytes = filter.filter(set([volume(60)]), client: client);
+        if (bytes != null) last = value(bytes, OutIdx.volume);
+      }
+    }
+    // Bei 0 dB höchstens 2,5 dB/s: nach 500 ms maximal 1,2 dB.
+    expect(last, inInclusiveRange(10, 12));
+  });
+
+  test('Release von A erhält Bruchteile und Zeitbudget der Rampe von B', () {
+    filter.observe(reply([volume(0)]));
+    filter.heartbeat('A');
+    filter.heartbeat('B');
+    now += const Duration(milliseconds: volTickMs);
+    expect(
+      value(filter.filter(set([volume(60)]), client: 'B')!, OutIdx.volume),
+      1,
+    ); // 0,25 Rohwert bleibt übrig.
+    now += const Duration(milliseconds: 10);
+    filter.release('A');
+    now += const Duration(milliseconds: 25);
+    expect(
+      value(filter.filter(set([volume(60)]), client: 'B')!, OutIdx.volume),
+      2,
+    );
+  });
+
+  test('Ablauf einer Freigabe betrifft nur diesen Client', () {
+    filter.heartbeat('A');
+    now += const Duration(milliseconds: 600);
+    filter.heartbeat('B');
+    now += const Duration(milliseconds: 450);
+    expect(filter.filter(set([volume(0)]), client: 'A'), isNull);
+    expect(filter.grantedFor('B'), isTrue);
+    expect(filter.filter(set([volume(0)]), client: 'B'), isNotNull);
+  });
+
+  test('Ref-Kompensation gehört zum absenkenden Client und gilt einmalig', () {
+    expect(filter.filter(set([volume(-460)]), client: 'A'), isNotNull);
+    now += const Duration(milliseconds: 20);
+    expect(filter.filter(set([ref(1)]), client: 'B'), isNull);
+    expect(filter.filter(set([ref(1)]), client: 'A'), isNotNull);
+    expect(filter.filter(set([ref(0)]), client: 'B'), isNotNull);
+    expect(filter.filter(set([ref(1)]), client: 'A'), isNull);
+  });
+
+  test('Ref-Kompensation verfällt nach 100 ms und bei fremder Anhebung', () {
+    expect(filter.filter(set([volume(-460)]), client: 'A'), isNotNull);
+    now += const Duration(milliseconds: 101);
+    expect(filter.filter(set([ref(1)]), client: 'A'), isNull);
+    expect(filter.filter(set([volume(-520)]), client: 'A'), isNotNull);
+    filter.heartbeat('B');
+    now += const Duration(milliseconds: volTickMs);
+    expect(filter.filter(set([volume(-510)]), client: 'B'), isNotNull);
+    expect(filter.filter(set([ref(1)]), client: 'A'), isNull);
   });
 }
