@@ -184,7 +184,11 @@ class _VolumeRingState extends State<VolumeRing> {
                             Text(
                               tr('dB am Gerät'),
                               style: ts(
-                                isTablet(context) ? 16 : 14,
+                                // Tablet: mit dem Ring skalieren, im Querformat
+                                // ist der Ring deutlich kleiner.
+                                isTablet(context)
+                                    ? (side * 0.07).clamp(11.0, 16.0)
+                                    : 14,
                                 weight: 500,
                                 color: Palette.muted,
                               ),
