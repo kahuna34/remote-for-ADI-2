@@ -10,6 +10,11 @@ import 'theme.dart';
 import 'signal_flow.dart';
 import 'signal_flow_data.dart';
 
+/// Balance bleibt in Geräteschritten von −100 bis 100; nur die Anzeige
+/// benennt die Richtung und die Mitte.
+String formatBalance(int raw) =>
+    raw == 0 ? tr('Mitte') : '${raw < 0 ? tr('L') : tr('R')} ${raw.abs()}';
+
 /// Allgemeine Zeile für einen Parameter: Schalter, Auswahl oder Regler.
 class ParamTile extends StatelessWidget {
   const ParamTile({
@@ -143,7 +148,13 @@ class ParamTile extends StatelessWidget {
         ),
       );
     }
-    return _SliderTile(ctrl: ctrl, address: address, def: def, raw: raw);
+    return _SliderTile(
+      ctrl: ctrl,
+      address: address,
+      def: def,
+      raw: raw,
+      format: def.name == 'Balance' ? formatBalance : fmt,
+    );
   }
 }
 
@@ -197,7 +208,7 @@ class ParamChoices extends StatelessWidget {
           (constraints.maxWidth - 6 * (labels.length - 1)) / labels.length;
       final fits = labels.every((label) {
         final painter = TextPainter(
-          text: TextSpan(text: label, style: ts(14, weight: 600)),
+          text: TextSpan(text: label, style: buttonLabelStyle(context)),
           textDirection: Directionality.of(context),
           textScaler: MediaQuery.textScalerOf(context),
         )..layout();
@@ -238,11 +249,13 @@ class _SliderTile extends StatefulWidget {
     required this.address,
     required this.def,
     required this.raw,
+    required this.format,
   });
   final Adi2Controller ctrl;
   final int address;
   final ParamDef def;
   final int raw;
+  final String Function(int) format;
 
   @override
   State<_SliderTile> createState() => _SliderTileState();
@@ -287,7 +300,7 @@ class _SliderTileState extends State<_SliderTile> {
               SizedBox(
                 width: 80,
                 child: Text(
-                  d.format(v),
+                  widget.format(v),
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Theme.of(context).colorScheme.primary,
@@ -349,11 +362,7 @@ class _ChoiceTile extends StatelessWidget {
     final labelText = Text(
       label,
       textAlign: TextAlign.center,
-      style: ts(
-        14,
-        weight: selected ? 600 : 500,
-        color: selected && enabled ? Palette.text : Palette.muted,
-      ),
+      style: buttonLabelStyle(context),
     );
     final text = subtitle == null
         ? labelText

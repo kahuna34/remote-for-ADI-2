@@ -1420,6 +1420,11 @@ void main() {
           ),
         );
         await tester.pump();
+        if (compact) {
+          expect(find.textContaining('kalibriert +20,0 dB'), findsNothing);
+          await tester.tap(find.byKey(const ValueKey('analyzer-info-toggle')));
+          await tester.pump();
+        }
         expect(find.textContaining('kalibriert +20,0 dB'), findsOneWidget);
         expect(find.byType(AnalyzerLevelBar), findsNWidgets(2));
         for (final bar in tester.widgetList<AnalyzerLevelBar>(

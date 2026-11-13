@@ -29,7 +29,11 @@ void main() {
     );
   });
 
-  Future<List<Object?>> openFullscreen(WidgetTester tester, Size size) async {
+  Future<List<Object?>> openFullscreen(
+    WidgetTester tester,
+    Size size, {
+    double scale = 1,
+  }) async {
     await AppSettings.instance.setAutoFullscreenEq(false);
     EqDisplayMode.setTablet(true);
     addTearDown(() => EqDisplayMode.setTablet(false));
@@ -41,6 +45,11 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: buildTheme(),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: TextScaler.linear(scale)),
+          child: child!,
+        ),
         home: Scaffold(
           body: SizedBox(
             height: 300,
@@ -134,6 +143,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
     expect(native.where((m) => m == 'start'), hasLength(1));
     expect(native, isNot(contains('stop')));
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(milliseconds: 500));
   });
 
   for (final size in [
@@ -142,14 +153,17 @@ void main() {
     const Size(960, 600),
     const Size(1280, 800),
   ]) {
-    for (final language in AppLanguage.values) {
+    for (final (language, scale) in [
+      for (final language in AppLanguage.values)
+        for (final scale in [1.0, 1.3]) (language, scale),
+    ]) {
       testWidgets(
-        'Vollbild-Kopfzeile und werkzeugeigene Knöpfe passen $size $language',
+        'Vollbild-Kopfzeile und werkzeugeigene Knöpfe passen $size $language scale=$scale',
         (tester) async {
           final previous = AppLang.instance.language;
           AppLang.instance.language = language;
           addTearDown(() => AppLang.instance.language = previous);
-          await openFullscreen(tester, size);
+          await openFullscreen(tester, size, scale: scale);
           final toolbar = find.byKey(
             const ValueKey('analyzer-fullscreen-toolbar'),
           );
@@ -179,14 +193,69 @@ void main() {
             find.byType(AnalyzerChoices<AnalyzerBandResolution>),
             findsOneWidget,
           );
-          final tool = find.byType(DropdownButton<AnalyzerView>);
+          final tool = find.byType(AnalyzerChoices<AnalyzerView>);
           expect(tool, findsOneWidget);
+          expect(find.text(tr('Spektrum')), findsOneWidget);
+          expect(find.text(tr('Linien')), findsOneWidget);
+          expect(find.text(tr('Balken')), findsOneWidget);
+          expect(find.text(tr('Peak hold')), findsOneWidget);
+          final reset = find.byKey(const ValueKey('analyzer-peak-reset'));
+          expect(reset, findsOneWidget);
+          expect(
+            tester.getRect(reset).left,
+            greaterThan(tester.getRect(find.text(tr('Peak hold'))).right),
+          );
+          final resetButton = find.descendant(
+            of: reset,
+            matching: find.byType(OutlinedButton),
+          );
+          final peak = find.byKey(const ValueKey('analyzer-peak-hold'));
+          final peakButton = find.descendant(
+            of: peak,
+            matching: find.byType(OutlinedButton),
+          );
+          expect(peakButton, findsOneWidget);
+          expect(
+            tester.widget(peakButton).runtimeType,
+            tester.widget(resetButton).runtimeType,
+          );
+          expect(
+            tester.getSize(peakButton).height,
+            tester.getSize(resetButton).height,
+          );
+          expect(
+            tester.getSize(peakButton).width,
+            isNot(tester.getSize(resetButton).width),
+          );
+          final peakStyle = tester.widget<OutlinedButton>(peakButton).style!;
+          final resetStyle = tester.widget<OutlinedButton>(resetButton).style!;
+          expect(peakStyle.shape!.resolve({}), resetStyle.shape!.resolve({}));
+          expect(peakStyle.backgroundColor!.resolve({}), Palette.amber);
+          final peakText = tester
+              .widget<Text>(find.text(tr('Peak hold')))
+              .style!;
+          final resetText = tester
+              .widget<Text>(find.text(tr('Zurücksetzen')))
+              .style!;
+          expect(peakText.fontSize, resetText.fontSize);
+          expect(peakText.fontWeight, resetText.fontWeight);
+          // Ausgewählt: dunkle Schrift auf Amber, gut lesbar.
+          expect(peakText.color, Palette.bg);
+          expect(
+            tester.widget<OutlinedButton>(resetButton).onPressed,
+            isNotNull,
+          );
+          await tester.tap(find.text(tr('Peak hold')));
+          await tester.pump();
+          expect(tester.widget<OutlinedButton>(resetButton).onPressed, isNull);
           for (final label in ['1/3', '1/6', '1/12']) {
             final option = find.text(label);
             expect(option, findsOneWidget);
+            // Spectrum steht in der Zeile mit Zahnrad/Vollbild; die
+            // Bandauflösung folgt direkt darunter.
             expect(
               tester.getRect(option).top,
-              greaterThanOrEqualTo(tester.getRect(tool).top),
+              lessThanOrEqualTo(tester.getRect(tool).bottom + 16),
             );
           }
           await tester.tap(find.text('1/12'));
@@ -205,6 +274,7 @@ void main() {
           );
           expect(tester.takeException(), isNull);
           await tester.pumpWidget(const SizedBox());
+          await tester.pump(const Duration(milliseconds: 500));
           await tester.pumpAndSettle();
         },
       );
@@ -230,6 +300,8 @@ void main() {
           .arguments,
       contains('DeviceOrientation.portraitUp'),
     );
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(milliseconds: 500));
   });
 
   testWidgets('Tablet im Querformat bleibt im Analyzer-Vollbild quer', (
@@ -238,5 +310,7 @@ void main() {
     final orientations = await openFullscreen(tester, const Size(960, 600));
     expect(orientations, contains('DeviceOrientation.landscapeLeft'));
     expect(orientations, isNot(contains('DeviceOrientation.portraitUp')));
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(milliseconds: 500));
   });
 }

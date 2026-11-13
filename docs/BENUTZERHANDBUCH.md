@@ -1,6 +1,6 @@
 # Remote for ADI-2 — Benutzerhandbuch
 
-Version **1.1.2 (4)** · [Projektübersicht](README.de.md) · [English](USER_GUIDE.md)
+Version **1.2.0 (5)** · [Projektübersicht](README.de.md) · [English](USER_GUIDE.md)
 
 Dieses Handbuch beschreibt die aktuelle App. Die verfügbaren Regler hängen vom gewählten Modell und den vom Gerät gemeldeten Werten ab. Die Screenshots zeigen Android-Geräte mit englischer Oberfläche. Getestet ist die App mit allen unterstützten ADI-2-Modellen auf Android-Smartphone und Android-Tablet sowie mit dem ADI-2 DAC am Mac, auch über den Host. Die Player-Anbindung unterstützt derzeit nur Android.
 
@@ -73,9 +73,9 @@ Unter Windows **Remote-for-ADI-2-Host-Windows-Setup.exe** ausführen. Der Host w
 
 Auf dem Mac **Remote for ADI-2 Host** wie ein Programm öffnen. Es erscheint kein Fenster, sondern ein Symbol in der Menüleiste. Unter Windows sitzt das Symbol im Infobereich der Taskleiste, bei Windows 11 zunächst im aufklappbaren Bereich (Pfeil ^). Ein Klick auf das Symbol öffnet das Menü:
 
-| Mac: Menü des Hosts | Windows: Menü des Hosts |
-| --- | --- |
-| ![Mac: Menü des Hosts](screenshots/host/menu.png) | ![Windows: Menü des Hosts](screenshots/host/windows_menu.png) |
+| Menü des Hosts (Mac; unter Windows sieht es ähnlich aus) |
+| --- |
+| ![Menü des Hosts](screenshots/host/menu.png) |
 
 | Eintrag | Wirkung |
 | --- | --- |
@@ -105,11 +105,25 @@ Bis zu vier Smartphones/Tablets können denselben Host gleichzeitig steuern. Jed
 
 Danach verbindet sich die App bei jedem Start automatisch mit diesem Host. Eine direkte USB-Verbindung am Smartphone hat Vorrang. Dasselbe WLAN allein genügt nicht: Ohne Kopplung gibt der Host nichts weiter. In der Kopfzeile steht neben **Eigene Ansicht** das grüne Feld **HOST**. Langes Drücken auf **HOST** öffnet ein Menü mit dem Namen des Computers, **Kopplung entfernen** (trennt die Verbindung, danach muss neu gekoppelt werden) und **Hosts verwalten…**.
 
+### Player des Computers
+
+Mit **Analyzer-Einstellungen → Player beim Antippen des Graphen** steuert das Player-Overlay im Host-Betrieb die Wiedergabe des Computers. Windows unterstützt Player, die eine Windows-Mediensitzung bereitstellen, einschließlich entsprechend angebundener Browser. Titel, Interpret, App und vorhandene Cover kommen vom Computer; die Tasten steuern dessen aktuelle Sitzung. Ohne aktive Sitzung bleibt die Anzeige leer. Ältere Hosts müssen für diese Funktion aktualisiert werden.
+
+Auf macOS werden **Music.app und Spotify** über öffentliche Apple Events unterstützt. Beim ersten Zugriff im geöffneten Overlay die Automatisierung für **Remote for ADI-2 Host** und den jeweiligen Player erlauben; später unter **Systemeinstellungen → Datenschutz & Sicherheit → Automation** ändern. Eine Bedienungshilfen-Freigabe ist nicht nötig. Es werden nur bereits laufende Player angesprochen: ein spielender Player hat Vorrang, sonst der zuletzt ausgewählte beziehungsweise Music. Music kann eingebettete Cover liefern. Spotify stellt Cover als Internetadresse bereit; diese wird nicht geladen. Andere Mac-Player und Browser werden nicht unterstützt. Bei verweigerter Automation fehlen Metadaten und Steuerung. Das Host-Menü erhält keinen zusätzlichen Eintrag.
+
+Player-Daten und Befehle laufen authentifiziert und verschlüsselt über die vorhandene lokale Host-Verbindung. Cover werden auf JPEG bis 30 kB begrenzt und pro Client nur bei Änderung gesendet; es gibt keine neuen externen Netzwerkabfragen. Nur geöffnete Overlays abonnieren den Player. Mehrere Clients steuern dieselbe aktuelle Sitzung.
+
 ### Verhalten über den Host
 
 Der erste authentifizierte Client öffnet USB-MIDI; alle verbundenen Clients teilen sich diesen Port. Drei Sekunden nach dem Trennen des letzten Clients gibt der Host ihn wieder frei. Ein gemeinsamer Abfragezyklus verteilt Geräteantworten und Änderungen anderer Clients oder der RME-Software an alle verbundenen Apps. Lautstärke erscheint dadurch fast sofort, EQ und die übrigen Werte nach etwa einer Sekunde; der EQ-Graph gleitet dabei zum neuen Stand.
 
-Lauter wird es über den Host nur, solange die App im Vordergrund ist und sich laufend beim Host meldet, und höchstens mit der Geschwindigkeit der Lautstärkerampe. Bricht die Verbindung ab oder geht die App in den Hintergrund, stoppt die Anhebung dieser App; nichts wird später nachgeholt. Die eigenen Freigaben anderer verbundener Apps bleiben bestehen. Alle Clients teilen sich dieselbe maximale Anstiegsrate je Ausgang. Leiser stellen, Stummschalten und Dim gehen immer sofort. Geräte-Setups und Werkseinstellungen lassen sich über den Host nicht laden, weil sich dabei Lautstärken unbemerkt erhöhen könnten. Der Analyzer steht über den Host noch nicht zur Verfügung. Auf Tablets zeigt der reservierte Anzeigebereich einen zentrierten Hinweis; die Kanalreihen behalten dieselben Positionen wie im USB-Modus.
+Lauter wird es über den Host nur, solange die App im Vordergrund ist und sich laufend beim Host meldet, und höchstens mit der Geschwindigkeit der Lautstärkerampe. Bricht die Verbindung ab oder geht die App in den Hintergrund, stoppt die Anhebung dieser App; nichts wird später nachgeholt. Die eigenen Freigaben anderer verbundener Apps bleiben bestehen. Alle Clients teilen sich dieselbe maximale Anstiegsrate je Ausgang. Leiser stellen, Stummschalten und Dim gehen immer sofort. Geräte-Setups und Werkseinstellungen lassen sich über den Host nicht laden, weil sich dabei Lautstärken unbemerkt erhöhen könnten.
+
+Der **Analyzer über Host** ist in kompakter Ansicht, im Vollbild und im Tablet-Zusatzbereich verfügbar. Der Computer nimmt die ADI-2-USB-Aufnahmekanäle **1/2** auf und berechnet Spektrum, Bänder und Pegel. Die App erhält nur kompakte Analysewerte; PCM bleibt am Computer und wird nicht gespeichert. Die Aufnahme läuft nur, solange mindestens eine verbundene App den Analyzer sichtbar verwendet. Unterschiedliche Bandauflösungen und mehrere Clients sind möglich. Loopback wird weiterhin über MIDI eingestellt.
+
+Am Mac beim ersten Start des Host-Analyzers die Mikrofonberechtigung für **Remote for ADI-2 Host** erteilen. Bei Ablehnung: **Systemeinstellungen → Datenschutz & Sicherheit → Mikrofon → Remote for ADI-2 Host erlauben**, danach im Analyzer **Erneut versuchen** wählen; gegebenenfalls den Host neu starten. Unter Windows den Zugriff unter **Einstellungen → Datenschutz (bzw. Datenschutz & Sicherheit) → Mikrofon → Desktop-Apps Zugriff erlauben** einschalten. Ohne eindeutigen ADI-2-Aufnahmeeingang zeigt die App einen Fehler. Unter Windows wird das gemeinsame Aufnahmeformat des Geräts verwendet; Kanäle 1/2 müssen verfügbar sein, die Sample-Rate muss mindestens 40 kHz betragen.
+
+**Kalibrier-Testton der App und Analyzer-Selbsttest sind nur bei direkter USB-Verbindung verfügbar.** Ein externer Referenzton und manuelle Pegelkalibrierung sind auch über Host möglich. Die Messung dauert über Host etwa drei Sekunden; Offsets gelten für den Aufnahmecomputer und das ADI-2. Ballistik, Peak hold einschließlich Langdruck-Reset und Loopback-Auswahl bleiben verfügbar.
 
 ## Ausgänge
 
@@ -203,13 +217,13 @@ Hier wählen Sie, welche Zusatzinformation über dem Ausgangsbedienfeld erschein
 
 Unter **App-Einstellungen → Anzeige unter der Kopfzeile** zwischen **Player**, **Status**, **Analyzer** und **nichts** wählen. Dieser Bereich gehört zu Ausgänge. Die eigene Ansicht verwendet die in ihrer Layoutseite gespeicherte Auswahl.
 
-**Player** nutzt die aktive Android-Mediensitzung. Über den angebotenen Einstellungslink Benachrichtigungszugriff erteilen. Die Leiste kann Medieninformationen und Cover zeigen, vorheriger/nächster, Wiedergabe/Pause und Stopp senden sowie durch Antippen der Informationen den Player öffnen. Die Verfügbarkeit hängt von der Medien-App ab. Eine Musikbibliothek enthält sie nicht. Ohne verwendbaren Player-Inhalt erscheint gegebenenfalls die vorgesehene Status-Ersatzanzeige oder die Leiste klappt ein. Andere Plattformen bieten diese Anbindung derzeit nicht.
+**Player** nutzt im Host-Betrieb den Computer-Player mit Titel, Interpret, App, Cover und Zurück/Weiter sowie Wiedergabe/Pause. Ohne Host oder bei fehlender Host-Player-Fähigkeit nutzt die Anzeige die aktive Android-Mediensitzung; ältere Hosts erhalten den Hinweis **Host aktualisieren**. Die folgenden Freigaben sowie Stopp und das Öffnen der Player-App gelten für die Smartphone-Quelle. Über den angebotenen Einstellungslink Benachrichtigungszugriff erteilen. Die Leiste kann Medieninformationen und Cover zeigen, vorheriger/nächster, Wiedergabe/Pause und Stopp senden sowie durch Antippen der Informationen den Player öffnen. Die Verfügbarkeit hängt von der Medien-App ab. Eine Musikbibliothek enthält sie nicht. Ohne verwendbaren Player-Inhalt erscheint gegebenenfalls die vorgesehene Status-Ersatzanzeige oder die Leiste klappt ein. Andere Smartphone-Plattformen bieten die lokale Player-Anbindung derzeit nicht; ein aktueller Host kann auch dort den Computer-Player liefern.
 
 **Status** zeigt kompakt den Zustand der Digitaleingänge sowie Clock- und Sample-Rate-Informationen. Antippen öffnet die vollständige Statusseite.
 
-| Smartphone: Player |
-| --- |
-| ![Smartphone: Player](screenshots/phone/player.png) |
+| Smartphone: Player | Tablet: Computer-Player über den Host |
+| --- | --- |
+| ![Smartphone: Player](screenshots/phone/player.png) | ![Tablet: Computer-Player über den Host](screenshots/tablet/land_outputs_player.png) |
 
 
 **Erlauben** öffnet die Android-Einstellung für den Benachrichtigungszugriff. **Nicht mehr fragen** blendet die Nachfrage der App aus. Die Player-Leiste steuert eine andere Medien-App; sie ändert weder die ADI-2-Quelle noch die Kalibrierung. Für Analyzer oder Musikaufnahme müssen Wiedergabequelle und USB-Routing weiterhin zusammenpassen.
@@ -686,6 +700,18 @@ So richten Sie eine Seite für einen Kopfhörerausgang ein:
 
 ## Analyzer
 
+Player-Leiste, Tablet-Zusatzbereich **Player** und Analyzer-Overlay verwenden dieselbe Player-Quelle: Bei einem aktuellen Host zeigen und steuern sie den Computer einschließlich Titel, Interpret, App und Cover. Ohne Host oder bei einem älteren Host verwenden sie den Smartphone-Player; bei fehlender Host-Player-Fähigkeit erscheint **Host aktualisieren**. Android-Freischaltungshinweise gelten nur für die Smartphone-Quelle. Sichtbare Player-Anzeigen teilen sich ein Host-Abo; 500 ms nach dem Ausblenden der letzten Anzeige endet es.
+
+**Player beim Antippen des Graphen** ist in den Analyzer-Einstellungen standardmäßig ausgeschaltet und wird gespeichert. Eingeschaltet öffnet ein Tippen auf den Graphen ein halbtransparentes Overlay mit Cover (falls vorhanden), Titel, Interpret, Quelle/App und **Zurück / Wiedergabe-Pause / Weiter**, in kompakter Ansicht, im Tablet-Zusatzbereich und im Vollbild. Das Overlay deckt ausschließlich die Plotfläche ab; Pegel und Infozeile bleiben frei. Auf niedrigen Graphen entfällt das Cover; auf sehr flachen Graphen stehen die Titelinformationen neben den 36-Pixel-Tasten. Ein weiterer Tipp außerhalb der Tasten oder fünf Sekunden ohne Bedienung schließt es; jede Taste startet die Frist neu. Vollbild bleibt über das Vollbild-Symbol erreichbar. Ohne den Schalter öffnet Antippen des kompakten Analyzers weiterhin Vollbild.
+
+| Player-Overlay über dem Analyzer (Host-Betrieb) |
+| --- |
+| ![Player-Overlay über dem Analyzer](screenshots/tablet/land_analyzer_player_overlay.png) |
+
+Bei direktem USB-Anschluss nutzt das Overlay den Smartphone-Player (Android-Mediensitzung mit Benachrichtigungszugriff). Bei einem anderen Eingang des aktiven Ausgangs erscheint **Quelle ist nicht USB**, die Steuerung bleibt nutzbar. Bei **Auto** oder unbekannter Eingangswahl erscheint **USB-Quelle nicht bestätigt**, weil die tatsächliche Auto-Quelle nicht zuverlässig gemeldet wird. Auf Pro-Modellen folgt die Prüfung dem gewählten Ausgang, da die aktiven Ausgangsbits noch nicht verifiziert sind. Im Host-Betrieb stammt der Player immer vom Computer (siehe Host-Kapitel).
+
+Hochkant stehen **Peak hold** und **Zurücksetzen** nebeneinander unter der Peak/RMS-Anzeige. Im Vollbild stehen **Spektrum**, **Linien / Balken**, **Peak hold** und **Zurücksetzen** in einer bei Bedarf umbrechenden Knopfleiste. Zurücksetzen ist nur bei eingeschaltetem Peak hold aktiv. Zahnrad und Vollbild stehen rechtsbündig darüber und überdecken den Graphen nicht. Die Infozeile enthält nur Text; nur mehrzeilige Entwicklerdiagnosen sind aufklappbar.
+
 Der Analyzer macht das aufgenommene USB-Audiosignal als Spektrum sowie als Peak- und RMS-Pegel sichtbar.
 
 Unter **Anzeige unter der Kopfzeile** den **Analyzer** wählen oder am Tablet im Querformat den **Zusatzbereich** verwenden. Die Aufnahmeberechtigung auf Nachfrage erteilen. Die App analysiert USB-Audio bei sichtbarem Analyzer. Auf Android muss die App dabei im Vordergrund sein. Am Mac läuft der Analyzer auch in einem sichtbaren Fenster ohne Fokus weiter. Die Aufnahme stoppt, wenn der Analyzer verborgen wird oder eine andere Seite darüber liegt. Die App speichert das Audio nicht und verwendet kein Smartphone-Mikrofon.
@@ -694,7 +720,11 @@ Unter **Anzeige unter der Kopfzeile** den **Analyzer** wählen oder am Tablet im
 
 ### Plattformen und Grenzen
 
-Über den Host ist der Analyzer noch nicht verfügbar. Auf Tablets bleibt seine Anzeigefläche mit einem zentrierten Hinweis reserviert; die Kanalreihen behalten ihre Positionen aus dem USB-Modus.
+Der **Analyzer über Host** ist in kompakter Ansicht, im Vollbild und im Tablet-Zusatzbereich verfügbar. Der Computer nimmt die ADI-2-USB-Aufnahmekanäle **1/2** auf und berechnet Spektrum, Bänder und Pegel. Die App erhält nur kompakte Analysewerte; PCM bleibt am Computer und wird nicht gespeichert. Die Aufnahme läuft nur, solange mindestens eine verbundene App den Analyzer sichtbar verwendet. Unterschiedliche Bandauflösungen und mehrere Clients sind möglich. Loopback wird weiterhin über MIDI eingestellt.
+
+Am Mac beim ersten Start des Host-Analyzers die Mikrofonberechtigung für **Remote for ADI-2 Host** erteilen. Bei Ablehnung: **Systemeinstellungen → Datenschutz & Sicherheit → Mikrofon → Remote for ADI-2 Host erlauben**, danach im Analyzer **Erneut versuchen** wählen; gegebenenfalls den Host neu starten. Unter Windows den Zugriff unter **Einstellungen → Datenschutz (bzw. Datenschutz & Sicherheit) → Mikrofon → Desktop-Apps Zugriff erlauben** einschalten. Ohne eindeutigen ADI-2-Aufnahmeeingang zeigt die App einen Fehler. Unter Windows wird das gemeinsame Aufnahmeformat des Geräts verwendet; Kanäle 1/2 müssen verfügbar sein, die Sample-Rate muss mindestens 40 kHz betragen.
+
+**Kalibrier-Testton der App und Analyzer-Selbsttest sind nur bei direkter USB-Verbindung verfügbar.** Ein externer Referenzton und manuelle Pegelkalibrierung sind auch über Host möglich. Die Messung dauert über Host etwa drei Sekunden; Offsets gelten für den Aufnahmecomputer und das ADI-2. Ballistik, Peak hold einschließlich Langdruck-Reset und Loopback-Auswahl bleiben verfügbar.
 
 Auf **Android** verarbeitet die App USB-Audio und prüft die Aufnahmeroute. Eine Meldung über das Smartphone-Mikrofon oder ein anderes Aufnahmegerät bedeutet, dass keine gültige ADI-2-Aufnahme vorliegt; solche Werte nicht zum Kalibrieren verwenden. Mit **Berechtigung erteilen** erlauben Sie den Zugriff, mit **Erneut versuchen** starten Sie nach Beheben einer Unterbrechung neu.
 
@@ -709,12 +739,12 @@ Für den Vergleich mit dem Gerät **post FX** verwenden: nach EQ/Effekten und vo
 ### Anzeige und Messwerte
 
 - **Linien** und **Balken** bestimmen die Spektrumsdarstellung. Die Frequenzachse reicht von 20 Hz bis 20 kHz; die Balken decken 25 Hz–20 kHz ab. **Bandauflösung** bietet **1/3 Oktave**, **1/6 Oktave** und **1/12 Oktave**. Zum Vergleich mit dem Gerät Balken und 1/3 Oktave verwenden.
-- **Peak hold** hält Spitzenanzeigen fest. **Peak-Hold-Zeit** bietet 1 s (Standard), 2 s, 3 s, 5 s, 10 s und ∞; Änderungen wirken sofort und werden gespeichert. Bei ∞ bleiben die Markierungen bis zu höheren Spitzen stehen. **Langes Drücken auf Peak hold** setzt die Markierungen sofort auf den aktuellen Pegel zurück. Den Knopf **Peak hold** gibt es auch in der Hochkant-Ansicht oben rechts im Analyzer, sofern das gewählte Werkzeug Peak hold kennt. **Ballistik** bietet **schnell**, **mittel** und **langsam**. Linien/Balken, Peak hold und Ballistik bleiben beim Drehen und nach einem Neustart der App erhalten.
+- **Peak hold** hält Spitzenanzeigen fest. **Peak-Hold-Zeit** bietet 1 s (Standard), 2 s, 3 s, 5 s, 10 s und ∞; Änderungen wirken sofort und werden gespeichert. Bei ∞ bleiben die Markierungen bis zu höheren Spitzen stehen. **Langes Drücken auf Peak hold** setzt die Markierungen sofort auf den aktuellen Pegel zurück. In der kompakten Hochkant-Ansicht stehen **Peak hold** und der eigene Knopf **Zurücksetzen** unter der Pegelanzeige; langes Drücken setzt die Marken an den übrigen Peak-hold-Bedienelementen zurück. **Ballistik** bietet **schnell**, **mittel** und **langsam**. Linien/Balken, Peak hold und Ballistik bleiben beim Drehen und nach einem Neustart der App erhalten.
 - **Pegelbereich** wählt 60, 80 oder 100 dB vertikalen Bereich.
 - **Analyzer-Farbe** bietet **Wie Gerät**, **Grün**, **Cyan**, **Amber**, **Mono**, **Rot** und **Orange**.
 - **Peak / RMS · dBFS** zeigt die aufgenommenen L-/R-Audiopegel einschließlich gespeichertem Kalibrier-Offset. Ein voll ausgesteuerter Sinus hat 0 dBFS Peak und etwa −3 dBFS RMS. Übersteuerung wird gesondert angezeigt. Spektrumsbänder beziehen einen voll ausgesteuerten Sinus bei Bandmitte auf 0 dB. Filter und Ballistik können vom Gerät abweichen; dessen tiefstes Band erfasst auch Gleichanteile.
 
-**Analyzer-Einstellungen** öffnet diese Optionen und die Kalibrierung. Im Vollbild blendet **Nur Spektrum** die Bedienleiste aus; **Bedienleiste anzeigen** holt sie zurück. Die folgenden Vollbildaufnahmen zeigen Querformat. Manuelles Öffnen schaltet auch auf Tablets ins Querformat; beim Verlassen gilt wieder die vorherige Ausrichtungsregel. Neben **Spektrum** stehen Knöpfe für die Bandauflösung. **Ballistik** und **Loopback-Quelle** sind kompakte Dropdowns links neben den Symbolen oben rechts; lange Texte werden bei wenig Platz gekürzt. Die Analyzer-Einstellungen bieten umbrechende Auswahlknöpfe für Ballistik, Bandauflösung, Analyzer-Farbe, Pegelbereich, Ausgang (nur Pro / 2/4) und Loopback-Quelle; Farbknöpfe zeigen Farbmuster.
+**Analyzer-Einstellungen** öffnet diese Optionen und die Kalibrierung. Im Vollbild blendet **Nur Spektrum** die Bedienleiste aus; **Bedienleiste anzeigen** holt sie zurück. Die folgenden Vollbildaufnahmen zeigen Querformat. Manuelles Öffnen schaltet auch auf Tablets ins Querformat; beim Verlassen gilt wieder die vorherige Ausrichtungsregel. Die Bandauflösung steht als Knöpfe in der oberen Leiste. **Ballistik** und **Loopback-Quelle** sind kompakte Dropdowns links neben den Symbolen oben rechts; lange Texte werden bei wenig Platz gekürzt. Oben in den Analyzer-Einstellungen wählt **Werkzeug → Spektrum** das Werkzeug. Direkt darunter wählen Knöpfe **Linien / Balken**, gefolgt von der Bandauflösung. Die Analyzer-Einstellungen bieten außerdem umbrechende Auswahlknöpfe für Ballistik, Bandauflösung, Analyzer-Farbe, Pegelbereich, Ausgang (nur Pro / 2/4) und Loopback-Quelle; Farbknöpfe zeigen Farbmuster.
 
 Die folgenden Abbildungen zeigen eine frühere Anordnung der Bedienelemente. Für die aktuelle Version gelten die oben beschriebenen Auswahlknöpfe und Kopfzeilenregler.
 
@@ -745,7 +775,7 @@ Links liegen tiefe, rechts hohe Frequenzen; ein höherer Ausschlag bedeutet mehr
 
 **Peak** beschreibt Spitzenwerte, **RMS** einen gemittelten Effektivpegel. Eine Musikquelle kann bei gleichem Peak einen anderen RMS-Wert haben. **Peak hold** hält die Spektrumspitzen kurz fest: nach der gewählten Haltezeit (Standard: eine Sekunde) fallen die Markierungen wieder ab; ∞ hält sie bis zum Zurücksetzen oder bis zu höheren Spitzen fest. **Ballistik** beeinflusst, wie schnell die Spektrumsanzeige zurückfällt; **langsam** erleichtert das Beobachten, **schnell** folgt Änderungen rascher. **Pegelbereich** vergrößert oder verkleinert nur den sichtbaren dB-Ausschnitt, nicht die Aufnahmeverstärkung.
 
-Tippen Sie auf den kompakten Analyzer oder **Vollbild**, um ihn zu vergrößern. Die Informationszeile lässt sich bei verkürzter Anzeige aufklappen. **Nur Spektrum** verbirgt die Bedienleiste; Antippen der Fläche oder **Bedienleiste anzeigen** holt sie zurück. Diese Anzeigeaktionen ändern keine Geräte-EQs.
+Tippen Sie auf den kompakten Analyzer oder **Vollbild**, um ihn zu vergrößern. Nur mehrzeilige Entwicklerdiagnosen in der Informationszeile lassen sich aufklappen. **Nur Spektrum** verbirgt die Bedienleiste; Antippen der Fläche oder **Bedienleiste anzeigen** holt sie zurück. Diese Anzeigeaktionen ändern keine Geräte-EQs.
 
 **Hinweis:** Ein Kalibrier-Offset verschiebt die Pegelanzeige, verbessert aber weder die Frequenzauflösung noch einen durch Android-Effekte veränderten Frequenzgang. Ein Unterschied zum Gerätemeter ist nicht automatisch ein Fehler: erst Loopback-Quelle, Darstellung, Bandauflösung und Kalibrierung angleichen.
 

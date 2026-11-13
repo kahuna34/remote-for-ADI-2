@@ -17,7 +17,55 @@ import '../l10n/l10n.dart';
 import '../protocol/adi2_params.dart';
 import '../protocol/adi2_codec.dart';
 import 'outputs_page.dart';
+import 'responsive_layout.dart';
 import '../eq/eq_model.dart';
+
+/// Each tool supplies its own optional toolbar controls.
+/// New tools can return an empty list or different widget builders.
+extension AnalyzerToolPresentation on AnalyzerView {
+  String get title => switch (this) {
+    AnalyzerView.spectrum => tr('Spektrum'),
+  };
+
+  /// Werkzeuge mit Peak-Marken zeigen den Knopf „Peak hold“.
+  bool get hasPeakHold => switch (this) {
+    AnalyzerView.spectrum => true,
+  };
+  List<Widget> viewControls(AnalyzerController controller) => switch (this) {
+    AnalyzerView.spectrum => [
+      AnalyzerChoices<bool>(
+        key: const ValueKey('analyzer-spectrum-mode'),
+        values: const [false, true],
+        value: controller.bars,
+        label: (bars) => tr(bars ? 'Balken' : 'Linien'),
+        onSelected: controller.setBars,
+      ),
+    ],
+  };
+
+  List<Widget> settingsOptions(AnalyzerController controller) => switch (this) {
+    AnalyzerView.spectrum => [
+      _AnalyzerSettingField(
+        title: Text(tr('Darstellung')),
+        trailing: viewControls(controller).single,
+      ),
+      const AnalyzerBandSetting(),
+      SwitchListTile(
+        title: Text(tr('Peak hold')),
+        value: controller.peakHold,
+        onChanged: controller.setPeakHold,
+      ),
+      AnalyzerBallisticsSetting(controller: controller),
+      const AnalyzerPeakHoldSetting(),
+    ],
+  };
+
+  List<WidgetBuilder> get toolbarOptions => switch (this) {
+    AnalyzerView.spectrum => [
+      (context) => const AnalyzerBandSetting(inline: true),
+    ],
+  };
+}
 
 const analyzerColors = [
   Color(0xff65ed81),
@@ -37,11 +85,20 @@ List<String> get analyzerColorNames => [
   tr('Orange'),
 ];
 
+/// Zuletzt gemeldete Gerätefarbe: Beim Neuverbinden sind die Gerätewerte
+/// kurz leer; „Wie Gerät“ soll dann nicht auf Grün springen.
+int? _lastDeviceMeterColor;
+
 Color analyzerColor(Adi2Controller? ctrl) {
   final setting = AppSettings.instance.analyzerColor;
-  final index = setting < 0
-      ? ctrl?.value(Adi2Addr.device, DevIdx.meterColor) ?? 0
-      : setting;
+  int index;
+  if (setting < 0) {
+    final device = ctrl?.value(Adi2Addr.device, DevIdx.meterColor);
+    if (device != null) _lastDeviceMeterColor = device;
+    index = device ?? _lastDeviceMeterColor ?? 0;
+  } else {
+    index = setting;
+  }
   return analyzerColors[index.clamp(0, 5)];
 }
 
@@ -527,23 +584,56 @@ Future<void> showAnalyzerSettings(
                 listenable: controller,
                 builder: (context, _) => Column(
                   children: [
-                    SwitchListTile(
-                      title: Text(tr('Balken')),
-                      subtitle: const Text('25 Hz–20 kHz'),
-                      value: controller.bars,
-                      onChanged: controller.setBars,
+                    _AnalyzerSettingField(
+                      title: Text(tr('Werkzeug')),
+                      trailing: AnalyzerChoices<AnalyzerView>(
+                        key: const ValueKey('analyzer-tool'),
+                        values: AnalyzerView.values,
+                        value: controller.view,
+                        label: (tool) => tool.title,
+                        onSelected: controller.setView,
+                      ),
                     ),
-                    SwitchListTile(
-                      title: Text(tr('Peak hold')),
-                      value: controller.peakHold,
-                      onChanged: controller.setPeakHold,
-                    ),
-                    AnalyzerBallisticsSetting(controller: controller),
-                    const AnalyzerPeakHoldSetting(),
+                    ...controller.view.settingsOptions(controller),
                   ],
                 ),
               ),
-              const AnalyzerBandSetting(),
+              ListenableBuilder(
+                listenable: AppSettings.instance,
+                builder: (context, _) => _AnalyzerSettingField(
+                  title: Text(tr('Anzeige im Hauptfenster')),
+                  trailing: AnalyzerChoices<AnalyzerMainView>(
+                    key: const ValueKey('analyzer-main-view-setting'),
+                    values: isTablet(context)
+                        ? AnalyzerMainView.values
+                        : const [
+                            AnalyzerMainView.spectrum,
+                            AnalyzerMainView.levels,
+                          ],
+                    value:
+                        !isTablet(context) &&
+                            AppSettings.instance.analyzerMainView ==
+                                AnalyzerMainView.both
+                        ? AnalyzerMainView.spectrum
+                        : AppSettings.instance.analyzerMainView,
+                    label: (value) => tr(switch (value) {
+                      AnalyzerMainView.spectrum => 'Spektrum',
+                      AnalyzerMainView.levels => 'Pegel (Peak/RMS)',
+                      AnalyzerMainView.both => 'Beides',
+                    }),
+                    onSelected: AppSettings.instance.setAnalyzerMainView,
+                  ),
+                ),
+              ),
+              ListenableBuilder(
+                listenable: AppSettings.instance,
+                builder: (context, _) => SwitchListTile(
+                  key: const ValueKey('analyzer-player-setting'),
+                  title: Text(tr('Player beim Antippen des Graphen')),
+                  value: AppSettings.instance.analyzerPlayerOnTap,
+                  onChanged: AppSettings.instance.setAnalyzerPlayerOnTap,
+                ),
+              ),
               const AnalyzerColorSetting(),
               const AnalyzerRangeSetting(),
               AnalyzerCalibrationSetting(
@@ -749,6 +839,13 @@ List<String> calibrationToneBlockers(
   Adi2Controller? ctrl,
   AnalyzerController controller,
 ) {
+  if (controller.viaHost || ctrl?.viaHost == true) {
+    return [
+      tr(
+        'Kalibrier-Testton und Analyzer-Selbsttest: nur bei direkter USB-Verbindung.',
+      ),
+    ];
+  }
   if (ctrl == null ||
       ctrl.state != ConnState.connected ||
       ctrl.variant == null ||
@@ -956,6 +1053,8 @@ class _AnalyzerCalibrationSettingState
   Future<void> _automatic() => _change(() async {
     var useTone = false;
     final canUseTone =
+        !widget.controller.viaHost &&
+        widget.deviceController?.viaHost != true &&
         !kIsWeb &&
         (defaultTargetPlatform == TargetPlatform.android ||
             defaultTargetPlatform == TargetPlatform.macOS) &&
@@ -1001,6 +1100,12 @@ class _AnalyzerCalibrationSettingState
                           controller: c,
                           deviceController: widget.deviceController,
                         ),
+                        if (c.viaHost)
+                          Text(
+                            tr(
+                              'Kalibrier-Testton und Analyzer-Selbsttest: nur bei direkter USB-Verbindung.',
+                            ),
+                          ),
                         if (canUseTone)
                           SwitchListTile(
                             key: const ValueKey('calibration-test-tone'),

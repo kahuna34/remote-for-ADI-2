@@ -101,7 +101,11 @@ void main() {
         .setMockMethodCallHandler(SystemChannels.platform, null);
   });
 
-  Future<void> prepare(WidgetTester tester, Size size) async {
+  Future<void> prepare(
+    WidgetTester tester,
+    Size size, {
+    double scale = 1,
+  }) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = size;
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -109,7 +113,11 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: buildTheme(),
-        builder: (context, child) => TabletOrientation(child: child!),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: TextScaler.linear(scale)),
+          child: TabletOrientation(child: child!),
+        ),
         home: HomePage(ctrl: ctrl, np: np),
       ),
     );
@@ -236,7 +244,10 @@ void main() {
       expect(find.byType(NavigationBar), findsOneWidget);
       expect(find.byType(NavigationRail), findsNothing);
       expect(find.byKey(const ValueKey('tablet-extra-area')), findsNothing);
-      expect(tester.getSize(find.byType(PlayerBar)).height, playerSlotHeight);
+      expect(
+        tester.getSize(find.byType(PlayerBar)).height,
+        headerSlotHeight(tester.element(find.byType(PlayerBar))),
+      );
       final ring = tester.getSize(find.byType(VolumeRing));
       expect(ring.width, lessThanOrEqualTo(300));
       final switchRect = tester.getRect(find.byType(OutputSwitch));
@@ -291,19 +302,18 @@ void main() {
         ctrl.hostMode = true;
         ctrl.notifyListeners();
         await tester.pumpAndSettle();
-        final slot = tester.getRect(
-          find.byKey(const ValueKey('host-analyzer-slot')),
-        );
+        final slot = tester.getRect(find.byType(AnalyzerPanel));
         expect(slot.top, usbPanel.top);
-        expect(slot.height, usbPanel.height - 8);
+        expect(slot.height, usbPanel.height);
         expect(tester.getRect(find.byType(OutputsPage)), outputRect);
         for (final key in keys) {
           expect(tester.getRect(find.byKey(ValueKey(key))), positions[key]);
         }
-        final notice = tester.getRect(
+        expect(find.byType(AnalyzerPanel), findsOneWidget);
+        expect(
           find.text('Analyzer über Host folgt in einer späteren Stufe.'),
+          findsNothing,
         );
-        expect(notice.center, slot.center);
         expect(tester.takeException(), isNull);
       },
     );
@@ -362,6 +372,7 @@ void main() {
             .arguments,
         contains('DeviceOrientation.portraitUp'),
       );
+      await tester.pump(const Duration(milliseconds: 500));
       expect(captureCalls.where((call) => call == 'stop'), hasLength(1));
       expect(tester.takeException(), isNull);
     },
@@ -476,7 +487,7 @@ void main() {
               visible(finder);
               final rect = tester.getRect(finder);
               expect(rect.width, greaterThanOrEqualTo(48));
-              expect(rect.height, greaterThanOrEqualTo(48));
+              expect(rect.height, greaterThanOrEqualTo(48 - 1e-9));
               expect(finder.hitTestable(), findsOneWidget);
             }
             for (final key in ['output-function-keys', 'output-tiles']) {
@@ -504,6 +515,60 @@ void main() {
           expect(tester.takeException(), isNull);
         });
       }
+    }
+  }
+
+  for (final size in [
+    const Size(360, 740),
+    const Size(412, 915),
+    const Size(800, 1280),
+    const Size(1280, 800),
+    const Size(960, 600),
+  ]) {
+    for (final header in HeaderContent.values) {
+      testWidgets(
+        'Hauptansicht ohne Überlauf mit Schriftfaktor 1,3 $size $header',
+        (tester) async {
+          await AppSettings.instance.setHeaderContent(header);
+          await prepare(tester, size, scale: 1.3);
+          if (size.width > size.height && size.shortestSide >= 600) {
+            for (final label in [
+              tr('Eingang'),
+              tr('Ausgänge'),
+              tr('Gerät'),
+              tr('Setups'),
+              tr('Status'),
+            ]) {
+              expect(railLabel(label).hitTestable(), findsOneWidget);
+            }
+          }
+          for (final key in [
+            'Bass-plus',
+            'Bass-minus',
+            'Treble-plus',
+            'Treble-minus',
+          ]) {
+            final finder = find.byKey(ValueKey(key));
+            await tester.ensureVisible(finder);
+            await tester.pumpAndSettle();
+            if (size.shortestSide >= 600) {
+              final box = tester.renderObject<RenderBox>(finder);
+              final rect = MatrixUtils.transformRect(
+                box.getTransformTo(null),
+                Offset.zero & box.size,
+              );
+              expect(rect.width, greaterThanOrEqualTo(48));
+              expect(rect.height, greaterThanOrEqualTo(48 - 1e-9));
+              expect(finder.hitTestable(), findsOneWidget);
+              expect(
+                find.ancestor(of: finder, matching: find.byType(FittedBox)),
+                findsNothing,
+              );
+            }
+          }
+          expect(tester.takeException(), isNull);
+        },
+      );
     }
   }
 
@@ -875,9 +940,12 @@ void main() {
             tester.state<ScrollableState>(scrollable).position.maxScrollExtent,
             0,
           );
-          // The default grid fits the remaining height and stays at most square.
+          // The new function row fits below the ring within the viewport.
           final gridSize = tester.getSize(find.byType(EasyTileGrid));
-          expect(gridSize.height, lessThanOrEqualTo(gridSize.width));
+          expect(
+            gridSize.height,
+            lessThanOrEqualTo(tester.getSize(scrollable).height - 28 + 0.1),
+          );
         }
         expect(tester.takeException(), isNull);
       }

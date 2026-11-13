@@ -82,11 +82,45 @@ class _OutputsPageState extends State<OutputsPage> {
   Timer? _repeat; // Gemeinsame Wiederholung für die Schrittregler
   bool _holdingUp = false;
   bool _refPending = false;
+  bool _inputsBlocked = false;
+  int _inputGeneration = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _inputsBlocked = c.hostReconnecting;
+    c.addListener(_connectionChanged);
+  }
+
+  @override
+  void didUpdateWidget(OutputsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.ctrl != c) {
+      oldWidget.ctrl.removeListener(_connectionChanged);
+      c.addListener(_connectionChanged);
+      _inputGeneration++;
+      _repeat?.cancel();
+      _holdingUp = false;
+      _inputsBlocked = c.hostReconnecting;
+    }
+  }
+
+  void _connectionChanged() {
+    final blocked = c.hostReconnecting;
+    if (blocked && !_inputsBlocked) {
+      _inputGeneration++;
+      _repeat?.cancel();
+      _repeat = null;
+      if (_holdingUp) setState(() => _holdingUp = false);
+    }
+    _inputsBlocked = blocked;
+  }
 
   /// Gedrückthalten: leiser alle 150 ms (≈3,3 dB/s), lauter alle 250 ms
   /// (≈2 dB/s, zusätzlich vom Lautstärkeschutz gebremst). Jeder Schritt
   /// geht vom Ist-Wert am Gerät aus, damit sich nichts aufstaut.
   void _startRepeat(int a, int step, {VoidCallback? onStep}) {
+    if (c.hostReconnecting) return;
     _repeat?.cancel();
     if (onStep == null && step > 0) setState(() => _holdingUp = true);
     _repeat = Timer.periodic(Duration(milliseconds: step > 0 ? 250 : 150), (_) {
@@ -114,6 +148,8 @@ class _OutputsPageState extends State<OutputsPage> {
   /// Ref-Level erst nach Bestätigung umschalten; Lautstärke-Ausgleich
   /// ist vorausgewählt.
   Future<void> _confirmRef(OutputInfo o, int index) async {
+    if (c.hostReconnecting) return;
+    final generation = _inputGeneration;
     final v = c.variant!;
     final defRef = outputParams(
       v,
@@ -175,7 +211,10 @@ class _OutputsPageState extends State<OutputsPage> {
         ),
       ),
     );
-    if (ok == true) {
+    if (ok == true &&
+        mounted &&
+        generation == _inputGeneration &&
+        !c.hostReconnecting) {
       if (c.value(o.address, OutIdx.autoRef) == 1) {
         c.set(o.address, OutIdx.autoRef, 0);
       }
@@ -206,7 +245,7 @@ class _OutputsPageState extends State<OutputsPage> {
 
   bool _fixedRef(OutputInfo o) => refTable(c.variant!, o.address).length == 1;
 
-  String _fixedRefLabel(OutputInfo o) => trf('Ref {wert} dBu', {
+  String _fixedRefLabel(OutputInfo o) => trf('{wert} dBu', {
     'wert': refDbu(
       c.variant!,
       o.address,
@@ -223,6 +262,8 @@ class _OutputsPageState extends State<OutputsPage> {
 
   /// Ref-Level wählen (Kacheln), danach Bestätigung.
   Future<void> _pickRef(OutputInfo o) async {
+    if (c.hostReconnecting) return;
+    final generation = _inputGeneration;
     if (_fixedRef(o)) {
       _showFixedRef();
       return;
@@ -309,7 +350,12 @@ class _OutputsPageState extends State<OutputsPage> {
         ),
       ),
     );
-    if (picked == null || !mounted) return;
+    if (picked == null ||
+        !mounted ||
+        generation != _inputGeneration ||
+        c.hostReconnecting) {
+      return;
+    }
     await _selectRef(o, picked);
   }
 
@@ -325,7 +371,7 @@ class _OutputsPageState extends State<OutputsPage> {
 
   /// Gemeinsamer Auswahlweg für Sheet und Custom-Segmente.
   Future<void> _selectRef(OutputInfo o, int picked) async {
-    if (_refPending) return;
+    if (_refPending || c.hostReconnecting) return;
     if (picked == -1) {
       c.set(o.address, OutIdx.autoRef, 1);
       return;
@@ -365,6 +411,7 @@ class _OutputsPageState extends State<OutputsPage> {
 
   @override
   void dispose() {
+    c.removeListener(_connectionChanged);
     _repeat?.cancel();
     _flashTimer?.cancel();
     super.dispose();
@@ -396,6 +443,8 @@ class _OutputsPageState extends State<OutputsPage> {
 
   /// Loslassen stoppt jede Anhebung sofort. Weiter nur nach Bestätigung.
   Future<void> _onRelease(OutputInfo o) async {
+    if (c.hostReconnecting) return;
+    final generation = _inputGeneration;
     final pending = c.stopVolumeRamp(o.address);
     if (pending == null || !mounted) return;
     final now = c.valueOr(o.address, OutIdx.volume, pending) / 10;
@@ -444,7 +493,12 @@ class _OutputsPageState extends State<OutputsPage> {
         ),
       ),
     );
-    if (go == true && mounted) c.setVolume(o.address, pending);
+    if (go == true &&
+        mounted &&
+        generation == _inputGeneration &&
+        !c.hostReconnecting) {
+      c.setVolume(o.address, pending);
+    }
   }
 
   void _storeRecall(int a, int raw) {
@@ -781,7 +835,7 @@ class _OutputsPageState extends State<OutputsPage> {
     final label = Text(
       tr(band.label),
       maxLines: 1,
-      style: ts(isTablet(context) ? 15 : 13, weight: 500, color: Palette.muted),
+      style: buttonLabelStyle(context),
     );
     final control = Material(
       key: ValueKey('${band.label}-tile'),
@@ -789,7 +843,7 @@ class _OutputsPageState extends State<OutputsPage> {
       shape: _controlShape,
       clipBehavior: Clip.antiAlias,
       child: SizedBox(
-        width: isTablet(context) ? 64 : 56,
+        width: isTablet(context) ? 64 : (compact ? 56 : 64),
         child: Opacity(
           opacity: c.valueOr(address, EqIdx2.btEnable, 1) == 0 ? 0.45 : 1,
           child: Column(
@@ -801,7 +855,7 @@ class _OutputsPageState extends State<OutputsPage> {
                 onLongPress: () => _toneSheet(output, band),
                 child: SizedBox(
                   height: isTablet(context)
-                      ? 48
+                      ? 48 * MediaQuery.textScalerOf(context).scale(1)
                       : (compact ? 20 : _controlHeight) + 10 * growth,
                   child: isTablet(context) && compact
                       ? Column(
@@ -814,11 +868,7 @@ class _OutputsPageState extends State<OutputsPage> {
                                 fmtGain(c.eqValue(address, band.gainIdx) ?? 0),
                                 key: ValueKey('${band.label}-value'),
                                 maxLines: 1,
-                                style: ts(
-                                  15,
-                                  weight: 500,
-                                  color: Palette.amber,
-                                ),
+                                style: buttonStatusStyle(context, active: true),
                               ),
                             ),
                           ],
@@ -832,7 +882,7 @@ class _OutputsPageState extends State<OutputsPage> {
                 band.label,
                 1,
                 () => step(1),
-                width: isTablet(context) ? 64 : 56,
+                width: isTablet(context) ? 64 : (compact ? 56 : 64),
                 height: 48 + 6 * growth,
               ),
               if (!isTablet(context) || !compact) ...[
@@ -847,11 +897,7 @@ class _OutputsPageState extends State<OutputsPage> {
                         child: Text(
                           fmtGain(c.eqValue(address, band.gainIdx) ?? 0),
                           key: ValueKey('${band.label}-value'),
-                          style: ts(
-                            isTablet(context) ? 15 : 13,
-                            weight: 500,
-                            color: Palette.amber,
-                          ),
+                          style: buttonStatusStyle(context, active: true),
                         ),
                       ),
                     ),
@@ -864,7 +910,7 @@ class _OutputsPageState extends State<OutputsPage> {
                 band.label,
                 -1,
                 () => step(-1),
-                width: isTablet(context) ? 64 : 56,
+                width: isTablet(context) ? 64 : (compact ? 56 : 64),
                 height: 48 + 6 * growth,
               ),
             ],
@@ -898,7 +944,7 @@ class _OutputsPageState extends State<OutputsPage> {
           child: Center(
             child: Text(
               step > 0 ? '+' : '−',
-              style: ts(isTablet(context) ? 17 : 15, weight: 500),
+              style: buttonLabelStyle(context).copyWith(color: Palette.muted),
             ),
           ),
         ),
@@ -913,9 +959,7 @@ class _OutputsPageState extends State<OutputsPage> {
       c.set(address, def.index, (current + direction).clamp(def.min, def.max));
     }
 
-    final value = raw == 0
-        ? tr('C')
-        : '${raw < 0 ? tr('L') : tr('R')} ${def.format(raw.abs()).replaceAll('.', ',')}';
+    final value = formatBalance(raw);
     return Material(
       key: const ValueKey('Balance-tile'),
       color: Palette.surf,
@@ -925,7 +969,14 @@ class _OutputsPageState extends State<OutputsPage> {
         height: height,
         child: Row(
           children: [
-            _stepButton(address, 'Balance', -1, () => step(-1), height: height),
+            _stepButton(
+              address,
+              'Balance',
+              -1,
+              () => step(-1),
+              width: isTablet(context) ? 64 : 52,
+              height: height,
+            ),
             const VerticalDivider(width: 1),
             Expanded(
               child: InkWell(
@@ -936,13 +987,15 @@ class _OutputsPageState extends State<OutputsPage> {
                     padding: const EdgeInsets.symmetric(horizontal: 3),
                     child: FittedBox(
                       fit: BoxFit.scaleDown,
-                      child: Text(
-                        '${tr('Bal')} $value',
-                        style: ts(
-                          isTablet(context) ? 15 : 13,
-                          weight: 500,
-                          color: Palette.amber,
-                        ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(tr('Balance'), style: buttonLabelStyle(context)),
+                          Text(
+                            value,
+                            style: buttonStatusStyle(context, active: true),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -950,7 +1003,14 @@ class _OutputsPageState extends State<OutputsPage> {
               ),
             ),
             const VerticalDivider(width: 1),
-            _stepButton(address, 'Balance', 1, () => step(1), height: height),
+            _stepButton(
+              address,
+              'Balance',
+              1,
+              () => step(1),
+              width: isTablet(context) ? 64 : 52,
+              height: height,
+            ),
           ],
         ),
       ),
@@ -994,8 +1054,17 @@ class _OutputsPageState extends State<OutputsPage> {
             // The parent has already removed the header, app navigation and
             // system insets. Only the ring receives the remaining flex space.
             final compact = constraints.maxHeight < 720;
+            final output = _buildOutput(context, compact, compact ? 0 : 1);
+            final scale = MediaQuery.textScalerOf(context).scale(1);
+            // Large type on short tablet columns needs scrolling to preserve
+            // readable status text and the tone controls' touch targets.
+            final minHeight = 520 * scale;
             return TabletContent(
-              child: _buildOutput(context, compact, compact ? 0 : 1),
+              child: scale > 1 && constraints.maxHeight < minHeight
+                  ? SingleChildScrollView(
+                      child: SizedBox(height: minHeight, child: output),
+                    )
+                  : output,
             );
           }
           // Preserve the previous compact layout when the 120 px header is
@@ -1005,10 +1074,16 @@ class _OutputsPageState extends State<OutputsPage> {
           final growth = widget.useFreedSpace && constraints.hasBoundedHeight
               ? ((constraints.maxHeight - 440) / 120).clamp(0.0, 1.0)
               : 0.0;
-          final output = _buildOutput(context, baselineHeight < 500, growth);
+          final textScale = MediaQuery.textScalerOf(context).scale(1);
+          final output = _buildOutput(
+            context,
+            baselineHeight < 500 * textScale,
+            growth,
+          );
           // Rotation can lay out this page briefly beneath the analyzer's
           // fullscreen route. Keep controls usable on short viewports too.
-          if (constraints.maxHeight < 360) {
+          final largeText = textScale > 1;
+          if (constraints.maxHeight < (largeText ? 440 : 360)) {
             return SingleChildScrollView(
               child: SizedBox(height: 440, child: output),
             );
@@ -1023,6 +1098,29 @@ class _OutputsPageState extends State<OutputsPage> {
     final controlHeight = isTablet(context)
         ? 48.0
         : _controlHeight + 12 * growth;
+    final rowHeight = math.max(
+      // Die Kopfzeile braucht kompakt nur mindestens 48 px. Bis zu 16 px
+      // bleiben im kurzen Tablet-Querformat für Bass/Treble mit 48-px-Tasten.
+      controlHeight + (isTablet(context) && compact ? 0 : 16),
+      MediaQuery.textScalerOf(context).scale(isTablet(context) ? 28 : 26) *
+              1.2 +
+          6,
+    );
+    // Smartphone: Lock · −/+ · Link-Zeile höher, der Ring gibt oben Platz ab.
+    // Bei vergrößerter Schrift bleibt sie niedrig, damit Bass/Treble passen.
+    final phoneLockRowHeight =
+        (MediaQuery.textScalerOf(context).scale(1) > 1
+            ? 36.0
+            : (compact ? 44.0 : 56.0)) +
+        12 * growth;
+    // Tablet hochkant: Funktionstasten und Kacheln exakt gleich hoch.
+    final tabletRowHeight = 46 + 42 * MediaQuery.textScalerOf(context).scale(1);
+    Widget tabletKeyRow({required Widget child}) =>
+        isTablet(context) && !compact
+        ? SizedBox(height: tabletRowHeight, child: child)
+        : IntrinsicHeight(child: child);
+    // Lock/Link und Bass/Treble gleich breit.
+    final sideWidth = isTablet(context) ? 64.0 : (compact ? 56.0 : 64.0);
     final v = c.variant!;
     final outs = outputsFor(v);
     if (!v.isDac &&
@@ -1083,6 +1181,7 @@ class _OutputsPageState extends State<OutputsPage> {
 
     final volumeButtons = Row(
       key: const ValueKey('output-volume-buttons'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Expanded(
           child: _SoftButton(
@@ -1095,7 +1194,7 @@ class _OutputsPageState extends State<OutputsPage> {
             onHoldEnd: () => _stopRepeat(a),
           ),
         ),
-        SizedBox(width: compact ? 6 : 12),
+        const SizedBox(width: 8),
         Expanded(
           child: _SoftButton(
             icon: Icons.add,
@@ -1112,415 +1211,475 @@ class _OutputsPageState extends State<OutputsPage> {
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
-        20,
+        0,
         4,
-        20,
-        compact ? (isTablet(context) ? 0 : 2) : 10,
+        0,
+        compact ? (isTablet(context) ? 8 : 4) : 10,
       ),
       child: Column(
-        children: [
-          OutputSwitch(
-            compact: compact,
-            growth: growth,
-            outs: outs,
-            selected: a,
-            active: c.status?.activeOutput,
-            disabled: dualOff ? {Adi2Addr.ph12} : const {},
-            onSelect: (x) {
-              if (dualOff && x == Adi2Addr.ph12) {
-                ScaffoldMessenger.of(context)
-                  ..hideCurrentSnackBar()
-                  ..showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        tr(
-                          'Phones 1/2 ist aus, weil Dual Phones nicht aktiv ist. Gedrückt halten zum Einschalten.',
+        children:
+            [
+              OutputSwitch(
+                compact: compact,
+                growth: growth,
+                outs: outs,
+                selected: a,
+                active: c.status?.activeOutput,
+                disabled: dualOff ? {Adi2Addr.ph12} : const {},
+                onSelect: (x) {
+                  if (dualOff && x == Adi2Addr.ph12) {
+                    ScaffoldMessenger.of(context)
+                      ..hideCurrentSnackBar()
+                      ..showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            tr(
+                              'Phones 1/2 ist aus, weil Dual Phones nicht aktiv ist. Gedrückt halten zum Einschalten.',
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                  );
-                return;
-              }
-              _stopRepeat(a);
-              c.stopVolumeRamp(a);
-              setState(() => _sel = x);
-              widget.onOutputSelected?.call();
-            },
-            onLongPress: v.isDac ? null : _phonesSheet,
-          ),
-          SizedBox(height: isTablet(context) && compact ? 4 : 8),
-          Expanded(
-            child: Stack(
-              key: const ValueKey('output-ring-area'),
-              children: [
-                Positioned.fill(
-                  top: controlHeight + (isTablet(context) && compact ? 0 : 8),
-                  bottom: isTablet(context) && compact ? 0 : 8,
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: isTablet(context) ? 64 : 56,
-                        child: _toneControl(
-                          o,
-                          eqBands.firstWhere((b) => b.isBassTreble),
-                          compact,
-                          growth: growth,
+                      );
+                    return;
+                  }
+                  _stopRepeat(a);
+                  c.stopVolumeRamp(a);
+                  setState(() => _sel = x);
+                  widget.onOutputSelected?.call();
+                },
+                onLongPress: v.isDac ? null : _phonesSheet,
+              ),
+              SizedBox(height: compact ? 4 : 8),
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, area) {
+                    // Ref Level und DA-Filter so breit wie die Mute-Taste.
+                    final keyCount = [
+                      c.value(a, OutIdx.mute) != null,
+                      c.value(a, OutIdx.dim) != null,
+                      a == Adi2Addr.line && c.value(a, OutIdx.loudness) != null,
+                      crossfeed != null,
+                      true,
+                    ].where((x) => x).length;
+                    // Balance behält Platz für −, Wert und +.
+                    final balanceMin = isTablet(context) ? 220.0 : 180.0;
+                    final topSide = math.min(
+                      (area.maxWidth - 40 - 8 * (keyCount - 1)) / keyCount,
+                      (area.maxWidth - 56 - balanceMin) / 2,
+                    );
+                    return Stack(
+                      key: const ValueKey('output-ring-area'),
+                      children: [
+                        Positioned.fill(
+                          left: 20,
+                          right: 20,
+                          top:
+                              rowHeight +
+                              (isTablet(context) && compact ? 0 : 8),
+                          bottom: isTablet(context) && compact ? 0 : 8,
+                          child: Row(
+                            children: [
+                              SizedBox(
+                                width: isTablet(context)
+                                    ? 64
+                                    : (compact ? 56 : 64),
+                                child: _toneControl(
+                                  o,
+                                  eqBands.firstWhere((b) => b.isBassTreble),
+                                  compact,
+                                  growth: growth,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: LayoutBuilder(
+                                  builder: (context, ringBox) => Center(
+                                    child: SizedBox(
+                                      height:
+                                          !isTablet(context) &&
+                                              (widget.useFreedSpace ||
+                                                  MediaQuery.orientationOf(
+                                                        context,
+                                                      ) ==
+                                                      Orientation.portrait)
+                                          ? math.min(
+                                              math.min(ringBox.maxWidth, 300) *
+                                                  (MediaQuery.orientationOf(
+                                                            context,
+                                                          ) ==
+                                                          Orientation.portrait
+                                                      ? 0.85
+                                                      : 1.0) *
+                                                  0.83,
+                                              ringBox.maxHeight,
+                                            )
+                                          // Tablet: etwas kleiner, damit die
+                                          // Meldung darüber Luft hat.
+                                          : ringBox.maxHeight *
+                                                (isTablet(context) ? 0.8 : 1),
+                                      child: VolumeRing(
+                                        actualDb: volRaw / 10,
+                                        targetDb: target == null
+                                            ? null
+                                            : target / 10,
+                                        limitDb: limitRaw / 10,
+                                        muted: muted || autoMute,
+                                        enabled: !locked,
+                                        onChanged: (db) =>
+                                            c.setVolume(a, (db * 10).round()),
+                                        onRelease: () => _onRelease(o),
+                                        levelText: _levelText(v, a, volRaw),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              SizedBox(
+                                width: isTablet(context)
+                                    ? 64
+                                    : (compact ? 56 : 64),
+                                child: _toneControl(
+                                  o,
+                                  eqBands.last,
+                                  compact,
+                                  growth: growth,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: LayoutBuilder(
-                          builder: (context, ringBox) => Center(
-                            child: SizedBox(
-                              height: widget.useFreedSpace && !isTablet(context)
-                                  ? math.min(
-                                      math.min(ringBox.maxWidth, 300) * 0.83,
-                                      ringBox.maxHeight,
-                                    )
-                                  : ringBox.maxHeight,
-                              child: VolumeRing(
-                                actualDb: volRaw / 10,
-                                targetDb: target == null ? null : target / 10,
-                                limitDb: limitRaw / 10,
-                                muted: muted || autoMute,
-                                enabled: !locked,
-                                onChanged: (db) =>
-                                    c.setVolume(a, (db * 10).round()),
-                                onRelease: () => _onRelease(o),
-                                levelText: _levelText(v, a, volRaw),
+                        Positioned(
+                          top: 0,
+                          left: 20 + topSide + 8,
+                          right: 20 + topSide + 8,
+                          child: _balanceControl(
+                            a,
+                            def(OutIdx.balance),
+                            rowHeight,
+                          ),
+                        ),
+                        // Ref-Level oben links, spiegelbildlich zum DA-Filter.
+                        if (_fixedRef(o) || c.value(a, OutIdx.refLevel) != null)
+                          Positioned(
+                            top: 0,
+                            left: 20,
+                            width: topSide,
+                            child: _SideButton(
+                              key: const ValueKey('output-ref-level'),
+                              height: rowHeight,
+                              caption: tr('Ref Level'),
+                              icon: _fixedRef(o)
+                                  ? Icons.lock_outline
+                                  : Icons.tune,
+                              label: _fixedRef(o)
+                                  ? _fixedRefLabel(o)
+                                  : '${c.value(a, OutIdx.autoRef) == 1 ? '${tr('Auto')} ' : ''}'
+                                        '${def(OutIdx.refLevel).format(c.valueOr(a, OutIdx.refLevel, 0))}',
+                              on:
+                                  !_fixedRef(o) &&
+                                  c.value(a, OutIdx.autoRef) == 1,
+                              onTap: () => _pickRef(o),
+                            ),
+                          ),
+                        // DA-Filter oben rechts (Ecke neben dem Bogen ist frei)
+                        if (c.value(a, OutIdx.daFilter) != null)
+                          Positioned(
+                            top: 0,
+                            right: 20,
+                            width: topSide,
+                            child: _SideButton(
+                              key: const ValueKey('output-da-filter'),
+                              height: rowHeight,
+                              caption: tr('DA-Filter'),
+                              icon: Icons.filter_alt_outlined,
+                              label: def(OutIdx.daFilter)
+                                  .format(c.valueOr(a, OutIdx.daFilter, 0)),
+                              on: false,
+                              onTap: () => _pickChoice(a, def(OutIdx.daFilter)),
+                            ),
+                          ),
+                        // Use the ring's upper margin for tablet hints without taking
+                        // flex space or covering its volume and dBu labels.
+                        if (hint.isNotEmpty)
+                          Positioned(
+                            left: 92,
+                            right: 92,
+                            top: rowHeight + (compact ? 22 : 34),
+                            child: IgnorePointer(
+                              child: ColoredBox(
+                                color: Palette.bg,
+                                child: Text(
+                                  hint,
+                                  key: const ValueKey('output-hint-overlay'),
+                                  maxLines: 1,
+                                  textAlign: TextAlign.center,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: ts(13, weight: 500, color: hintColor),
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      SizedBox(
-                        width: isTablet(context) ? 64 : 56,
-                        child: _toneControl(
-                          o,
-                          eqBands.last,
-                          compact,
-                          growth: growth,
-                        ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    );
+                  },
                 ),
-                Positioned(
-                  top: 0,
-                  left: _sideWidth + 8,
-                  right: _sideWidth + 8,
-                  child: _balanceControl(a, def(OutIdx.balance), controlHeight),
-                ),
-                // Ref-Level oben links, spiegelbildlich zum DA-Filter.
-                if (_fixedRef(o) || c.value(a, OutIdx.refLevel) != null)
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    width: _sideWidth,
-                    child: _SideButton(
-                      key: const ValueKey('output-ref-level'),
-                      height: controlHeight,
-                      icon: _fixedRef(o) ? Icons.lock_outline : Icons.tune,
-                      label: _fixedRef(o)
-                          ? _fixedRefLabel(o)
-                          : '${c.value(a, OutIdx.autoRef) == 1 ? '${tr('Auto')} ' : ''}'
-                                '${def(OutIdx.refLevel).format(c.valueOr(a, OutIdx.refLevel, 0))}',
-                      on: !_fixedRef(o) && c.value(a, OutIdx.autoRef) == 1,
-                      onTap: () => _pickRef(o),
-                    ),
-                  ),
-                // DA-Filter oben rechts (Ecke neben dem Bogen ist frei)
-                if (c.value(a, OutIdx.daFilter) != null)
-                  Positioned(
-                    top: 0,
-                    right: 0,
-                    width: _sideWidth,
-                    child: _SideButton(
-                      key: const ValueKey('output-da-filter'),
-                      height: controlHeight,
-                      icon: Icons.filter_alt_outlined,
-                      label: def(OutIdx.daFilter)
-                          .format(c.valueOr(a, OutIdx.daFilter, 0)),
-                      on: false,
-                      onTap: () => _pickChoice(a, def(OutIdx.daFilter)),
-                    ),
-                  ),
-                // Use the ring's upper margin for tablet hints without taking
-                // flex space or covering its volume and dBu labels.
-                if (isTablet(context) && hint.isNotEmpty)
-                  Positioned(
-                    left: 72,
-                    right: 72,
-                    top: controlHeight + (compact ? 0 : 8),
-                    child: IgnorePointer(
-                      child: ColoredBox(
-                        color: Palette.bg,
-                        child: Text(
-                          hint,
-                          key: const ValueKey('output-hint-overlay'),
-                          maxLines: 1,
-                          textAlign: TextAlign.center,
-                          overflow: TextOverflow.ellipsis,
-                          style: ts(13, weight: 500, color: hintColor),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          // Zeile unter dem Ring: Lock | Hinweis | Link
-          SizedBox(
-            height: isTablet(context) ? 48 : 36 + 12 * growth,
-            child: Row(
-              children: [
-                SizedBox(
-                  width: compact ? 56 : _sideWidth,
-                  child: c.value(a, OutIdx.lockVolume) == null
-                      ? null
-                      : _SideButton(
-                          key: const ValueKey('output-lock'),
-                          height: controlHeight,
-                          icon: locked ? Icons.lock : Icons.lock_open,
-                          label: tr('Lock'),
-                          on: locked,
-                          onTap: () =>
-                              c.set(a, OutIdx.lockVolume, locked ? 0 : 1),
-                        ),
-                ),
-                Expanded(
-                  child: compact
-                      ? volumeButtons
-                      : isTablet(context)
-                      ? const SizedBox.shrink()
-                      : Center(
-                          child: Text(
-                            hint,
-                            maxLines: 2,
-                            textAlign: TextAlign.center,
-                            overflow: TextOverflow.ellipsis,
-                            style: ts(13, weight: 500, color: hintColor),
-                          ),
-                        ),
-                ),
-                SizedBox(
-                  width: compact ? 56 : _sideWidth,
-                  child: _SideButton(
-                    key: const ValueKey('output-link'),
-                    height: controlHeight,
-                    icon: Icons.link,
-                    label: linked ? '${c.opts.linked.length}' : tr('Link'),
-                    on: linked,
-                    onTap: () {
-                      if (linked) {
-                        for (final x in c.opts.linked.toList()) {
-                          c.setLinked(x, false);
-                        }
-                      } else {
-                        _linkSheet(outs, a);
-                      }
-                    },
-                    onLongPress: () => _linkSheet(outs, a),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (!isTablet(context) && compact && hint.isNotEmpty)
-            Text(
-              hint,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: ts(11, color: hintColor),
-            ),
-          if (!compact) const SizedBox(height: 4),
-          if (!compact) volumeButtons,
-          SizedBox(height: compact ? 3 : 10),
-          IntrinsicHeight(
-            child: Row(
-              key: const ValueKey('output-function-keys'),
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children:
-                  [
-                        if (c.value(a, OutIdx.mute) != null)
-                          _Key(
-                            compact: compact,
-                            icon: Icons.volume_off_outlined,
-                            label: tr('Mute'),
-                            caption: _muteCondition(a),
-                            on: muted || autoMute,
-                            color: Palette.red,
-                            hasMenu: true,
-                            onLongPress: () => _muteSheet(),
-                            onTap: () => c.set(a, OutIdx.mute, muted ? 0 : 1),
-                          ),
-                        if (c.value(a, OutIdx.dim) != null)
-                          _Key(
-                            compact: compact,
-                            icon: Icons.brightness_low_outlined,
-                            label: tr('Dim'),
-                            on: c.valueOr(a, OutIdx.dim, 0) != 0,
-                            onLongPress: _dimInfo,
-                            onTap: () => c.set(
-                              a,
-                              OutIdx.dim,
-                              c.valueOr(a, OutIdx.dim, 0) != 0 ? 0 : 1,
+              ),
+              // Zeile unter dem Ring: Lock | Hinweis | Link
+              SizedBox(
+                // Smartphone: größere Zeile, die Mitte hat genug Platz.
+                height: isTablet(context) ? 48 : phoneLockRowHeight,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(
+                      width: sideWidth,
+                      child: c.value(a, OutIdx.lockVolume) == null
+                          ? null
+                          : _SideButton(
+                              key: const ValueKey('output-lock'),
+                              height: isTablet(context)
+                                  ? controlHeight
+                                  : phoneLockRowHeight,
+                              icon: locked ? Icons.lock : Icons.lock_open,
+                              label: tr('Lock'),
+                              on: locked,
+                              onTap: () =>
+                                  c.set(a, OutIdx.lockVolume, locked ? 0 : 1),
                             ),
-                          ),
-                        // Kopfhörer brauchen keine Loudness-Taste; wie beim
-                        // IEM bleibt sie dort nur in den Einstellungen.
-                        if (a == Adi2Addr.line &&
-                            c.value(a, OutIdx.loudness) != null)
-                          _Key(
-                            compact: compact,
-                            icon: Icons.graphic_eq,
-                            label: tr('Loudness'),
-                            on: c.valueOr(a, OutIdx.loudness, 0) != 0,
-                            hasMenu: true,
-                            onLongPress: () => _paramSheet(
-                              trf('Loudness, {name}', {'name': o.name}),
-                              a,
-                              defs
-                                  .where(
-                                    (d) =>
-                                        d.index >= OutIdx.loudness &&
-                                        d.index <= OutIdx.loudLowVolRef,
-                                  )
-                                  .toList(),
-                              note: tr(
-                                'Hebt Bass und Höhen bei leiser Lautstärke an. Unterhalb von „Low Vol Ref“ wirkt die volle Anhebung, 20 dB darüber keine mehr.',
+                    ),
+                    const SizedBox(width: 8),
+                    // Lock · −0,5 dB · +0,5 dB · Link in einer Zeile: spart
+                    // eine ganze Zeile Höhe.
+                    Expanded(child: volumeButtons),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: sideWidth,
+                      child: _SideButton(
+                        key: const ValueKey('output-link'),
+                        height: isTablet(context)
+                            ? controlHeight
+                            : phoneLockRowHeight,
+                        icon: Icons.link,
+                        label: linked ? '${c.opts.linked.length}' : tr('Link'),
+                        on: linked,
+                        onTap: () {
+                          if (linked) {
+                            for (final x in c.opts.linked.toList()) {
+                              c.setLinked(x, false);
+                            }
+                          } else {
+                            _linkSheet(outs, a);
+                          }
+                        },
+                        onLongPress: () => _linkSheet(outs, a),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              tabletKeyRow(
+                child: Row(
+                  key: const ValueKey('output-function-keys'),
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children:
+                      [
+                            if (c.value(a, OutIdx.mute) != null)
+                              _Key(
+                                compact: compact,
+                                icon: Icons.volume_off_outlined,
+                                label: tr('Mute'),
+                                tooltip: _muteCondition(a),
+                                on: muted || autoMute,
+                                color: Palette.red,
+                                hasMenu: true,
+                                onLongPress: () => _muteSheet(),
+                                onTap: () =>
+                                    c.set(a, OutIdx.mute, muted ? 0 : 1),
                               ),
-                            ),
-                            onTap: () => c.set(
-                              a,
-                              OutIdx.loudness,
-                              c.valueOr(a, OutIdx.loudness, 0) != 0 ? 0 : 1,
-                            ),
-                          ),
-                        if (crossfeed != null)
-                          _Key(
-                            compact: compact,
-                            icon: Icons.spatial_audio_off,
-                            label: tr('Crossfeed'),
-                            caption: def(OutIdx.crossfeed).format(crossfeed),
-                            on: crossfeed != 0,
-                            hasMenu: true,
-                            onTap: () {
-                              if (crossfeed > 0) {
-                                _lastCrossfeed[a] = crossfeed;
-                              }
-                              c.set(
-                                a,
-                                OutIdx.crossfeed,
-                                crossfeed == 0 ? (_lastCrossfeed[a] ?? 1) : 0,
-                              );
-                            },
-                            onLongPress: () =>
-                                _pickChoice(a, def(OutIdx.crossfeed)),
-                          ),
-                        _Key(
-                          compact: compact,
-                          icon: Icons.bookmark_outline,
-                          label: recall == null
-                              ? tr('Recall')
-                              : _short(recall / 10),
-                          caption: recall == null
-                              ? tr('speichern')
-                              : tr('Recall'),
-                          on: _recallFlash,
-                          onTap: locked
-                              ? null
-                              : () {
-                                  if (recall == null) {
-                                    _storeRecall(a, volRaw);
-                                  } else {
-                                    c.recall(a);
-                                    _flashRecall();
+                            if (c.value(a, OutIdx.dim) != null)
+                              _Key(
+                                compact: compact,
+                                icon: Icons.brightness_low_outlined,
+                                label: tr('Dim'),
+                                on: c.valueOr(a, OutIdx.dim, 0) != 0,
+                                onLongPress: _dimInfo,
+                                onTap: () => c.set(
+                                  a,
+                                  OutIdx.dim,
+                                  c.valueOr(a, OutIdx.dim, 0) != 0 ? 0 : 1,
+                                ),
+                              ),
+                            // Kopfhörer brauchen keine Loudness-Taste; wie beim
+                            // IEM bleibt sie dort nur in den Einstellungen.
+                            if (a == Adi2Addr.line &&
+                                c.value(a, OutIdx.loudness) != null)
+                              _Key(
+                                compact: compact,
+                                icon: Icons.graphic_eq,
+                                label: tr('Loudness'),
+                                on: c.valueOr(a, OutIdx.loudness, 0) != 0,
+                                hasMenu: true,
+                                onLongPress: () => _paramSheet(
+                                  trf('Loudness, {name}', {'name': o.name}),
+                                  a,
+                                  defs
+                                      .where(
+                                        (d) =>
+                                            d.index >= OutIdx.loudness &&
+                                            d.index <= OutIdx.loudLowVolRef,
+                                      )
+                                      .toList(),
+                                  note: tr(
+                                    'Hebt Bass und Höhen bei leiser Lautstärke an. Unterhalb von „Low Vol Ref“ wirkt die volle Anhebung, 20 dB darüber keine mehr.',
+                                  ),
+                                ),
+                                onTap: () => c.set(
+                                  a,
+                                  OutIdx.loudness,
+                                  c.valueOr(a, OutIdx.loudness, 0) != 0 ? 0 : 1,
+                                ),
+                              ),
+                            if (crossfeed != null)
+                              _Key(
+                                compact: compact,
+                                icon: Icons.spatial_audio_off,
+                                label: tr('Crossfeed'),
+                                caption: def(OutIdx.crossfeed)
+                                    .format(crossfeed),
+                                on: crossfeed != 0,
+                                hasMenu: true,
+                                onTap: () {
+                                  if (crossfeed > 0) {
+                                    _lastCrossfeed[a] = crossfeed;
                                   }
+                                  c.set(
+                                    a,
+                                    OutIdx.crossfeed,
+                                    crossfeed == 0
+                                        ? (_lastCrossfeed[a] ?? 1)
+                                        : 0,
+                                  );
                                 },
-                          hasMenu: true,
-                          onLongPress: () => _recallSheet(a, o.name),
+                                onLongPress: () =>
+                                    _pickChoice(a, def(OutIdx.crossfeed)),
+                              ),
+                            _Key(
+                              compact: compact,
+                              icon: Icons.bookmark_outline,
+                              label: tr('Recall'),
+                              caption: recall == null
+                                  ? tr('speichern')
+                                  : '${_short(recall / 10)} dB',
+                              on: _recallFlash,
+                              onTap: locked
+                                  ? null
+                                  : () {
+                                      if (recall == null) {
+                                        _storeRecall(a, volRaw);
+                                      } else {
+                                        c.recall(a);
+                                        _flashRecall();
+                                      }
+                                    },
+                              hasMenu: true,
+                              onLongPress: () => _recallSheet(a, o.name),
+                            ),
+                          ]
+                          .expand(
+                            (w) => [
+                              Expanded(child: w),
+                              const SizedBox(width: 8),
+                            ],
+                          )
+                          .toList()
+                        ..removeLast(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              tabletKeyRow(
+                child: Row(
+                  key: const ValueKey('output-tiles'),
+                  crossAxisAlignment: isTablet(context) && !compact
+                      ? CrossAxisAlignment.stretch
+                      : CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: _Tile(
+                        compact: compact,
+                        icon: Icons.input,
+                        label: tr('Quelle'),
+                        value: c.value(a, OutIdx.source) == null
+                            ? tr('wie Line')
+                            : def(OutIdx.source)
+                                  .format(c.valueOr(a, OutIdx.source, 0)),
+                        onTap: c.value(a, OutIdx.source) == null
+                            ? null
+                            : () => _pickChoice(a, def(OutIdx.source)),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _Tile(
+                        compact: compact,
+                        icon: Icons.tune,
+                        label: tr('EQ'),
+                        value: c.valueOr(a + 1, 2, 0) != 0
+                            ? tr('An')
+                            : tr('Aus'),
+                        highlight: c.valueOr(a + 1, 2, 0) != 0,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                EqPage(ctrl: c, channelAddr: a, title: o.name),
+                          ),
                         ),
-                      ]
-                      .expand(
-                        (w) => [Expanded(child: w), const SizedBox(width: 8)],
-                      )
-                      .toList()
-                    ..removeLast(),
-            ),
-          ),
-          SizedBox(height: compact ? 3 : 10),
-          Row(
-            key: const ValueKey('output-tiles'),
-            children: [
-              Expanded(
-                child: _Tile(
-                  compact: compact,
-                  icon: Icons.input,
-                  label: tr('Quelle'),
-                  value: c.value(a, OutIdx.source) == null
-                      ? tr('wie Line')
-                      : def(OutIdx.source)
-                            .format(c.valueOr(a, OutIdx.source, 0)),
-                  onTap: c.value(a, OutIdx.source) == null
-                      ? null
-                      : () => _pickChoice(a, def(OutIdx.source)),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: _Tile(
-                  compact: compact,
-                  icon: Icons.tune,
-                  label: tr('EQ'),
-                  value: c.valueOr(a + 1, 2, 0) != 0 ? tr('an') : tr('aus'),
-                  highlight: c.valueOr(a + 1, 2, 0) != 0,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          EqPage(ctrl: c, channelAddr: a, title: o.name),
+                      ),
                     ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: _Tile(
-                  compact: compact,
-                  icon: Icons.shield_outlined,
-                  label: tr('Limit'),
-                  value: c.opts.of(a).limitDbu == null
-                      ? tr('aus')
-                      : _dbu(c.opts.of(a).limitDbu!),
-                  highlight: c.opts.of(a).limitDbu != null,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ProtectionPage(ctrl: c, out: o),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _Tile(
+                        compact: compact,
+                        icon: Icons.shield_outlined,
+                        label: tr('Limit'),
+                        value: c.opts.of(a).limitDbu == null
+                            ? tr('Aus')
+                            : _dbu(c.opts.of(a).limitDbu!),
+                        highlight: c.opts.of(a).limitDbu != null,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ProtectionPage(ctrl: c, out: o),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: _Tile(
-                  compact: compact,
-                  icon: Icons.settings_outlined,
-                  label: tr('Settings'),
-                  value: o.name,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => OutputSettingsPage(ctrl: c, out: o),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _Tile(
+                        compact: compact,
+                        icon: Icons.settings_outlined,
+                        label: tr('Settings'),
+                        value: o.name,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => OutputSettingsPage(ctrl: c, out: o),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ),
-            ],
-          ),
-        ],
+            ].map((child) {
+              if (child is Expanded) return child;
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: child,
+              );
+            }).toList(),
       ),
     );
   }
@@ -1636,24 +1795,20 @@ class _SoftButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final col = onTap == null ? Palette.muted : Palette.text;
     return GestureDetector(
       onLongPressStart: onHoldStart == null ? null : (_) => onHoldStart!(),
       onLongPressEnd: onHoldStart == null ? null : (_) => onHoldEnd?.call(),
       onLongPressCancel: onHoldStart == null ? null : () => onHoldEnd?.call(),
-      child: _material(context, col),
+      child: _material(context),
     );
   }
 
-  Widget _material(BuildContext context, Color col) {
+  Widget _material(BuildContext context) {
     return Material(
       color: Palette.surf,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: const BorderSide(color: Palette.line),
-      ),
+      shape: _controlShape,
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         onTap: onTap,
         child: Container(
           constraints: isTablet(context)
@@ -1666,17 +1821,17 @@ class _SoftButton extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (icon != null) ...[
-                Icon(icon, size: 20, color: col),
-                const SizedBox(width: 8),
+                Icon(icon, size: 20, color: Palette.muted),
+                SizedBox(width: isTablet(context) ? 8 : 4),
               ],
+              // Nie abschneiden: bei knapper Breite etwas kleiner.
               Flexible(
-                child: Text(
-                  label,
-                  overflow: TextOverflow.ellipsis,
-                  style: ts(
-                    isTablet(context) ? 17 : 15,
-                    weight: 500,
-                    color: col,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    style: buttonLabelStyle(context),
                   ),
                 ),
               ),
@@ -1704,6 +1859,7 @@ class _Key extends StatelessWidget {
     this.color = Palette.amber,
     this.hasMenu = false,
     this.caption,
+    this.tooltip,
   });
   final IconData icon;
   final String label;
@@ -1711,125 +1867,99 @@ class _Key extends StatelessWidget {
   final bool compact;
   final Color color;
   final String? caption;
+  final String? tooltip;
   final bool hasMenu; // gedrückt halten öffnet Einstellungen
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
-    final fg = on ? Palette.text : Palette.muted;
-    return Material(
-      color: on
-          ? Color.alphaBlend(color.withValues(alpha: 0.14), Palette.surf)
-          : Palette.surf,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: on ? color : Palette.line),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        onLongPress: onLongPress,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: isTablet(context) ? 48 : 0),
-          child: Stack(
-            children: [
-              if (hasMenu)
-                Positioned(
-                  top: 6,
-                  right: 6,
-                  child: Icon(Icons.more_horiz, size: 14, color: Palette.muted),
-                ),
-              Positioned.fill(
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    6,
-                    compact ? 4 : 7,
-                    6,
-                    compact ? 4 : 8,
+    return Tooltip(
+      message: tooltip ?? '',
+      child: Material(
+        color: on
+            ? Color.alphaBlend(color.withValues(alpha: 0.14), Palette.surf)
+            : Palette.surf,
+        shape: _controlShape.copyWith(
+          side: BorderSide(color: on ? color : Palette.line),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: onTap,
+          onLongPress: onLongPress,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: isTablet(context) ? 48 : 0),
+            child: Stack(
+              children: [
+                if (hasMenu)
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: Icon(
+                      Icons.more_horiz,
+                      size: 14,
+                      color: Palette.muted,
+                    ),
                   ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 22,
-                        height: 3,
-                        decoration: BoxDecoration(
-                          color: on ? color : Palette.line,
-                          borderRadius: BorderRadius.circular(2),
-                          boxShadow: on
-                              ? [
-                                  BoxShadow(
-                                    color: color.withValues(alpha: 0.6),
-                                    blurRadius: 6,
-                                  ),
-                                ]
-                              : null,
+                Positioned.fill(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      6,
+                      compact ? 1 : 7,
+                      6,
+                      compact ? 1 : 8,
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        // Kein LED-Strich mehr: Zustand zeigen Symbol und
+                        // Statuszeile.
+                        Icon(
+                          icon,
+                          size: compact ? 16 : 20,
+                          color: on ? color : Palette.muted,
                         ),
-                      ),
-                      SizedBox(height: compact ? 3 : 7),
-                      Icon(
-                        icon,
-                        size: compact ? 16 : 20,
-                        color: on ? color : Palette.muted,
-                      ),
-                      SizedBox(height: compact ? 2 : 5),
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          label,
-                          maxLines: 1,
-                          style: ts(
-                            compact ? 12 : (isTablet(context) ? 16 : 14),
-                            weight: 600,
-                            width: 95,
-                            color: fg,
+                        SizedBox(height: compact ? 0 : 5),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            label,
+                            maxLines: 1,
+                            style: buttonLabelStyle(context),
                           ),
                         ),
-                      ),
-                      if (caption != null)
                         Text(
-                          caption!,
+                          caption ?? tr(on ? 'An' : 'Aus'),
                           maxLines: 1,
-                          style: ts(
-                            compact ? 10 : 11,
-                            color: Palette.muted,
-                            narrow: true,
-                          ),
+                          overflow: TextOverflow.ellipsis,
+                          style: buttonStatusStyle(context, active: on),
                         ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              // Unsichtbarer Platzhalter gibt der Taste ihre Höhe.
-              Opacity(
-                opacity: 0,
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    6,
-                    compact ? 4 : 7,
-                    6,
-                    compact ? 4 : 8,
-                  ),
-                  child: Column(
-                    children: [
-                      SizedBox(
-                        height: compact ? 3 + 3 + 16 + 2 : 3 + 7 + 20 + 5,
-                      ),
-                      Text(
-                        'Ag',
-                        style: ts(
-                          compact ? 12 : (isTablet(context) ? 16 : 14),
-                          weight: 600,
-                        ),
-                      ),
-                      Text('Ag', style: ts(compact ? 10 : 11, narrow: true)),
-                    ],
+                // Unsichtbarer Platzhalter gibt der Taste ihre Höhe.
+                Opacity(
+                  opacity: 0,
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      6,
+                      compact ? 1 : 7,
+                      6,
+                      compact ? 1 : 8,
+                    ),
+                    child: Column(
+                      children: [
+                        SizedBox(height: compact ? 3 + 16 : 3 + 7 + 20 + 5),
+                        Text('Ag', style: buttonLabelStyle(context)),
+                        Text('Ag', style: buttonStatusStyle(context)),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -1859,55 +1989,47 @@ class _Tile extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (!compact) ...[
-          Icon(icon, size: 18, color: Palette.muted),
+          Icon(
+            icon,
+            size: 18,
+            color: highlight ? Palette.amber : Palette.muted,
+          ),
           const SizedBox(height: 3),
         ],
         FittedBox(
           fit: BoxFit.scaleDown,
-          child: Text(
-            label,
-            maxLines: 1,
-            style: ts(
-              compact ? 12 : (isTablet(context) ? 15 : 13),
-              weight: 600,
-            ),
-          ),
+          child: Text(label, maxLines: 1, style: buttonLabelStyle(context)),
         ),
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Text(
-            value,
-            maxLines: 1,
-            style: ts(
-              compact ? 11 : (isTablet(context) ? 14 : 12),
-              weight: 500,
-              narrow: true,
-              color: highlight ? Palette.amber : Palette.muted,
-            ),
-          ),
+        Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: buttonStatusStyle(context, active: highlight),
         ),
       ],
     );
     return Material(
       color: Palette.surf,
-      borderRadius: BorderRadius.circular(12),
+      shape: _controlShape,
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         onTap: onTap,
         child: Container(
-          constraints: isTablet(context)
-              ? const BoxConstraints(minHeight: 48)
-              : null,
+          constraints: isTablet(context) ? BoxConstraints(minHeight: 48) : null,
           padding: EdgeInsets.symmetric(
             horizontal: 4,
-            vertical: compact ? 4 : 8,
+            vertical: compact ? 2 : 8,
           ),
           child: Center(
             child: compact
                 ? Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(icon, size: 16, color: Palette.muted),
+                      Icon(
+                        icon,
+                        size: 16,
+                        color: highlight ? Palette.amber : Palette.muted,
+                      ),
                       const SizedBox(width: 4),
                       Flexible(child: details),
                     ],
@@ -1991,7 +2113,6 @@ class OutputSettingsPage extends StatelessWidget {
   }
 }
 
-const double _sideWidth = 84;
 const double _controlHeight = 32;
 const _controlShape = RoundedRectangleBorder(
   borderRadius: BorderRadius.all(Radius.circular(10)),
@@ -2007,11 +2128,13 @@ class _SideButton extends StatelessWidget {
     required this.on,
     required this.onTap,
     this.onLongPress,
+    this.caption,
     this.height = _controlHeight,
   });
   final double height;
   final IconData icon;
   final String label;
+  final String? caption;
   final bool on;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
@@ -2022,9 +2145,7 @@ class _SideButton extends StatelessWidget {
         ? Color.alphaBlend(Palette.amber.withValues(alpha: 0.14), Palette.surf)
         : Palette.surf,
     shape: on
-        ? _controlShape.copyWith(
-            side: const BorderSide(color: Palette.amber, width: 1.5),
-          )
+        ? _controlShape.copyWith(side: const BorderSide(color: Palette.amber))
         : _controlShape,
     child: InkWell(
       borderRadius: BorderRadius.circular(10),
@@ -2034,27 +2155,74 @@ class _SideButton extends StatelessWidget {
         height: height,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 6),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 15, color: on ? Palette.amber : Palette.muted),
-              const SizedBox(width: 4),
-              Flexible(
-                child: FittedBox(
+          child: caption != null
+              // Nie überlaufen: bei knappem Platz verkleinert sich der Inhalt.
+              ? FittedBox(
                   fit: BoxFit.scaleDown,
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    style: ts(
-                      isTablet(context) ? 15 : 13,
-                      weight: on ? 600 : 500,
-                      color: on ? Palette.text : Palette.muted,
-                    ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            icon,
+                            size: 15,
+                            color: on ? Palette.amber : Palette.muted,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(caption!, style: buttonLabelStyle(context)),
+                        ],
+                      ),
+                      Text(
+                        label,
+                        style: buttonStatusStyle(context, active: on),
+                      ),
+                    ],
                   ),
+                )
+              : !isTablet(context)
+              // Smartphone: Symbol über Text, damit der Knopf schmal bleibt
+              // und ±0,5 dB in derselben Zeile Platz hat.
+              ? FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        icon,
+                        size: 16,
+                        color: on ? Palette.amber : Palette.muted,
+                      ),
+                      Text(
+                        label,
+                        maxLines: 1,
+                        style: buttonLabelStyle(context),
+                      ),
+                    ],
+                  ),
+                )
+              : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      icon,
+                      size: 15,
+                      color: on ? Palette.amber : Palette.muted,
+                    ),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          label,
+                          maxLines: 1,
+                          style: buttonLabelStyle(context),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
-          ),
         ),
       ),
     ),

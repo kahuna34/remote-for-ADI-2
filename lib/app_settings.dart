@@ -10,6 +10,9 @@ import 'analyzer/header_content.dart';
 import 'analyzer/analyzer_dsp.dart';
 import 'protocol/adi2_params.dart';
 
+/// Gemeinsame Hauptanzeige: Smartphones behandeln „both“ als Spektrum.
+enum AnalyzerMainView { spectrum, levels, both }
+
 enum TabletExtraContent { eq, analyzer, status, player }
 
 class AppSettings extends ChangeNotifier {
@@ -239,6 +242,24 @@ class AppSettings extends ChangeNotifier {
   /// Ohne notifyListeners: Nur der AnalyzerController liest sie beim Erzeugen.
   bool analyzerBars = false;
   bool analyzerPeakHold = true;
+  bool analyzerPlayerOnTap = false;
+  AnalyzerMainView analyzerMainView = AnalyzerMainView.both;
+
+  Future<void> setAnalyzerMainView(AnalyzerMainView value) {
+    analyzerMainView = value;
+    notifyListeners();
+    return _persistEasy(
+      (prefs) => prefs.setString('analyzer_main_view', value.name),
+    );
+  }
+
+  Future<void> setAnalyzerPlayerOnTap(bool value) {
+    analyzerPlayerOnTap = value;
+    notifyListeners();
+    return _persistEasy(
+      (prefs) => prefs.setBool('analyzer_player_on_tap', value),
+    );
+  }
 
   /// Zero means infinite hold; the previous fixed duration was one second.
   static const analyzerPeakHoldOptions = [1, 2, 3, 5, 10, 0];
@@ -504,6 +525,11 @@ class AppSettings extends ChangeNotifier {
           AnalyzerBandResolution.third;
       analyzerBars = prefs.getBool('analyzer_bars') ?? false;
       analyzerPeakHold = prefs.getBool('analyzer_peak_hold') ?? true;
+      analyzerPlayerOnTap = prefs.getBool('analyzer_player_on_tap') ?? false;
+      analyzerMainView = AnalyzerMainView.values.firstWhere(
+        (value) => value.name == prefs.getString('analyzer_main_view'),
+        orElse: () => AnalyzerMainView.both,
+      );
       analyzerPeakHoldSeconds = prefs.getInt('analyzer_peak_hold_seconds') ?? 1;
       if (!analyzerPeakHoldOptions.contains(analyzerPeakHoldSeconds)) {
         analyzerPeakHoldSeconds = 1;

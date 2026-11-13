@@ -44,7 +44,10 @@ class _Adi2RemoteAppState extends State<Adi2RemoteApp> {
     // Sicherheit: Sobald die App nicht mehr im Vordergrund ist, wird jede
     // laufende Lautstärke-Anhebung gestoppt.
     _life = AppLifecycleListener(
-      onInactive: () => _ctrl.setHostForeground(false),
+      // Inaktiv ist auch ein kurzer Zwischenzustand (Drehen, Benachrichtigungs-
+      // leiste): Anhebungen stoppen, die Host-Sitzung aber behalten. Erst
+      // Ausblenden/Pausieren gibt sie frei.
+      onInactive: _ctrl.stopAllVolumeRamps,
       onHide: () => _ctrl.setHostForeground(false),
       onPause: () => _ctrl.setHostForeground(false),
       onResume: () => _ctrl.setHostForeground(true),

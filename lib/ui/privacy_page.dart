@@ -6,7 +6,7 @@ import 'theme.dart';
 /// Same wording as the repository privacy notices.
 List<String> privacyParagraphs() => [
   tr('Remote for ADI-2 und Remote for ADI-2 Host'),
-  tr('Stand: 2026-11-11. Verantwortlich: Markus Rass'),
+  tr('Stand: 2026-11-12. Verantwortlich: Markus Rass'),
   tr(
     'Kein Konto, keine Werbung, keine Analyse- oder Tracking-Dienste. Die Software übermittelt keine Daten an den Entwickler.',
   ),
@@ -14,7 +14,7 @@ List<String> privacyParagraphs() => [
     'USB-MIDI: Steuerdaten werden nur zwischen App bzw. Host und ADI-2 ausgetauscht.',
   ),
   tr(
-    'Host: Für die Verbindung im lokalen Netzwerk werden WebSockets verwendet (Standardport 47321, bei Belegung ein anderer Port). mDNS macht Computername, Host-ID und Port im Netz sichtbar. Kopplung erfolgt per Code und gespeichertem Schlüssel. Steuerdaten bleiben bei dieser Nutzung im lokalen Netz. Die Verbindung ist unverschlüsselt; nutze ein vertrauenswürdiges Netz und gib den Host-Port nicht ins Internet frei.',
+    'Host: Für die Verbindung im lokalen Netzwerk werden WebSockets verwendet (Standardport 47321, bei Belegung ein anderer Port). mDNS macht Computername, Host-ID und Port im Netz sichtbar. Kopplung erfolgt per Code und gespeichertem Schlüssel. Steuerdaten bleiben bei dieser Nutzung im lokalen Netz. MIDI und Erstkopplung sind unverschlüsselt; nutze ein vertrauenswürdiges Netz und gib den Host-Port nicht ins Internet frei.',
   ),
   tr(
     'Updates: Die automatische Prüfung ist abschaltbar und fragt höchstens einmal täglich api.github.com nach dem neuesten Release. Manuelle Prüfungen sind zusätzlich möglich. GitHub erhält die IP-Adresse und technische HTTP-Anfragedaten (unter anderem den App-User-Agent), keine Gerätewerte oder Kopplungsschlüssel. Ein Download öffnet sich nur auf Knopfdruck im Browser. GitHub-Datenschutzerklärung: https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement',
@@ -23,7 +23,7 @@ List<String> privacyParagraphs() => [
     'Kamera: Nur zum Scannen des Kopplungs-QR-Codes. Die App speichert keine Kamerabilder. Die Berechtigung wird erst beim Scannen benötigt.',
   ),
   tr(
-    'Aufnahmeberechtigung: Nur für den Analyzer mit USB-Audio des ADI-2. Audiodaten werden lokal ausgewertet, nicht gespeichert oder gesendet. Während der USB-Routenprüfung können kurz Daten des Android-Standardeingangs anfallen; sie werden verworfen und nicht ausgewertet. Die Berechtigung wird erst bei Nutzung des Analyzers benötigt.',
+    'Aufnahmeberechtigung: Nur für den Analyzer mit USB-Audio des ADI-2. PCM-Audiodaten werden lokal ausgewertet und nicht gespeichert oder gesendet. Beim Analyzer über Host werden nur verschlüsselte Spektral- und Pegelwerte sowie Aufnahmegerätekennung und Kalibrieridentität an anfordernde gekoppelte Clients im lokalen Netz gesendet, niemals ins Internet. Während der USB-Routenprüfung können kurz Daten des Android-Standardeingangs anfallen; sie werden verworfen und nicht ausgewertet. Die Berechtigung wird erst bei Nutzung des Analyzers benötigt.',
   ),
   tr(
     'Benachrichtigungszugriff (Android): Für Titel, Interpret, Cover, Player-Name und die Steuerung der aktiven Mediensitzung. Medieninformationen werden nur im Arbeitsspeicher angezeigt, nicht dauerhaft gespeichert oder an den Host oder Entwickler gesendet. Liefert der Player eine HTTP(S)-Cover-Adresse, wird das Bild von dieser Adresse geladen; der Bildanbieter erhält dabei IP-Adresse und Anfragedaten. Lokale Cover werden über Android gelesen.',

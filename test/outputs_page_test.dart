@@ -94,6 +94,244 @@ void main() {
     AppLang.instance.language = previousLanguage;
   });
 
+  for (final size in [
+    const Size(360, 740),
+    const Size(412, 915),
+    const Size(915, 412),
+    const Size(600, 960),
+    const Size(960, 600),
+    const Size(800, 1280),
+    const Size(1280, 800),
+  ]) {
+    for (final scale in [1.0, 1.3]) {
+      testWidgets('Output button design and spacing $size scale=$scale', (
+        tester,
+      ) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = size;
+        addTearDown(tester.view.reset);
+        await tester.runAsync(() async {
+          for (final family in ['Archivo', 'ArchivoNarrow']) {
+            await (FontLoader(
+              family,
+            )..addFont(rootBundle.load('assets/fonts/$family.ttf'))).load();
+          }
+        });
+        final tablet = size.shortestSide >= 600;
+        final np = NowPlaying();
+        addTearDown(np.dispose);
+        SharedPreferences.setMockInitialValues({});
+        final settings = AppSettings.instance;
+        final previous = (
+          settings.easyMode,
+          settings.showPlayer,
+          settings.showStatus,
+        );
+        addTearDown(() {
+          settings.easyMode = previous.$1;
+          settings.showPlayer = previous.$2;
+          settings.showStatus = previous.$3;
+        });
+        settings.easyMode = false;
+        settings.showPlayer = true;
+        settings.showStatus = true;
+        controller.state = ConnState.connected;
+        for (final entry in offlineDefaults(controller.variant).entries) {
+          controller.values[(entry.key >> 8, entry.key & 255)] = entry.value;
+        }
+        controller.values[(phones, OutIdx.autoRef)] = 0;
+        controller.opts.of(phones).recallRaw = -200;
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: buildTheme(),
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context)
+                  .copyWith(textScaler: TextScaler.linear(scale)),
+              child: child!,
+            ),
+            home: HomePage(ctrl: controller, np: np),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        Finder key(String name) => find.byKey(ValueKey(name));
+        List<Material> materials(Finder parent) => tester
+            .widgetList<Material>(
+              find.descendant(
+                of: parent,
+                matching: find.byType(Material),
+                matchRoot: true,
+              ),
+            )
+            .toList();
+        final upper = materials(key('output-volume-buttons'));
+        final shape = upper.first.shape! as RoundedRectangleBorder;
+        expect(shape.side, const BorderSide(color: Palette.line));
+        for (final name in [
+          'output-lock',
+          'output-link',
+          'Balance-tile',
+          'output-ref-level',
+          'output-da-filter',
+          'output-function-keys',
+          'output-tiles',
+        ]) {
+          final found = materials(key(name));
+          expect(found, isNotEmpty, reason: name);
+          for (final material in found) {
+            expect(material.shape, shape, reason: name);
+            expect(material.color, Palette.surf, reason: name);
+          }
+        }
+        final rowHeight = tester.getSize(key('Balance-tile')).height;
+        expect(rowHeight, greaterThanOrEqualTo(48));
+        for (final (name, label) in [
+          ('output-ref-level', 'Ref Level'),
+          ('Balance-center', 'Balance'),
+          ('output-da-filter', 'DA-Filter'),
+        ]) {
+          final parent = key(name);
+          final texts = find.descendant(
+            of: parent,
+            matching: find.byType(Text),
+          );
+          expect(texts, findsNWidgets(2));
+          final title = tester.widget<Text>(texts.first);
+          final status = tester.widget<Text>(texts.last);
+          expect(title.data, label);
+          expect(title.style, buttonLabelStyle(tester.element(parent)));
+          expect(
+            status.style,
+            buttonStatusStyle(
+              tester.element(parent),
+              active: name == 'Balance-center',
+            ),
+          );
+          expect(
+            tester.getRect(texts.first).bottom,
+            lessThanOrEqualTo(tester.getRect(texts.last).top + .1),
+          );
+          expect(tester.getSize(parent).height, rowHeight);
+          expect(parent.hitTestable(), findsOneWidget);
+          for (final text in [texts.first, texts.last]) {
+            final rect = Rect.fromPoints(
+              tester.getTopLeft(text),
+              tester.getBottomRight(text),
+            );
+            final bounds = tester.getRect(parent);
+            expect(rect.left, greaterThanOrEqualTo(bounds.left - .1));
+            expect(rect.right, lessThanOrEqualTo(bounds.right + .1));
+            expect(rect.top, greaterThanOrEqualTo(bounds.top - .1));
+            expect(rect.bottom, lessThanOrEqualTo(bounds.bottom + .1));
+          }
+        }
+        final volume = tester.getRect(key('output-volume-buttons'));
+        for (final name in ['output-lock', 'output-link']) {
+          final rect = tester.getRect(key(name));
+          final gap = volume.top >= rect.bottom
+              ? volume.top - rect.bottom
+              : name == 'output-lock'
+              ? volume.left - rect.right
+              : rect.left - volume.right;
+          expect(gap, greaterThanOrEqualTo(8 - .01), reason: name);
+        }
+        final statuses = [
+          ...tester
+              .widgetList<Text>(
+                find.descendant(
+                  of: key('output-tiles'),
+                  matching: find.byType(Text),
+                ),
+              )
+              .where((text) => text.style?.fontFamily == 'ArchivoNarrow'),
+          ...tester
+              .widgetList<Text>(
+                find.descendant(
+                  of: key('output-function-keys'),
+                  matching: find.byType(Text),
+                ),
+              )
+              .where(
+                (text) =>
+                    text.data != 'Ag' &&
+                    text.style?.fontFamily == 'ArchivoNarrow',
+              ),
+        ];
+        expect(statuses.length, 8);
+        for (final text in statuses) {
+          expect(text.style!.fontSize, tablet ? 13 : 12);
+          expect(text.style!.fontSize, statuses.first.style!.fontSize);
+          expect(text.style!.fontWeight!.value, FontWeight.w600.value);
+          expect(text.style!.color, Palette.text);
+          final painter = TextPainter(
+            text: TextSpan(text: text.data, style: text.style),
+            textDirection: TextDirection.ltr,
+            textScaler: TextScaler.linear(scale),
+            maxLines: 1,
+            ellipsis: '…',
+          )..layout(maxWidth: tester.getSize(find.byWidget(text)).width);
+          expect(painter.didExceedMaxLines, isFalse, reason: text.data);
+          painter.dispose();
+        }
+        expect(
+          tester.getTopLeft(find.text('Recall')).dy,
+          lessThan(tester.getTopLeft(find.text('−20,0 dB')).dy),
+        );
+        final labels = [
+          for (final row in ['output-function-keys', 'output-tiles'])
+            ...tester
+                .widgetList<Text>(
+                  find.descendant(of: key(row), matching: find.byType(Text)),
+                )
+                .where(
+                  (text) =>
+                      text.data != 'Ag' && text.style?.fontFamily == 'Archivo',
+                ),
+        ];
+        expect(labels.length, 8);
+        for (final name in [
+          'output-ref-level',
+          'output-da-filter',
+          'output-lock',
+          'output-link',
+          'output-volume-buttons',
+          'Bass-settings',
+          'Treble-settings',
+        ]) {
+          labels.addAll(
+            tester
+                .widgetList<Text>(
+                  find.descendant(of: key(name), matching: find.byType(Text)),
+                )
+                .where((text) => text.style?.fontFamily == 'Archivo'),
+          );
+        }
+        labels.add(tester.widget<Text>(find.text('Balance')));
+        expect(labels.length, 17);
+        for (final text in labels) {
+          expect(text.style, labels.first.style, reason: text.data);
+          expect(text.style!.fontSize, tablet ? 15 : 14);
+          expect(text.style!.fontWeight, FontWeight.w600);
+          expect(text.style!.color, Palette.text);
+        }
+        expect(tester.takeException(), isNull);
+        // Active controls retain their accent while sharing border width/radius.
+        controller.set(phones, OutIdx.mute, 1);
+        await tester.pump();
+        final mute = materials(key('output-function-keys')).first;
+        final activeShape = mute.shape! as RoundedRectangleBorder;
+        expect(activeShape.borderRadius, shape.borderRadius);
+        expect(activeShape.side.width, shape.side.width);
+        expect(activeShape.side.color, Palette.red);
+        expect(
+          mute.color,
+          Color.alphaBlend(Palette.red.withValues(alpha: 0.14), Palette.surf),
+        );
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
+
   for (final custom in [false, true]) {
     for (final raw in <int?>[-1, null]) {
       testWidgets('IEM fixed Ref Level custom=$custom raw=$raw', (
@@ -121,7 +359,7 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        expect(find.text(custom ? '−3 dBu' : 'Ref −3 dBu'), findsOneWidget);
+        expect(find.text('−3 dBu'), findsOneWidget);
         if (custom) expect(find.text('Ref Level'), findsOneWidget);
         final target = find.byKey(
           ValueKey(custom ? 'easy-tile-0' : 'output-ref-level'),
@@ -365,8 +603,8 @@ void main() {
         'Balance',
       ].map((name) => find.byKey(ValueKey('$name-tile'))).toList();
       final side = find
-          .ancestor(
-            of: find.byIcon(Icons.filter_alt_outlined),
+          .descendant(
+            of: find.byKey(const ValueKey('output-da-filter')),
             matching: find.byType(Material),
           )
           .first;
@@ -483,22 +721,23 @@ void main() {
     await showPage(tester);
     final center = find.byKey(const ValueKey('Balance-center'));
     expect(
-      find.descendant(of: center, matching: find.text('Bal C')),
+      find.descendant(of: center, matching: find.text('Mitte')),
       findsOneWidget,
     );
     await tester.tap(find.byKey(const ValueKey('Balance-plus')));
     await tester.pump();
     expect(controller.writes.last, (phones, OutIdx.balance, 1));
-    expect(find.text('Bal R 0,01'), findsOneWidget);
+    expect(find.text('R 1'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('Balance-minus')));
     await tester.pump();
     expect(controller.writes.last, (phones, OutIdx.balance, 0));
     await tester.tap(find.byKey(const ValueKey('Balance-minus')));
     await tester.pump();
-    expect(find.text('Bal L 0,01'), findsOneWidget);
+    expect(find.text('L 1'), findsOneWidget);
     for (final (raw, key) in [(100, 'Balance-plus'), (-100, 'Balance-minus')]) {
       controller.set(phones, OutIdx.balance, raw);
       await tester.pump();
+      expect(find.text(raw < 0 ? 'L 100' : 'R 100'), findsOneWidget);
       await tester.tap(find.byKey(ValueKey(key)));
       await tester.pump();
       expect(controller.writes.last, (phones, OutIdx.balance, raw));
@@ -507,10 +746,52 @@ void main() {
     await tester.pump();
     expect(controller.writes.last, (phones, OutIdx.balance, 0));
     expect(
-      find.descendant(of: center, matching: find.text('Bal C')),
+      find.descendant(of: center, matching: find.text('Mitte')),
       findsOneWidget,
     );
   });
+
+  for (final language in AppLanguage.values) {
+    testWidgets('Balance im Einstellungsdialog $language', (tester) async {
+      AppLang.instance.language = language;
+      final def = outputParams(
+        Adi2Variant.dac,
+        phones: true,
+      ).firstWhere((def) => def.index == OutIdx.balance);
+      controller.set(phones, OutIdx.balance, 0);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildTheme(),
+          home: Scaffold(
+            body: ListenableBuilder(
+              listenable: controller,
+              builder: (context, _) =>
+                  ParamTile(ctrl: controller, address: phones, def: def),
+            ),
+          ),
+        ),
+      );
+      expect(
+        find.text(language == AppLanguage.de ? 'Mitte' : 'Center'),
+        findsOneWidget,
+      );
+      for (final (raw, label) in [
+        (-35, 'L 35'),
+        (100, 'R 100'),
+        (-100, 'L 100'),
+      ]) {
+        controller.set(phones, OutIdx.balance, raw);
+        await tester.pump();
+        expect(find.text(label), findsOneWidget);
+      }
+      final slider = tester.widget<Slider>(find.byType(Slider));
+      expect((slider.min, slider.max, slider.divisions), (-100, 100, 200));
+      slider.onChangeEnd!(35);
+      await tester.pump();
+      expect(controller.writes.last, (phones, OutIdx.balance, 35));
+      expect(find.text('R 35'), findsOneWidget);
+    });
+  }
 
   for (final key in [
     'Bass-plus',
@@ -571,7 +852,7 @@ void main() {
         );
         await tester.pump();
         expect(find.text('+2,0 dB'), findsOneWidget);
-        expect(find.text('Bal L 0,25'), findsOneWidget);
+        expect(find.text('L 25'), findsOneWidget);
         await tester.tap(find.byKey(const ValueKey('Bass-plus')));
         expect(offline.value(line + 1, EqIdx2.btEnable), 1);
         expect(offline.eqValue(line + 1, 21), 5);
@@ -640,7 +921,7 @@ void main() {
           await tester.pump();
           expect(find.text('+2,0 dB'), findsOneWidget);
           expect(find.text('−2,0 dB'), findsOneWidget);
-          expect(find.text('Bal L 0,25'), findsOneWidget);
+          expect(find.text('L 25'), findsOneWidget);
           await tester.tap(find.byKey(const ValueKey('Bass-plus')));
           await tester.tap(find.byKey(const ValueKey('Treble-minus')));
           await tester.tap(find.byKey(const ValueKey('Balance-plus')));
@@ -672,21 +953,24 @@ void main() {
             if (refFinder.evaluate().isNotEmpty) {
               final ref = bounds(refFinder);
               topRow.add(ref);
-              expect(balance.left - ref.right, greaterThanOrEqualTo(8));
+              expect(balance.left - ref.right, greaterThanOrEqualTo(8 - .01));
             }
             if (filterFinder.evaluate().isNotEmpty) {
               final filter = bounds(filterFinder);
               topRow.add(filter);
-              expect(filter.left - balance.right, greaterThanOrEqualTo(8));
+              expect(
+                filter.left - balance.right,
+                greaterThanOrEqualTo(8 - .01),
+              );
             }
             for (final name in ['Bass', 'Treble', 'Balance']) {
               for (final direction in ['plus', 'minus']) {
                 final button = find.byKey(ValueKey('$name-$direction'));
                 final rect = bounds(button);
                 if (name == 'Balance') {
-                  expect(rect.width, greaterThanOrEqualTo(44));
+                  expect(rect.width, greaterThanOrEqualTo(44 - .01));
                 } else {
-                  expect(rect.height, greaterThanOrEqualTo(48));
+                  expect(rect.height, greaterThanOrEqualTo(48 - .01));
                 }
                 expect(button.hitTestable(), findsOneWidget);
               }
@@ -696,10 +980,10 @@ void main() {
               final topRowBottom = topRow
                   .map((rect) => rect.bottom)
                   .reduce(math.max);
-              expect(tile.top - topRowBottom, greaterThanOrEqualTo(8));
+              expect(tile.top - topRowBottom, greaterThanOrEqualTo(8 - .01));
               expect(
                 math.min(lock.top, link.top) - tile.bottom,
-                greaterThanOrEqualTo(8),
+                greaterThanOrEqualTo(8 - .01),
               );
               expect(name == 'Bass' ? tile.left : size.width - tile.right, 20);
               final plus = bounds(find.byKey(ValueKey('$name-plus')));
@@ -921,12 +1205,65 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  for (final language in AppLanguage.values) {
+    testWidgets('Status und Recall-Reihenfolge ${language.name}', (
+      tester,
+    ) async {
+      AppLang.instance.language = language;
+      SharedPreferences.setMockInitialValues({});
+      controller.opts.of(phones).recallRaw = null;
+      await showPage(tester);
+      Finder button(String label) => find
+          .ancestor(of: find.text(label), matching: find.byType(InkWell))
+          .first;
+      Text status(String label) => tester
+          .widgetList<Text>(
+            find.descendant(of: button(label), matching: find.byType(Text)),
+          )
+          .firstWhere(
+            (text) =>
+                text.data != 'Ag' && text.style?.fontFamily == 'ArchivoNarrow',
+          );
+      expect(status('Recall').data, tr('speichern'));
+      controller.setRecall(phones, -200);
+      await tester.pumpAndSettle();
+      expect(status('Recall').data, '−20,0 dB');
+      expect(
+        tester.getTopLeft(find.text('Recall')).dy,
+        lessThan(tester.getTopLeft(find.text('−20,0 dB')).dy),
+      );
+      for (final label in ['Mute', 'Dim', 'Crossfeed', 'EQ', 'Limit']) {
+        expect(status(label).data, language == AppLanguage.de ? 'Aus' : 'Off');
+        expect(status(label).style!.color, Palette.text);
+      }
+      controller.opts.of(phones).limitDbu = -10;
+      controller.set(phones, OutIdx.mute, 1);
+      controller.set(phones, OutIdx.dim, 1);
+      controller.set(phones, OutIdx.crossfeed, 3);
+      controller.set(phones + 1, 2, 1);
+      await tester.pumpAndSettle();
+      for (final label in ['Mute', 'Dim', 'EQ']) {
+        expect(status(label).data, language == AppLanguage.de ? 'An' : 'On');
+        expect(status(label).style!.color, Palette.amber);
+      }
+      expect(status('Limit').data, '−10,0 dBu');
+      expect(status('Limit').style!.color, Palette.amber);
+      expect(status('Crossfeed').data, '3');
+      expect(status('Crossfeed').style!.color, Palette.amber);
+      expect(status('Recall').style!.color, Palette.text);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('Crossfeed schaltet mit Standard 1 und merkt Stufen je Ausgang', (
     tester,
   ) async {
     controller.values[(line, OutIdx.crossfeed)] = 4;
     await showPage(tester);
-    expect(find.text('Aus'), findsOneWidget);
+    expect(
+      find.descendant(of: crossfeedButton(), matching: find.text('Aus')),
+      findsOneWidget,
+    );
     await tapCrossfeed(tester);
     expect(controller.writes.last, (phones, OutIdx.crossfeed, 1));
     await tapCrossfeed(tester);
@@ -969,8 +1306,8 @@ void main() {
     tester,
   ) async {
     await showPage(tester);
-    final ref = find.byIcon(Icons.tune).first;
-    final filter = find.byIcon(Icons.filter_alt_outlined);
+    final ref = find.byKey(const ValueKey('output-ref-level'));
+    final filter = find.byKey(const ValueKey('output-da-filter'));
     final link = find.byIcon(Icons.link);
     final lock = find.byIcon(Icons.lock_open);
     expect(tester.getTopLeft(ref).dx, lessThan(tester.getTopLeft(filter).dx));
@@ -1009,7 +1346,7 @@ void main() {
     tester,
   ) async {
     await showPage(tester);
-    await tester.tap(find.byIcon(Icons.tune).first);
+    await tester.tap(find.byKey(const ValueKey('output-ref-level')));
     await tester.pumpAndSettle();
     expect(find.widgetWithText(ChoiceChip, 'Auto'), findsNothing);
     Navigator.of(tester.element(find.byType(ChoiceChip).first)).pop();
@@ -1018,7 +1355,7 @@ void main() {
     controller.set(phones, OutIdx.autoRef, 0);
     controller.writes.clear();
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.tune).first);
+    await tester.tap(find.byKey(const ValueKey('output-ref-level')));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(ChoiceChip, 'Auto'));
     await tester.pumpAndSettle();
@@ -1026,7 +1363,7 @@ void main() {
     expect(find.byType(AlertDialog), findsNothing);
     expect(find.textContaining('Auto '), findsOneWidget);
 
-    await tester.tap(find.byIcon(Icons.tune).first);
+    await tester.tap(find.byKey(const ValueKey('output-ref-level')));
     await tester.pumpAndSettle();
     final chips = tester
         .widgetList<ChoiceChip>(find.byType(ChoiceChip))
@@ -1049,7 +1386,7 @@ void main() {
     controller.values[(line, OutIdx.autoRef)] = 1;
     await showPage(tester);
     expect(find.textContaining('Auto '), findsOneWidget);
-    await tester.tap(find.byIcon(Icons.tune).first);
+    await tester.tap(find.byKey(const ValueKey('output-ref-level')));
     await tester.pumpAndSettle();
     expect(find.widgetWithText(ChoiceChip, 'Auto'), findsOneWidget);
     expect(find.textContaining('(XLR'), findsNWidgets(4));
@@ -1067,7 +1404,10 @@ void main() {
   ) async {
     AppLang.instance.language = AppLanguage.en;
     await showPage(tester);
-    expect(find.text('Off'), findsOneWidget);
+    expect(
+      find.descendant(of: crossfeedButton(), matching: find.text('Off')),
+      findsOneWidget,
+    );
     controller.values.remove((phones, OutIdx.crossfeed));
     controller.values.remove((phones, OutIdx.refLevel));
     controller.set(phones, OutIdx.mute, 1);

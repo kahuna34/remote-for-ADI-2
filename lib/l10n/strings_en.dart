@@ -2,11 +2,36 @@
 // Platzhalter wie {n} müssen in beiden Sprachen gleich heißen.
 
 const Map<String, String> stringsEn = {
+  'Anzeige im Hauptfenster': 'Main view shows',
+  'Pegel (Peak/RMS)': 'Levels (Peak/RMS)',
+  'Spektrum anzeigen': 'Show spectrum',
+  'Pegel anzeigen': 'Show levels',
+  'Werkzeug': 'Tool',
+  'Darstellung': 'Display',
+  'Zurück': 'Previous',
+  'Pause': 'Pause',
+  'Wiedergabe': 'Play',
+  'Smartphone': 'Smartphone',
+  'Computer': 'Computer',
+  'Player-Zugriff nicht verfügbar': 'Player access unavailable',
+  'Dieser Host unterstützt den Player noch nicht. Host aktualisieren.':
+      'This host does not support the player yet. Update the host.',
+  'USB-Quelle nicht bestätigt': 'USB source not confirmed',
+  'Quelle ist nicht USB': 'Source is not USB',
+  'Player beim Antippen des Graphen': 'Player on graph tap',
+  'Dieser Host unterstützt den Analyzer noch nicht. Host aktualisieren.':
+      'This host does not support the analyzer yet. Update the host.',
+  'Keine Verbindung zum Host.': 'No connection to the host.',
+  'Am Host: Datenschutz → Mikrofon → Desktop-Apps Zugriff erlauben.': 'On the host: Privacy → Microphone → Allow desktop apps to access your microphone.',
+  'Am Mac: Systemeinstellungen → Datenschutz & Sicherheit → Mikrofon → Remote for ADI-2 Host erlauben.': 'On the Mac: System Settings → Privacy & Security → Microphone → Allow Remote for ADI-2 Host.',
+  'Keine ADI-2-USB-Aufnahme am Host verfügbar. Gerät und Aufnahmeformat prüfen.': 'No ADI-2 USB capture available on the host. Check the device and capture format.',
+  'Kalibrier-Testton und Analyzer-Selbsttest: nur bei direkter USB-Verbindung.': 'Calibration test tone and analyzer self-test: only with a direct USB connection.',
   'Gilt für alle Ausgänge': 'Applies to all outputs',
   'belegt: {Ausgang}': 'occupied: {Ausgang}',
   'Loopback von {Ausgang} ausgeschaltet, weil {Paar} jetzt belegt ist':
       'Loopback from {Ausgang} switched off because {Paar} is now occupied',
 
+  'Peak hold – lang drücken: zurücksetzen': 'Peak hold – long press to reset',
   'Peak-Marken zurückgesetzt': 'Peak markers reset',
   'update:Laden': 'Download',
   'Download-Link konnte nicht geöffnet werden': 'Could not open download link',
@@ -621,6 +646,7 @@ const Map<String, String> stringsEn = {
       'Searching for ADI-2 …\nConnect the device via USB.',
   'Verbinde mit {name} …': 'Connecting to {name} …',
   'Warte auf Antwort von {name} …': 'Waiting for a response from {name} …',
+  'Verbinde neu …': 'Reconnecting…',
   'Verbunden': 'Connected',
   'Offline': 'Offline',
   'Remote for ADI-2': 'Remote for ADI-2',
@@ -780,6 +806,9 @@ const Map<String, String> stringsEn = {
   'dB': 'dB',
   'Lautstärke sperren': 'Lock Volume',
   'Balance': 'Balance',
+  'Mitte': 'Center',
+  'Beides': 'Both',
+  'Spektrum und Pegel anzeigen': 'Show spectrum and levels',
   'Mono': 'Mono',
   'nach Links': 'to Left',
   'Stereobreite': 'Stereo Width',
@@ -964,14 +993,14 @@ const Map<String, String> stringsEn = {
       'Setup could not be saved. Please try again.',
   'Remote for ADI-2 und Remote for ADI-2 Host':
       'Remote for ADI-2 and Remote for ADI-2 Host',
-  'Stand: 2026-11-11. Verantwortlich: Markus Rass':
-      'Last updated: 2026-11-11. Responsible: Markus Rass',
+  'Stand: 2026-11-12. Verantwortlich: Markus Rass':
+      'Last updated: 2026-11-12. Responsible: Markus Rass',
   'Kein Konto, keine Werbung, keine Analyse- oder Tracking-Dienste. Die Software übermittelt keine Daten an den Entwickler.': 'No account, advertising, analytics or tracking services. The software does not send data to the developer.',
   'USB-MIDI: Steuerdaten werden nur zwischen App bzw. Host und ADI-2 ausgetauscht.': 'USB MIDI: Control data is exchanged only between the app or host and the ADI-2.',
-  'Host: Für die Verbindung im lokalen Netzwerk werden WebSockets verwendet (Standardport 47321, bei Belegung ein anderer Port). mDNS macht Computername, Host-ID und Port im Netz sichtbar. Kopplung erfolgt per Code und gespeichertem Schlüssel. Steuerdaten bleiben bei dieser Nutzung im lokalen Netz. Die Verbindung ist unverschlüsselt; nutze ein vertrauenswürdiges Netz und gib den Host-Port nicht ins Internet frei.': 'Host: Local network connections use WebSockets (default port 47321, another port if occupied). mDNS exposes the computer name, host ID and port on the network. Pairing uses a code and a saved key. Control data stays on the local network in this use. The connection is unencrypted; use a trusted network and do not expose the host port to the internet.',
+  'Host: Für die Verbindung im lokalen Netzwerk werden WebSockets verwendet (Standardport 47321, bei Belegung ein anderer Port). mDNS macht Computername, Host-ID und Port im Netz sichtbar. Kopplung erfolgt per Code und gespeichertem Schlüssel. Steuerdaten bleiben bei dieser Nutzung im lokalen Netz. MIDI und Erstkopplung sind unverschlüsselt; nutze ein vertrauenswürdiges Netz und gib den Host-Port nicht ins Internet frei.': 'Host: Local network connections use WebSockets (default port 47321, another port if occupied). mDNS exposes the computer name, host ID and port on the network. Pairing uses a code and a saved key. Control data stays on the local network in this use. MIDI and initial pairing are unencrypted; use a trusted network and do not expose the host port to the internet.',
   'Updates: Die automatische Prüfung ist abschaltbar und fragt höchstens einmal täglich api.github.com nach dem neuesten Release. Manuelle Prüfungen sind zusätzlich möglich. GitHub erhält die IP-Adresse und technische HTTP-Anfragedaten (unter anderem den App-User-Agent), keine Gerätewerte oder Kopplungsschlüssel. Ein Download öffnet sich nur auf Knopfdruck im Browser. GitHub-Datenschutzerklärung: https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement': 'Updates: Automatic checks can be disabled and ask api.github.com for the latest release at most once a day. Additional manual checks are possible. GitHub receives the IP address and technical HTTP request data (including the app user agent), no device values or pairing keys. Downloads open in the browser only when requested. GitHub privacy statement: https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement',
   'Kamera: Nur zum Scannen des Kopplungs-QR-Codes. Die App speichert keine Kamerabilder. Die Berechtigung wird erst beim Scannen benötigt.': 'Camera: Used only to scan the pairing QR code. The app does not save camera images. Permission is needed only when scanning.',
-  'Aufnahmeberechtigung: Nur für den Analyzer mit USB-Audio des ADI-2. Audiodaten werden lokal ausgewertet, nicht gespeichert oder gesendet. Während der USB-Routenprüfung können kurz Daten des Android-Standardeingangs anfallen; sie werden verworfen und nicht ausgewertet. Die Berechtigung wird erst bei Nutzung des Analyzers benötigt.': 'Recording permission: Used only for the analyzer with ADI-2 USB audio. Audio is processed locally, never saved or sent. During USB route verification, Android default input data may briefly occur; it is discarded without analysis. Permission is needed only when using the analyzer.',
+  'Aufnahmeberechtigung: Nur für den Analyzer mit USB-Audio des ADI-2. PCM-Audiodaten werden lokal ausgewertet und nicht gespeichert oder gesendet. Beim Analyzer über Host werden nur verschlüsselte Spektral- und Pegelwerte sowie Aufnahmegerätekennung und Kalibrieridentität an anfordernde gekoppelte Clients im lokalen Netz gesendet, niemals ins Internet. Während der USB-Routenprüfung können kurz Daten des Android-Standardeingangs anfallen; sie werden verworfen und nicht ausgewertet. Die Berechtigung wird erst bei Nutzung des Analyzers benötigt.': 'Recording permission: Used only for the analyzer with ADI-2 USB audio. PCM audio is processed locally, never saved or sent. For the host analyzer, only encrypted spectrum and level values, capture device identity and calibration identity are sent to requesting paired clients on the local network, never to the internet. During USB route verification, Android default input data may briefly occur; it is discarded without analysis. Permission is needed only when using the analyzer.',
   'Benachrichtigungszugriff (Android): Für Titel, Interpret, Cover, Player-Name und die Steuerung der aktiven Mediensitzung. Medieninformationen werden nur im Arbeitsspeicher angezeigt, nicht dauerhaft gespeichert oder an den Host oder Entwickler gesendet. Liefert der Player eine HTTP(S)-Cover-Adresse, wird das Bild von dieser Adresse geladen; der Bildanbieter erhält dabei IP-Adresse und Anfragedaten. Lokale Cover werden über Android gelesen.': 'Notification access (Android): Used for title, artist, cover, player name and control of the active media session. Media information is displayed in memory only, never saved persistently or sent to the host or developer. If the player supplies an HTTP(S) cover URL, the image is fetched from that URL; the image provider receives the IP address and request data. Local covers are read through Android.',
   'Lokale Speicherung: SharedPreferences enthält Sprache, Ansichten und Layouts, Bedien- und Lautstärkeschutzoptionen, Offline-Gerätewerte, Analyzer-Einstellungen und Kalibrierungen, Seriennummer-Merker für den SD-LD-Test, Freigabehinweise, Einrichtungsstatus, Update-Zeitpunkt und Versionshinweise sowie Host-Adressen, Namen, IDs und Kopplungsschlüssel. Der Host speichert Host-ID, gekoppelte Smartphone-Namen, IDs und Schlüssel sowie Sprache und Update-Einstellungen. Die EQ-Bibliothek liegt als lokale JSON-Datei im App-Speicher. Gerätebackups liegen dort als JSON im Unterordner backups. Ein aktivierter Host-Autostart speichert den Programmpfad in einem macOS-LaunchAgent bzw. der Windows-Benutzerregistrierung. Der manuell gestartete Analyzer-Selbsttest speichert lokale Diagnoseberichte (höchstens fünf) und ein Wiederherstellungsjournal mit Gerätewerten, jedoch keine Audioaufnahmen. Bewusst exportierte oder geteilte EQ-Presets und Backups enthalten Gerätewerte und bleiben am gewählten Ziel.': 'Local storage: SharedPreferences stores language, views and layouts, control and volume protection options, offline device values, analyzer settings and calibrations, serial number markers for the SD-LD test, permission prompts, setup status, update time and version notices, plus host addresses, names, IDs and pairing keys. The host stores its ID, paired smartphone names, IDs and keys, language and update settings. The EQ library is a local JSON file in app storage. Device backups are stored there as JSON in the backups subfolder. Enabled host autostart stores the executable path in a macOS LaunchAgent or the Windows user registry. The manually started analyzer self-test stores local diagnostic reports (at most five) and a recovery journal with device values, but no audio recordings. Deliberately exported or shared EQ presets and backups contain device values and remain at the selected destination.',
   'Löschen und Sicherung: App-Daten löschen oder Deinstallation entfernt die lokalen App-Daten. Exportierte Dateien, Kopplungen auf dem anderen Gerät und Sicherungskopien müssen separat gelöscht werden. Android-Backup ist im Manifest nicht ausdrücklich deaktiviert; Android kann App-Daten einschließlich gespeicherter Kopplungen in die Gerätesicherung aufnehmen und wiederherstellen. Beim Desktop-Host können Einstellungsdateien nach der Deinstallation verbleiben.': 'Deletion and backup: Clearing app data or uninstalling removes local app data. Exported files, pairings on the other device and backup copies must be removed separately. Android backup is not explicitly disabled in the manifest; Android may include app data, including saved pairings, in device backups and restore it. Desktop host preference files may remain after uninstalling.',
@@ -990,4 +1019,13 @@ const Map<String, String> stringsEn = {
   'Info: Version {version}': 'Info: Version {version}',
   'Port {standard} belegt; Host verwendet Port {port}':
       'Port {standard} is in use; Host uses port {port}',
+  'Verbindung pausieren': 'Pause connection',
+  'Trennt und verbindet nicht mehr automatisch, bis du sie fortsetzt.':
+      'Disconnects and stops reconnecting automatically until you resume.',
+  'Host-Verbindung fortsetzen': 'Resume host connection',
+  'Peak-Marken zurücksetzen': 'Reset peak markers',
+  'Host {name}': 'host {name}',
+  'Gedrückt halten öffnet das Host-Menü.':
+      'Press and hold to open the host menu.',
+  '{wert} dBu': '{wert} dBu',
 };

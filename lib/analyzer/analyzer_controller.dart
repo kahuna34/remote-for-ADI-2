@@ -1,12 +1,16 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/scheduler.dart';
 
 import 'analyzer_dsp.dart';
 import 'analyzer_calibration.dart';
 import '../dev/analyzer_selftest_diagnostics.dart';
 import '../app_settings.dart';
+import '../host/host_client.dart';
+import '../host/host_analyzer_protocol.dart';
 
 enum AnalyzerStatus {
   idle,
@@ -19,12 +23,166 @@ enum AnalyzerStatus {
 }
 
 class AnalyzerController extends ChangeNotifier {
-  AnalyzerController() {
+  AnalyzerController({HostClient? host}) : _host = host, _requestedHost = host {
+    _hostReady = host?.connected == true && host?.analyzerAvailable == true;
+    _host?.addListener(_hostChanged);
     AppSettings.instance.addListener(_settingsChanged);
     analyzerDeveloperMode.addListener(_diagnosticsChanged);
     _applyBallistics(AppSettings.instance.analyzerBallistics);
     _applyPeakHoldDuration();
   }
+  HostClient? _host, _requestedHost;
+  bool _hostReady = false, _hostSuspended = false;
+  bool get viaHost => _host != null;
+  String? get hostPlatform => _host?.analyzerPlatform;
+
+  Future<void> setHostSource(HostClient? host) {
+    if (_disposed) return _operations;
+    if (identical(_requestedHost, host)) return _operations;
+    _requestedHost = host;
+    // Source changes are capture barriers: stop the old source before assigning
+    // the new one. Never leave a direct USB recording alive behind a host view.
+    _operations = _operations.then((_) async {
+      await _stop();
+      if (_disposed) return;
+      _host?.removeListener(_hostChanged);
+      _host = host;
+      _hostReady = host?.connected == true && host?.analyzerAvailable == true;
+      _hostSuspended = false;
+      host?.addListener(_hostChanged);
+      await _reconcile();
+    });
+    return _operations;
+  }
+
+  void _hostChanged() {
+    if (_disposed) return;
+    final host = _host;
+    if (host == null) return;
+    if (host.reconnecting) {
+      _hostSuspended = true;
+      _cancelHostDisplay();
+      _frameAge.reset();
+      _calibrationGeneration++;
+      return;
+    }
+    final ready = host.connected && host.analyzerAvailable;
+    final changed = ready != _hostReady;
+    _hostReady = ready;
+    if (_hostSuspended) {
+      _hostSuspended = false;
+      if (_running && _desired && ready) {
+        _hostMetadata = {};
+        _frameAge.reset();
+        host.send('analyzer_start', _hostRequest);
+        return;
+      }
+      unawaited(retry());
+    } else if (changed) {
+      unawaited(retry());
+    }
+  }
+
+  void _hostEvent(Map<String, dynamic> data) {
+    if (_disposed || !_desired || !_running || _host?.reconnecting == true) {
+      return;
+    }
+    if (data['type'] == 'analyzer_error') {
+      _event({'status': data['code']});
+      return;
+    }
+    if (data['type'] == 'analyzer_metadata') {
+      _hostMetadata = Map.of(data);
+      return;
+    }
+    try {
+      var next = decodeHostAnalyzerFrame({..._hostMetadata, ...data});
+      final pending = _pendingHostEvent;
+      if (data['v'] == 2 &&
+          pending != null &&
+          pending['device'] == _hostMetadata['device'] &&
+          mapEquals(
+            pending['calibrationIdentity'] as Map?,
+            _hostMetadata['calibrationIdentity'] as Map?,
+          )) {
+        next = coalesceAnalyzerFrames(
+          pending['hostFrame'] as AnalyzerFrame,
+          next,
+        );
+      }
+      // Reuse route/identity handling, then the same _accept path as native.
+      final event = <String, dynamic>{
+        'hostFrame': next,
+        'routeVerified': true,
+        'device': data['v'] == 2 ? _hostMetadata['device'] : data['device'],
+        'calibrationIdentity': data['v'] == 2
+            ? _hostMetadata['calibrationIdentity']
+            : data['calibrationIdentity'],
+      };
+      if (data['v'] == 2) {
+        // One latest frame, 20 ms playout delay. Never accumulate a WLAN backlog.
+        _pendingHostEvent = event;
+        _hostPlayout ??= Timer(const Duration(milliseconds: 20), () {
+          _hostPlayout = null;
+          final pending = _pendingHostEvent;
+          _pendingHostEvent = null;
+          if (pending != null) _event(pending);
+        });
+      } else {
+        _event(event);
+      }
+    } on FormatException {
+      _event({'status': 'analyzer_no_input'});
+    }
+  }
+
+  Map<String, dynamic> _hostMetadata = {};
+  Map<String, dynamic>? _pendingHostEvent;
+  Timer? _hostPlayout;
+  int? _displayCallback;
+  Duration? _displayTime;
+  Duration _displayUntil = Duration.zero;
+  bool _displayFresh = false;
+
+  void _cancelHostDisplay() {
+    _hostPlayout?.cancel();
+    _hostPlayout = null;
+    _pendingHostEvent = null;
+    if (_displayCallback != null) {
+      SchedulerBinding.instance.cancelFrameCallbackWithId(_displayCallback!);
+    }
+    _displayCallback = null;
+    _displayTime = null;
+  }
+
+  void _animateHost() {
+    if (_displayCallback != null) return;
+    _displayCallback = SchedulerBinding.instance.scheduleFrameCallback((time) {
+      _displayCallback = null;
+      if (_disposed || !_running || rawFrame == null || inputRejected) return;
+      if (_displayFresh) {
+        _displayUntil = time + const Duration(milliseconds: 80);
+        _displayFresh = false;
+      }
+      final dt = _displayTime == null
+          ? 1 / 60
+          : ((time - _displayTime!).inMicroseconds / 1e6).clamp(0.0, .04);
+      _displayTime = time;
+      _updateAnalysis(rawFrame!, seconds: dt, smoothMeters: true);
+      _notify();
+      // Keep rendering between arrivals; a stalled stream stops scheduling.
+      if (time < _displayUntil) _animateHost();
+    });
+  }
+
+  Map<String, dynamic> get _hostRequest => {
+    'bandResolution': bandResolution.bandsPerOctave,
+    if ((_host?.analyzerVersion ?? 0) >= 2) ...{
+      'analyzerVersion': 2,
+      'bars': bars,
+    },
+  };
+
   AnalyzerBandResolution _bandResolution =
       AppSettings.instance.analyzerBandResolution;
   AnalyzerBandResolution get bandResolution => _bandResolution;
@@ -61,7 +219,11 @@ class AnalyzerController extends ChangeNotifier {
         _updateAnalysis(f);
       } else {
         bands.update(
-          octaveBandDb(f, next).map((v) => v + calibrationOffset).toList(),
+          (f.logSpectrum
+                  ? (f.bandResolution == next ? f.bandLevels : <double>[])
+                  : octaveBandDb(f, next))
+              .map((v) => v + calibrationOffset)
+              .toList(),
           f.seconds,
         );
       }
@@ -73,6 +235,11 @@ class AnalyzerController extends ChangeNotifier {
       AppSettings.instance.setAnalyzerBandResolution(value);
 
   Future<void> _configureBands(AnalyzerBandResolution next) async {
+    if (_host case final host?) {
+      if (host.reconnecting || !host.connected) return;
+      host.send('analyzer_start', _hostRequest);
+      return;
+    }
     try {
       await _method.invokeMethod<void>('setBandResolution', {
         'bandsPerOctave': next.bandsPerOctave,
@@ -85,7 +252,7 @@ class AnalyzerController extends ChangeNotifier {
   }
 
   Future<void> _diagnosticsChanged() async {
-    if (_running) {
+    if (_running && !viaHost) {
       try {
         await _method.invokeMethod<void>('setDiagnostics', {
           'enabled': analyzerDeveloperMode.value,
@@ -141,7 +308,10 @@ class AnalyzerController extends ChangeNotifier {
     bool useTestTone = false,
     bool Function()? toneAllowed,
   }) async {
-    if (!canCalibrate || _measurement != null || _toneRunning) {
+    if ((useTestTone && viaHost) ||
+        !canCalibrate ||
+        _measurement != null ||
+        _toneRunning) {
       throw AnalyzerCalibrationError.unavailable;
     }
     final key = calibrationIdentity!.key;
@@ -181,7 +351,7 @@ class AnalyzerController extends ChangeNotifier {
       }
       final measurement = AnalyzerCalibrationMeasurement();
       _measurement = measurement;
-      await hold(2000);
+      await hold(viaHost ? 3000 : 2000);
       if (!canCalibrate || generation != _calibrationGeneration) {
         throw AnalyzerCalibrationError.unavailable;
       }
@@ -266,6 +436,12 @@ class AnalyzerController extends ChangeNotifier {
 
   void setBars(bool value) {
     bars = value;
+    if (_running &&
+        _host?.connected == true &&
+        _host?.reconnecting == false &&
+        (_host?.analyzerVersion ?? 0) >= 2) {
+      _host!.send('analyzer_start', _hostRequest);
+    }
     unawaited(AppSettings.instance.setAnalyzerBars(value));
     _notify();
   }
@@ -289,19 +465,33 @@ class AnalyzerController extends ChangeNotifier {
   }
 
   final _activeOwners = <Object>{};
+  Timer? _visibilityStop;
 
   /// Für Anzeigen, die sich einen Controller teilen: Aufgenommen wird, solange
-  /// mindestens eine von ihnen aktiv ist.
+  /// mindestens eine von ihnen aktiv ist. Ein Layout-Umbau darf die letzte
+  /// Anzeige kurz entfernen, ohne Aufnahme, Playout und Hüllkurven zu löschen.
   Future<void> setActiveFor(Object owner, bool active) {
+    if (_disposed) return _operations;
     if (active) {
       _activeOwners.add(owner);
     } else {
       _activeOwners.remove(owner);
     }
-    return setActive(_activeOwners.isNotEmpty);
+    if (_activeOwners.isNotEmpty) return setActive(true);
+    if (_desired) {
+      _visibilityStop ??= Timer(const Duration(milliseconds: 500), () {
+        _visibilityStop = null;
+        if (!_disposed && _activeOwners.isEmpty) unawaited(setActive(false));
+      });
+    }
+    return _operations;
   }
 
+  /// Explicit capture barriers (including shutdown) remain immediate.
   Future<void> setActive(bool active) {
+    _visibilityStop?.cancel();
+    _visibilityStop = null;
+    if (_disposed) return _operations;
     _desired = active;
     _operations = _operations.then((_) => _reconcile());
     return _operations;
@@ -312,38 +502,56 @@ class AnalyzerController extends ChangeNotifier {
       await _stop();
       return;
     }
-    if (_running) return;
+    if (_host?.reconnecting == true || _running) return;
     inputRejected = false;
     inputErrorCode = null;
     diagnostics = {};
     status = AnalyzerStatus.starting;
     _notify();
     try {
-      final allowed = await _method.invokeMethod<bool>('permission') ?? false;
+      final host = _host;
+      if (host != null && (!host.connected || !host.analyzerAvailable)) {
+        inputErrorCode = host.connected
+            ? 'analyzer_unsupported'
+            : 'analyzer_disconnected';
+        status = AnalyzerStatus.usbUnavailable;
+        _notify();
+        return;
+      }
+      final allowed =
+          host != null ||
+          (await _method.invokeMethod<bool>('permission') ?? false);
       if (!_desired || _disposed) return;
       if (!allowed) {
         status = AnalyzerStatus.permissionRequired;
         _notify();
         return;
       }
-      _subscription = _events.receiveBroadcastStream().listen(
-        _event,
-        onError: (_) {
-          _calibrationGeneration++;
-          status = AnalyzerStatus.captureFailed;
-          _notify();
-        },
-        onDone: () {
-          _calibrationGeneration++;
-          status = AnalyzerStatus.captureFailed;
-          _notify();
-        },
-      );
+      _subscription = host != null
+          ? host.analyzerEvents.stream.listen(_hostEvent)
+          : _events.receiveBroadcastStream().listen(
+              _event,
+              onError: (_) {
+                _calibrationGeneration++;
+                status = AnalyzerStatus.captureFailed;
+                _notify();
+              },
+              onDone: () {
+                _calibrationGeneration++;
+                status = AnalyzerStatus.captureFailed;
+                _notify();
+              },
+            );
       _running = true;
       _frameAge
         ..reset()
         ..start();
       _watchdog = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (_host?.reconnecting == true ||
+            _host?.awaitingSilenceTimeout == true) {
+          _frameAge.reset();
+          return;
+        }
         if ((status == AnalyzerStatus.starting ||
                 status == AnalyzerStatus.running ||
                 status == AnalyzerStatus.silent) &&
@@ -353,10 +561,14 @@ class AnalyzerController extends ChangeNotifier {
           _notify();
         }
       });
-      await _method.invokeMethod<void>('start', {
-        'bandsPerOctave': bandResolution.bandsPerOctave,
-        if (analyzerDeveloperMode.value) 'diagnostics': true,
-      });
+      if (host != null) {
+        host.send('analyzer_start', _hostRequest);
+      } else {
+        await _method.invokeMethod<void>('start', {
+          'bandsPerOctave': bandResolution.bandsPerOctave,
+          if (analyzerDeveloperMode.value) 'diagnostics': true,
+        });
+      }
       if (!_desired || _disposed) await _stop();
     } on PlatformException {
       await _failed();
@@ -372,6 +584,10 @@ class AnalyzerController extends ChangeNotifier {
   }
 
   Future<void> requestPermission() async {
+    if (viaHost) {
+      await retry();
+      return;
+    }
     try {
       await _method.invokeMethod<bool>('requestPermission');
     } on PlatformException {
@@ -385,6 +601,7 @@ class AnalyzerController extends ChangeNotifier {
   }
 
   Future<void> retry() async {
+    if (_host?.reconnecting == true) return _operations;
     _operations = _operations.then((_) async {
       await _stop();
       await _reconcile();
@@ -398,12 +615,16 @@ class AnalyzerController extends ChangeNotifier {
       diagnostics = Map<String, dynamic>.from(info);
     }
     if (data['status'] case final String code) {
+      _cancelHostDisplay();
       inputRejected = true;
       inputErrorCode = code;
       device = null;
       status = switch (code) {
-        'permissionDenied' => AnalyzerStatus.permissionRequired,
-        'usbUnavailable' || 'routeMismatch' => AnalyzerStatus.usbUnavailable,
+        'permissionDenied' ||
+        'analyzer_permission' => AnalyzerStatus.permissionRequired,
+        'usbUnavailable' ||
+        'routeMismatch' ||
+        'analyzer_no_input' => AnalyzerStatus.usbUnavailable,
         _ => AnalyzerStatus.captureFailed,
       };
       frame = null;
@@ -440,7 +661,9 @@ class AnalyzerController extends ChangeNotifier {
     }
     // iOS and macOS send continuous stereo PCM to the same DSP. Android
     // keeps its native analysis event path.
-    if (data['pcm'] case final List pcm) {
+    if (data['hostFrame'] case final AnalyzerFrame f) {
+      _accept(f);
+    } else if (data['pcm'] case final List pcm) {
       final rate = data['sampleRate'] as int;
       if (_rate != rate) {
         _pcmDsp = AnalyzerDsp()..bandResolution = bandResolution;
@@ -471,25 +694,77 @@ class AnalyzerController extends ChangeNotifier {
       ..start();
     _silence = next.peak.every((v) => v < -95) ? _silence + next.seconds : 0;
     status = _silence > 1.5 ? AnalyzerStatus.silent : AnalyzerStatus.running;
-    _updateAnalysis(next);
+    if (viaHost && (_host?.analyzerVersion ?? 0) >= 2) {
+      if (frame == null ||
+          frame!.logSpectrum != next.logSpectrum ||
+          spectrum.values.length != next.spectrum.length ||
+          bands.values.length != next.bandLevels.length ||
+          frame!.sampleRate != next.sampleRate) {
+        _updateAnalysis(next, seconds: 1 / 60);
+      }
+      _displayFresh = true;
+      _animateHost();
+    } else {
+      _updateAnalysis(next);
+    }
     _notify();
   }
 
-  void _updateAnalysis(AnalyzerFrame raw) {
+  void _updateAnalysis(
+    AnalyzerFrame raw, {
+    double? seconds,
+    bool smoothMeters = false,
+  }) {
     // Apply the same dB correction once, before every envelope and peak hold.
     // Convert spectra before adding gain to preserve FFT floor/scalloping rules.
     List<double> calibrated(List<double> db) =>
         db.map((v) => v + calibrationOffset).toList();
-    frame = raw.calibrated(calibrationOffset);
-    spectrum.update(calibrated(analyzerLineDb(raw.spectrum)), raw.seconds);
-    bassSpectrum.update(
-      calibrated(analyzerLineDb(raw.bassSpectrum)),
-      raw.seconds,
+    final target = raw.calibrated(calibrationOffset);
+    final dt = seconds ?? raw.seconds;
+    final previous = frame;
+    if (smoothMeters && previous != null) {
+      final blend = 1 - math.exp(-dt / .02);
+      List<double> mix(List<double> a, List<double> b) =>
+          List.generate(2, (i) => a[i] + (b[i] - a[i]) * blend);
+      frame = AnalyzerFrame(
+        sampleRate: target.sampleRate,
+        spectrum: target.spectrum,
+        logSpectrum: target.logSpectrum,
+        spectrumBinHz: target.spectrumBinHz,
+        bassSpectrum: target.bassSpectrum,
+        bassBinHz: target.bassBinHz,
+        bandLevels: target.bandLevels,
+        bandResolution: target.bandResolution,
+        peak: target.peak,
+        rms: target.rms,
+        meterPeak: mix(previous.displayPeak, target.displayPeak),
+        meterRms: mix(previous.displayRms, target.displayRms),
+        clipped: target.clipped,
+        seconds: target.seconds,
+      );
+    } else {
+      frame = target;
+    }
+    spectrum.update(
+      calibrated(
+        raw.logSpectrum
+            ? raw.spectrum.map(amplitudeDb).toList()
+            : analyzerLineDb(raw.spectrum),
+      ),
+      dt,
     );
-    bands.update(calibrated(octaveBandDb(raw, bandResolution)), raw.seconds);
+    bassSpectrum.update(calibrated(analyzerLineDb(raw.bassSpectrum)), dt);
+    bands.update(
+      calibrated(
+        raw.logSpectrum ? raw.bandLevels : octaveBandDb(raw, bandResolution),
+      ),
+      dt,
+    );
   }
 
   Future<void> _stop() async {
+    _cancelHostDisplay();
+    _hostMetadata = {};
     _watchdog?.cancel();
     _watchdog = null;
     _frameAge
@@ -498,7 +773,11 @@ class AnalyzerController extends ChangeNotifier {
     if (_running) {
       _running = false;
       try {
-        await _method.invokeMethod<void>('stop');
+        if (_host case final host?) {
+          host.send('analyzer_stop');
+        } else {
+          await _method.invokeMethod<void>('stop');
+        }
       } on PlatformException {
         /* Platform already stopped. */
       } on MissingPluginException {
@@ -527,8 +806,13 @@ class AnalyzerController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _visibilityStop?.cancel();
+    _visibilityStop = null;
+    _activeOwners.clear();
+    _host?.removeListener(_hostChanged);
     AppSettings.instance.removeListener(_settingsChanged);
     analyzerDeveloperMode.removeListener(_diagnosticsChanged);
+    _cancelHostDisplay();
     _disposed = true;
     _desired = false;
     _operations = _operations.then((_) => _stop());

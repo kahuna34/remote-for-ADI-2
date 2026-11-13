@@ -642,17 +642,17 @@ void main() {
       expect(layout.tiles.map((t) => t.type), [
         EasyTileType.outputSelect,
         EasyTileType.volumeRing,
-        EasyTileType.mute,
+        EasyTileType.lock,
         EasyTileType.volumeDown,
         EasyTileType.volumeUp,
+        EasyTileType.link,
+        EasyTileType.mute,
         EasyTileType.dim,
-        ...List.filled(4, EasyTileType.setup),
-      ]);
-      expect(layout.tiles.skip(6).map((t) => (t.param, t.height)), [
-        (1, 0.5),
-        (2, 0.5),
-        (3, 0.5),
-        (4, 0.5),
+        EasyTileType.loudness,
+        EasyTileType.crossfeed,
+        EasyTileType.recall,
+        EasyTileType.bass,
+        EasyTileType.treble,
       ]);
       expect(
         packEasyTiles(layout.tiles).map((p) => (p.x, p.y, p.width, p.height)),
@@ -663,12 +663,35 @@ void main() {
           (15, 5, 15, 2),
           (30, 5, 15, 2),
           (45, 5, 15, 2),
-          (0, 7, 15, 1),
-          (15, 7, 15, 1),
-          (30, 7, 15, 1),
-          (45, 7, 15, 1),
+          (0, 7, 12, 2),
+          (12, 7, 12, 2),
+          (24, 7, 12, 2),
+          (36, 7, 12, 2),
+          (48, 7, 12, 2),
+          (0, 1, 15, 4),
+          (45, 1, 15, 4),
         ],
       );
+      final placements = packEasyTiles(layout.tiles);
+      for (final a in placements) {
+        expect(
+          EasyTile.supportsShape(
+            layout.tiles[a.index].type,
+            layout.tiles[a.index].size,
+            layout.tiles[a.index].height,
+          ),
+          isTrue,
+        );
+        for (final b in placements.where((b) => b.index > a.index)) {
+          expect(
+            a.x < b.x + b.width &&
+                a.x + a.width > b.x &&
+                a.y < b.y + b.height &&
+                a.y + a.height > b.y,
+            isFalse,
+          );
+        }
+      }
       expect(layout.tiles[1].pinned, isTrue);
       expect(
         EasyLayout.decode(layout.encode(), variant).toJson(),

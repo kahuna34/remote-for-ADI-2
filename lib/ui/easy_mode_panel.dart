@@ -16,7 +16,7 @@ String easyTileTitle(EasyTile tile, Adi2Controller ctrl) {
     EasyTileType.lock => tr('Lock'),
     EasyTileType.bass => tr('Bass'),
     EasyTileType.treble => tr('Treble'),
-    EasyTileType.balance => tr('Bal'),
+    EasyTileType.balance => tr('Balance'),
     EasyTileType.refLevel => tr('Ref Level'),
     EasyTileType.daFilter => tr('DA-Filter'),
     EasyTileType.source => tr('Quelle'),
@@ -60,6 +60,89 @@ int? _easyParamIndex(EasyTileType type) => switch (type) {
   EasyTileType.source || EasyTileType.sourceDirect => OutIdx.source,
   _ => null,
 };
+
+/// Scale each line independently so long names do not shrink the status/icon.
+Widget _easyText(String text, TextStyle style, {Key? key}) => Center(
+  child: FittedBox(
+    fit: BoxFit.scaleDown,
+    child: Text(text, key: key, maxLines: 1, style: style),
+  ),
+);
+
+/// The volume step has the same inline symbol/text arrangement as a soft button.
+Widget _easySoftFace(
+  BuildContext context,
+  String title,
+  String value,
+  IconData icon,
+) => Center(
+  child: FittedBox(
+    fit: BoxFit.scaleDown,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 20, color: Palette.muted),
+            const SizedBox(width: 4),
+            Text(title, maxLines: 1, style: buttonLabelStyle(context)),
+          ],
+        ),
+        if (value.isNotEmpty)
+          Text(value, maxLines: 1, style: buttonStatusStyle(context)),
+      ],
+    ),
+  ),
+);
+
+Widget _easyFace(
+  BuildContext context, {
+  required String title,
+  String value = '',
+  IconData? icon,
+  bool active = false,
+  Color accent = Palette.amber,
+}) => LayoutBuilder(
+  builder: (context, box) {
+    final label = buttonLabelStyle(context);
+    final status = buttonStatusStyle(
+      context,
+      active: active,
+    ).copyWith(color: active ? accent : Palette.text);
+    final scale = MediaQuery.textScalerOf(context);
+    final height =
+        (icon == null ? 0 : 24) +
+        scale.scale(label.fontSize!) * 1.3 +
+        (value.isEmpty ? 0 : scale.scale(status.fontSize!) * 1.3);
+    return Center(
+      child: SizedBox(
+        height: math.min(height, box.maxHeight),
+        child: Column(
+          children: [
+            if (icon != null)
+              Flexible(
+                flex: 24,
+                child: Center(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Icon(
+                      icon,
+                      size: 20,
+                      color: active ? accent : Palette.muted,
+                    ),
+                  ),
+                ),
+              ),
+            Flexible(flex: 20, child: _easyText(title, label)),
+            if (value.isNotEmpty)
+              Flexible(flex: 18, child: _easyText(value, status)),
+          ],
+        ),
+      ),
+    );
+  },
+);
 
 extension _EasyOutputs on _OutputsPageState {
   Widget _buildEasyPanel(EasyLayout setup) => ListenableBuilder(
@@ -177,14 +260,11 @@ extension _EasyOutputs on _OutputsPageState {
       _ => false,
     };
     final base = easyTileBackground(tile.color ?? defaultColor);
+    final accent = t == EasyTileType.mute ? Palette.red : Palette.amber;
     final background = active
-        ? Color.alphaBlend(Palette.amber.withValues(alpha: 0.14), base)
+        ? Color.alphaBlend(accent.withValues(alpha: 0.14), base)
         : base;
-    final foreground = easyTileForeground(background);
-    final secondary = Color.alphaBlend(
-      foreground.withValues(alpha: 0.78),
-      background,
-    );
+    const foreground = Palette.text;
     final title = easyTileTitle(tile, c);
     final edit = widget.onEditTile;
     final longPress = _easyLongPress(tile, o, outs);
@@ -231,11 +311,9 @@ extension _EasyOutputs on _OutputsPageState {
       child = Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            title,
-            style: ts(15, weight: 600),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+          SizedBox(
+            height: 24,
+            child: _easyText(title, buttonLabelStyle(context)),
           ),
           Expanded(
             child: FittedBox(
@@ -265,17 +343,25 @@ extension _EasyOutputs on _OutputsPageState {
               ),
             ),
           ),
-          Text(
-            o.name,
-            style: ts(12, color: secondary),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+          SizedBox(
+            height: 22,
+            child: _easyText(o.name, buttonStatusStyle(context)),
           ),
         ],
       );
     } else {
       final value = switch (t) {
         EasyTileType.outputSelect => selected.name,
+        EasyTileType.mute ||
+        EasyTileType.dim ||
+        EasyTileType.loudness ||
+        EasyTileType.lock ||
+        EasyTileType.link ||
+        EasyTileType.eqEnable => tr(active ? 'An' : 'Aus'),
+        EasyTileType.crossfeed =>
+          outputParams(c.variant!, phones: o.phones, ess: c.hasEss)
+              .firstWhere((d) => d.index == OutIdx.crossfeed)
+              .format(c.valueOr(a, OutIdx.crossfeed, 0)),
         EasyTileType.volumeUp ||
         EasyTileType.volumeDown when hideVolumeValue => '',
         EasyTileType.volumeUp ||
@@ -309,13 +395,14 @@ extension _EasyOutputs on _OutputsPageState {
         EasyTileType.volumeDown => Icons.remove,
         EasyTileType.volumeDirect => Icons.volume_up_outlined,
         EasyTileType.mute => Icons.volume_off_outlined,
-        EasyTileType.dim => Icons.volume_down_outlined,
+        EasyTileType.dim => Icons.brightness_low_outlined,
         EasyTileType.loudness => Icons.graphic_eq,
         EasyTileType.crossfeed => Icons.spatial_audio_off,
         EasyTileType.recall => Icons.bookmark_outline,
         EasyTileType.link => Icons.link,
-        EasyTileType.lock => Icons.lock_outline,
+        EasyTileType.lock => active ? Icons.lock : Icons.lock_open,
         EasyTileType.source || EasyTileType.sourceDirect => Icons.input,
+        EasyTileType.daFilter => Icons.filter_alt_outlined,
         EasyTileType.setup => Icons.layers_outlined,
         EasyTileType.eqPreset ||
         EasyTileType.appPreset => Icons.library_music_outlined,
@@ -325,8 +412,11 @@ extension _EasyOutputs on _OutputsPageState {
       };
       child = LayoutBuilder(
         builder: (context, box) {
-          final compact = tile.heightUnits == 0.5;
-          final tall = tile.widthUnits < tile.heightUnits * easyQuarterUnits;
+          final tall = tile.type == EasyTileType.balance
+              ? false
+              : {EasyTileType.bass, EasyTileType.treble}.contains(tile.type)
+              ? tile.heightUnits >= 1
+              : tile.widthUnits < tile.heightUnits * easyQuarterUnits;
           if (t == EasyTileType.refLevel) {
             return _easyRefTile(
               tile,
@@ -336,8 +426,6 @@ extension _EasyOutputs on _OutputsPageState {
               title,
               segmented,
               unavailable,
-              foreground,
-              secondary,
             );
           }
           if (stepper) {
@@ -347,8 +435,6 @@ extension _EasyOutputs on _OutputsPageState {
               o,
               title,
               value,
-              foreground,
-              secondary,
               tall,
               unavailable || locked && volumeAction,
             );
@@ -356,102 +442,16 @@ extension _EasyOutputs on _OutputsPageState {
           if (segmented) {
             return _easySegments(tile, index, o, outs, tall, unavailable);
           }
-          final enabledColor = unavailable || locked && volumeAction
-              ? secondary
-              : foreground;
-          final symbol = Icon(
-            icon,
-            size: compact ? 16 : 20,
-            color: active ? Palette.amber : secondary,
-          );
-          if (tile.size == EasyTileSize.fifth) {
-            final shortTitle = tile.label != null
-                ? title
-                : switch (t) {
-                    EasyTileType.loudness => 'Loud.',
-                    EasyTileType.crossfeed => 'Crossf.',
-                    EasyTileType.toggleOutputs => tr('Ausgänge'),
-                    EasyTileType.eqEnable || EasyTileType.eqPage => tr('EQ'),
-                    _ => title,
-                  };
-            return Semantics(
-              label: title,
-              child: ExcludeSemantics(
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      symbol,
-                      Flexible(
-                        child: Text(
-                          shortTitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                          style: ts(12, weight: 600, color: enabledColor),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
+          if (t == EasyTileType.volumeUp || t == EasyTileType.volumeDown) {
+            return _easySoftFace(context, title, value, icon);
           }
-          // Tiny tiles retain a centered symbol; their full label remains in
-          // semantics. Larger horizontal groups shrink to their actual content.
-          if (flatEditor || box.maxWidth < 48 || box.maxHeight < 24) {
-            return Center(
-              child: Semantics(label: title, child: symbol),
-            );
-          }
-          if (!tall && box.maxWidth > box.maxHeight) {
-            return Center(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  symbol,
-                  const SizedBox(width: 4),
-                  Flexible(
-                    child: Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: ts(12, weight: 600, color: enabledColor),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }
-          return Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                symbol,
-                const SizedBox(height: 2),
-                Flexible(
-                  child: Text(
-                    title,
-                    textAlign: TextAlign.center,
-                    maxLines: box.maxHeight > 85 ? 2 : 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: ts(
-                      box.maxWidth < 90 ? 12 : 14,
-                      weight: 600,
-                      color: enabledColor,
-                    ),
-                  ),
-                ),
-                if (value.isNotEmpty && box.maxHeight > 70)
-                  Text(
-                    value,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: ts(11, color: active ? Palette.amber : secondary),
-                  ),
-              ],
-            ),
+          return _easyFace(
+            context,
+            title: title,
+            value: value,
+            icon: icon,
+            active: active,
+            accent: accent,
           );
         },
       );
@@ -459,9 +459,8 @@ extension _EasyOutputs on _OutputsPageState {
     return Material(
       key: ValueKey('easy-tile-$index'),
       color: background,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: BorderSide(color: active ? Palette.amber : Palette.line),
+      shape: _controlShape.copyWith(
+        side: BorderSide(color: active ? accent : Palette.line),
       ),
       clipBehavior: Clip.antiAlias,
       child: Stack(
@@ -476,7 +475,7 @@ extension _EasyOutputs on _OutputsPageState {
             onLongPressEnd: canRepeat ? (_) => _stopRepeat(a) : null,
             onLongPressCancel: canRepeat ? () => _stopRepeat(a) : null,
             child: InkWell(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(10),
               onTap: edit != null
                   ? () => edit(index)
                   : unavailable ||
@@ -497,6 +496,14 @@ extension _EasyOutputs on _OutputsPageState {
               ),
             ),
           ),
+          if (edit == null && longPress != null && t != EasyTileType.volumeRing)
+            const Positioned(
+              top: 3,
+              right: 3,
+              child: IgnorePointer(
+                child: Icon(Icons.more_horiz, size: 14, color: Palette.muted),
+              ),
+            ),
           if (edit != null && widget.onPinTile != null)
             Positioned(
               top: 0,
@@ -552,14 +559,7 @@ extension _EasyOutputs on _OutputsPageState {
   }
 
   String _easyBalanceValue(OutputInfo o) {
-    final raw = c.valueOr(o.address, OutIdx.balance, 0);
-    if (raw == 0) return tr('C');
-    final def = outputParams(
-      c.variant!,
-      phones: o.phones,
-      ess: c.hasEss,
-    ).firstWhere((d) => d.index == OutIdx.balance);
-    return '${raw < 0 ? tr('L') : tr('R')} ${def.format(raw.abs()).replaceAll('.', ',')}';
+    return formatBalance(c.valueOr(o.address, OutIdx.balance, 0));
   }
 
   Widget _easyStepper(
@@ -568,15 +568,16 @@ extension _EasyOutputs on _OutputsPageState {
     OutputInfo o,
     String title,
     String value,
-    Color foreground,
-    Color secondary,
     bool tall,
     bool disabled,
   ) => LayoutBuilder(
     builder: (context, box) {
-      final compact = tile.heightUnits == 0.5;
-      // Reserve the middle 30% for the label/value on either layout axis.
-      final buttonExtent = (tall ? box.maxHeight : box.maxWidth) * 0.35;
+      // Keep two 48 px targets whenever the axis also has room for text.
+      final axisExtent = tall ? box.maxHeight : box.maxWidth;
+      final buttonExtent = math.min(
+        math.max(0.0, (axisExtent - 16) / 2),
+        math.max(48.0, axisExtent * 0.35),
+      );
       final crossExtent = tall ? box.maxWidth : box.maxHeight;
       final textScale = (math.min(buttonExtent, crossExtent) / 44).clamp(
         1.0,
@@ -615,13 +616,10 @@ extension _EasyOutputs on _OutputsPageState {
                 child: Ink(
                   decoration: const ShapeDecoration(shape: _controlShape),
                   child: Center(
-                    child: Text(
+                    child: _easyText(
                       direction > 0 ? '+' : '−',
-                      style: ts(
-                        18 * textScale,
-                        weight: 500,
-                        color: disabled ? secondary : foreground,
-                      ),
+                      buttonLabelStyle(context)
+                          .copyWith(fontSize: 18 * textScale),
                     ),
                   ),
                 ),
@@ -631,48 +629,41 @@ extension _EasyOutputs on _OutputsPageState {
         );
       }
 
-      final center = Expanded(
-        child: Center(
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (!compact ||
-                    tile.type == EasyTileType.volumeDirect ||
-                    tile.type == EasyTileType.volumeUp ||
-                    tile.type == EasyTileType.volumeDown ||
-                    value.isEmpty)
-                  Text(
-                    title,
-                    style: ts(12 * textScale, weight: 500, color: secondary),
-                  ),
-                if (value.isNotEmpty)
-                  Text(
-                    compact &&
-                            {
-                              EasyTileType.bass,
-                              EasyTileType.treble,
-                              EasyTileType.balance,
-                            }.contains(tile.type)
-                        ? '$title $value'
-                        : value,
-                    key: ValueKey('easy-step-$index-value'),
-                    style: ts(
-                      14 * textScale,
-                      weight: 500,
-                      color: disabled ? secondary : Palette.amber,
-                    ),
-                  ),
-              ],
-            ),
-          ),
+      final valueLine = _easyText(
+        value,
+        buttonStatusStyle(
+          context,
+          active: !disabled,
+        ).copyWith(fontSize: buttonStatusStyle(context).fontSize! * textScale),
+        key: ValueKey('easy-step-$index-value'),
+      );
+      final titleLine = _easyText(title, buttonLabelStyle(context));
+      if (tall &&
+          {EasyTileType.bass, EasyTileType.treble}.contains(tile.type)) {
+        return Column(
+          key: ValueKey('easy-step-$index-vertical'),
+          children: [
+            Expanded(child: titleLine),
+            button(1),
+            Expanded(child: valueLine),
+            button(-1),
+          ],
+        );
+      }
+      // Keep the value key on the actual status line for inspection.
+      final centerWithKey = Expanded(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Flexible(child: titleLine),
+            if (value.isNotEmpty) Flexible(child: valueLine),
+          ],
         ),
       );
       return Flex(
         key: ValueKey('easy-step-$index-${tall ? 'vertical' : 'horizontal'}'),
         direction: tall ? Axis.vertical : Axis.horizontal,
-        children: [button(tall ? 1 : -1), center, button(tall ? -1 : 1)],
+        children: [button(tall ? 1 : -1), centerWithKey, button(tall ? -1 : 1)],
       );
     },
   );
@@ -714,8 +705,6 @@ extension _EasyOutputs on _OutputsPageState {
     String title,
     bool segmented,
     bool unavailable,
-    Color foreground,
-    Color secondary,
   ) {
     final fixed = _fixedRef(o);
     final def = outputParams(
@@ -733,14 +722,10 @@ extension _EasyOutputs on _OutputsPageState {
         children: [
           Text(
             n == -1 ? tr('Auto') : def.format(n),
-            style: ts(
-              14,
-              weight: 600,
-              color: selected ? Palette.amber : foreground,
-            ),
+            style: buttonStatusStyle(context, active: selected),
           ),
           if (rca && n != -1)
-            Text(_refXlr(o, n), style: ts(10, color: secondary, narrow: true)),
+            Text(_refXlr(o, n), style: buttonStatusStyle(context)),
         ],
       ),
     );
@@ -751,11 +736,9 @@ extension _EasyOutputs on _OutputsPageState {
       ];
       return Column(
         children: [
-          Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: ts(12, weight: 500, color: secondary),
+          SizedBox(
+            height: 24,
+            child: _easyText(title, buttonLabelStyle(context)),
           ),
           Expanded(
             child: Row(
@@ -778,16 +761,12 @@ extension _EasyOutputs on _OutputsPageState {
                           child: Ink(
                             decoration: BoxDecoration(
                               color: selected
-                                  ? Palette.amber.withValues(alpha: 0.12)
+                                  ? Palette.amber.withValues(alpha: 0.14)
                                   : null,
-                              border: selected
-                                  ? const Border(
-                                      bottom: BorderSide(
-                                        color: Palette.amber,
-                                        width: 2,
-                                      ),
-                                    )
-                                  : null,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: selected ? Palette.amber : Palette.line,
+                              ),
                             ),
                             child: Padding(
                               padding: const EdgeInsets.all(4),
@@ -817,19 +796,32 @@ extension _EasyOutputs on _OutputsPageState {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(title, style: ts(12, weight: 600, color: foreground)),
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (fixed) Icon(Icons.lock_outline, size: 16, color: secondary),
-                Text(value, style: ts(14, weight: 600, color: foreground)),
+                Icon(
+                  fixed ? Icons.lock_outline : Icons.tune,
+                  size: 16,
+                  color: Palette.muted,
+                ),
+                const SizedBox(width: 4),
+                Text(title, style: buttonLabelStyle(context)),
+              ],
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  value,
+                  style: buttonStatusStyle(
+                    context,
+                    active: !fixed && !unavailable,
+                  ),
+                ),
               ],
             ),
             if (rca && !unavailable)
-              Text(
-                _refXlr(o, current),
-                style: ts(10, color: secondary, narrow: true),
-              ),
+              Text(_refXlr(o, current), style: buttonStatusStyle(context)),
           ],
         ),
       ),
@@ -852,7 +844,16 @@ extension _EasyOutputs on _OutputsPageState {
             phones: o.phones,
             ess: c.hasEss,
           ).firstWhere((d) => d.index == _easyParamIndex(tile.type));
-    if (unavailable) return Center(child: Text(tr('wie Line'), style: ts(12)));
+    if (unavailable) {
+      return _easyFace(
+        context,
+        title: easyTileTitle(tile, c),
+        value: tr('wie Line'),
+        icon: tile.type == EasyTileType.daFilter
+            ? Icons.filter_alt_outlined
+            : Icons.input,
+      );
+    }
     if (isOutput) {
       final disabled =
           !c.variant!.isDac && c.valueOr(Adi2Addr.device, 8, 0) == 0
@@ -864,10 +865,7 @@ extension _EasyOutputs on _OutputsPageState {
           final segmentWidth = vertical
               ? box.maxWidth
               : box.maxWidth / outs.length;
-          final segmentHeight = vertical
-              ? box.maxHeight / outs.length
-              : box.maxHeight;
-          final fontSize = (segmentHeight * 0.32).clamp(12.0, 28.0);
+
           return Flex(
             key: ValueKey(
               'easy-segments-$index-${vertical ? 'vertical' : 'horizontal'}',
@@ -889,30 +887,29 @@ extension _EasyOutputs on _OutputsPageState {
                     child: Ink(
                       decoration: BoxDecoration(
                         color: out.address == o.address
-                            ? Palette.amber.withValues(alpha: 0.12)
+                            ? Palette.amber.withValues(alpha: 0.14)
                             : null,
-                        border: out.address == o.address
-                            ? const Border(
-                                bottom: BorderSide(
-                                  color: Palette.amber,
-                                  width: 2,
-                                ),
-                              )
-                            : null,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: out.address == o.address
+                              ? Palette.amber
+                              : Palette.line,
+                        ),
                       ),
                       child: Center(
                         child: SizedBox(
                           width: (segmentWidth - 8).clamp(0.0, double.infinity),
+                          height: vertical
+                              ? box.maxHeight / outs.length - 4
+                              : box.maxHeight - 4,
                           child: FittedBox(
                             fit: BoxFit.scaleDown,
                             child: Text(
                               out.name,
                               maxLines: 1,
-                              style: ts(
-                                fontSize,
-                                weight: out.address == o.address ? 600 : 500,
+                              style: buttonLabelStyle(context).copyWith(
                                 color: disabled.contains(out.address)
-                                    ? Palette.muted.withValues(alpha: 0.45)
+                                    ? Palette.muted
                                     : out.address == o.address
                                     ? Palette.amber
                                     : Palette.text,
@@ -929,78 +926,90 @@ extension _EasyOutputs on _OutputsPageState {
         },
       );
     }
-    final options = isOutput
-        ? {for (final out in outs) out.address: out.name}
-        : {for (var n = def!.min; n <= def.max; n++) n: def.format(n)};
-    final current = isOutput
-        ? o.address
-        : c.valueOr(o.address, def!.index, def.def);
+    final options = {
+      for (var n = def!.min; n <= def.max; n++) n: def.format(n),
+    };
+    final current = c.valueOr(o.address, def.index, def.def);
     final disabledValues = {
       for (final n in options.keys)
-        if (!isOutput && c.isParamValueDisabled(o.address, def!.index, n)) n,
+        if (c.isParamValueDisabled(o.address, def.index, n)) n,
     };
-    final segments = SingleChildScrollView(
-      key: ValueKey('easy-segments-$index-${tall ? 'vertical' : 'horizontal'}'),
-      scrollDirection: tall ? Axis.vertical : Axis.horizontal,
-      child: Flex(
-        direction: tall ? Axis.vertical : Axis.horizontal,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final entry in options.entries)
-            ConstrainedBox(
-              constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-              child: TextButton(
-                key: ValueKey('easy-segment-$index-${entry.key}'),
-                style: TextButton.styleFrom(
-                  foregroundColor: current == entry.key ? Palette.amber : null,
-                  backgroundColor: current == entry.key
-                      ? Palette.amber.withValues(alpha: 0.12)
-                      : null,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  minimumSize: const Size(44, 44),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                onPressed:
-                    widget.onEditTile != null ||
-                        disabledValues.contains(entry.key) ||
-                        isOutput &&
-                            !c.variant!.isDac &&
-                            entry.key == Adi2Addr.ph12 &&
-                            c.valueOr(Adi2Addr.device, 8, 0) == 0
-                    ? null
-                    : () {
-                        if (isOutput) {
-                          _selectEasyOutput(entry.key);
-                        } else {
-                          c.set(o.address, def!.index, entry.key);
-                        }
-                      },
-                child: Text(
-                  entry.value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: ts(
-                    12,
-                    color: disabledValues.contains(entry.key)
-                        ? Palette.muted.withValues(alpha: 0.45)
-                        : Palette.text,
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-    if (tile.heightUnits == 0.5) return segments;
     return Column(
       children: [
-        Text(
-          easyTileTitle(tile, c),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: ts(12, weight: 500, color: Palette.muted),
+        Flexible(
+          child: Center(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    tile.type == EasyTileType.daFilter
+                        ? Icons.filter_alt_outlined
+                        : Icons.input,
+                    size: 16,
+                    color: Palette.muted,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    easyTileTitle(tile, c),
+                    style: buttonLabelStyle(context),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
-        Expanded(child: segments),
+        Expanded(
+          flex: tile.heightUnits == 0.5 ? 1 : 3,
+          child: Flex(
+            key: ValueKey(
+              'easy-segments-$index-${tall ? 'vertical' : 'horizontal'}',
+            ),
+            direction: tall ? Axis.vertical : Axis.horizontal,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final entry in options.entries)
+                Expanded(
+                  child: TextButton(
+                    key: ValueKey('easy-segment-$index-${entry.key}'),
+                    style: TextButton.styleFrom(
+                      backgroundColor: current == entry.key
+                          ? Palette.amber.withValues(alpha: 0.14)
+                          : null,
+                      padding: const EdgeInsets.all(2),
+                      minimumSize: Size.zero,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        side: BorderSide(
+                          color: current == entry.key
+                              ? Palette.amber
+                              : Palette.line,
+                        ),
+                      ),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    onPressed:
+                        widget.onEditTile != null ||
+                            disabledValues.contains(entry.key)
+                        ? null
+                        : () => c.set(o.address, def.index, entry.key),
+                    child: _easyText(
+                      entry.value,
+                      buttonStatusStyle(
+                        context,
+                        active: current == entry.key,
+                      ).copyWith(
+                        color: disabledValues.contains(entry.key)
+                            ? Palette.muted.withValues(alpha: 0.45)
+                            : null,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ],
     );
   }

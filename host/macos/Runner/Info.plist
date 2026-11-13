@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Remote for ADI-2 Host zeigt Titel von Music und Spotify und steuert ihre Wiedergabe vom Smartphone.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Remote for ADI-2 Host liest die USB-Aufnahme des ADI-2 für den Analyzer der App.</string>
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSLocalNetworkUsageDescription</key>

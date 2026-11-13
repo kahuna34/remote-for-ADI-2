@@ -781,20 +781,27 @@ class EasyLayout {
         y: 1,
       ),
       for (final entry in [
-        EasyTileType.mute,
+        EasyTileType.lock,
         EasyTileType.volumeDown,
         EasyTileType.volumeUp,
-        EasyTileType.dim,
+        EasyTileType.link,
       ].indexed)
         EasyTile(type: entry.$2, x: entry.$1 * easyQuarterUnits, y: 5),
-      for (var n = 1; n <= 4; n++)
+      for (final entry in [
+        EasyTileType.mute,
+        EasyTileType.dim,
+        EasyTileType.loudness,
+        EasyTileType.crossfeed,
+        EasyTileType.recall,
+      ].indexed)
         EasyTile(
-          type: EasyTileType.setup,
-          param: n,
-          height: 0.5,
-          x: (n - 1) * easyQuarterUnits,
+          type: entry.$2,
+          size: EasyTileSize.fifth,
+          x: entry.$1 * 12,
           y: 7,
         ),
+      const EasyTile(type: EasyTileType.bass, height: 2, x: 0, y: 1),
+      const EasyTile(type: EasyTileType.treble, height: 2, x: 45, y: 1),
     ],
   );
 }

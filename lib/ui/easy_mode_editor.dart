@@ -174,6 +174,8 @@ class _EasyModeEditorState extends State<_ModelEditor> {
                             padding: EdgeInsets.only(right: i == 3 ? 0 : 4),
                             child: EasySlotPreview(
                               key: ValueKey('easy-save-slot-$i'),
+                              ctrl: _ctrl,
+                              output: _output,
                               index: i,
                               layout: slots.layouts[i]?.pageFor(_output),
                               name: slots.names[i],
@@ -351,7 +353,7 @@ class _EasyModeEditorState extends State<_ModelEditor> {
   Widget _catalogCard(BuildContext ctx, EasyTileType type) => Material(
     color: Palette.bg,
     shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(10),
       side: const BorderSide(color: Palette.line),
     ),
     clipBehavior: Clip.antiAlias,
@@ -376,7 +378,7 @@ class _EasyModeEditorState extends State<_ModelEditor> {
             const SizedBox(height: 8),
             Text(
               _catalogTitle(type),
-              style: ts(13, weight: 600),
+              style: buttonLabelStyle(ctx),
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -384,7 +386,7 @@ class _EasyModeEditorState extends State<_ModelEditor> {
             const SizedBox(height: 4),
             Text(
               _catalogDescription(type),
-              style: ts(11, color: Palette.muted),
+              style: buttonStatusStyle(ctx),
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -818,7 +820,7 @@ class _EasyModeEditorState extends State<_ModelEditor> {
     final foreground = enabled
         ? (filled ? Palette.bg : color)
         : color.withValues(alpha: 0.38);
-    final radius = BorderRadius.circular(12);
+    final radius = BorderRadius.circular(10);
     return Expanded(
       child: Tooltip(
         message: tooltip,

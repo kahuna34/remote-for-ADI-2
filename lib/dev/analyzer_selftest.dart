@@ -123,7 +123,7 @@ class MidiSelfTestDevice extends SelfTestDevice {
   MidiSelfTestDevice(this.ctrl);
   final Adi2Controller ctrl;
   @override
-  bool get connected => ctrl.state == ConnState.connected;
+  bool get connected => ctrl.state == ConnState.connected && !ctrl.viaHost;
   @override
   String get identity => '${ctrl.device?.id}/${ctrl.model?.id}';
   @override

@@ -1,13 +1,24 @@
-// Gemeinsames LAN-Protokoll. Stufe 1 authentifiziert, aber unverschlüsselt.
+// Gemeinsames LAN-Protokoll. MIDI bleibt HMAC-authentifiziert; die neuen
+// Analyzer- und Player-Nutzdaten werden zusätzlich verschlüsselt. Erstkopplung bleibt offen.
 import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 
+import 'host_analyzer_cipher.dart';
+
 const hostServiceType = '_adi2remote._tcp';
 const hostDefaultPort = 47321;
+// Two Base64 layers plus the maximum artwork and UTF-8 metadata.
+const hostMaxPlayerFrameLength = 73728;
 const hostHeartbeatInterval = Duration(milliseconds: 300);
+
+/// Der Host meldet sich in diesem Abstand ('alive'), wenn er es im
+/// Handshake ankündigt. Bleibt jede Nachricht [hostSilenceTimeout] aus,
+/// gilt die Verbindung als hängend und die App verbindet neu.
+const hostAliveInterval = Duration(seconds: 1);
+const hostSilenceTimeout = Duration(seconds: 5);
 const hostGrantLifetime = Duration(seconds: 1);
 const hostPairingLifetime = Duration(minutes: 2);
 
@@ -41,11 +52,13 @@ String sessionKey(String key, List<String> context) =>
     hostMac(key, ['session', ...context]);
 
 Map<String, dynamic> decodeHostMessage(dynamic frame) {
-  if (frame is! String || frame.length > 32768) {
+  if (frame is! String || frame.length > hostMaxPlayerFrameLength) {
     throw const FormatException('Ungueltiger Nachrichtenrahmen');
   }
   final value = jsonDecode(frame);
-  if (value is! Map<String, dynamic> || value['type'] is! String) {
+  if (value is! Map<String, dynamic> ||
+      value['type'] is! String ||
+      (frame.length > 32768 && value['type'] != 'player_state')) {
     throw const FormatException('Ungueltiger Umschlag');
   }
   return value;
@@ -72,13 +85,24 @@ class HostEnvelope {
 
   String seal(String type, [Map<String, dynamic> payload = const {}]) {
     final sequence = ++_sent;
-    final body = jsonEncode(payload);
+    final plain = jsonEncode(payload);
+    final body = (type.startsWith('analyzer_') || type.startsWith('player_'))
+        ? base64Encode(_analyzerCrypt(utf8.encode(plain), outgoing, sequence))
+        : plain;
     return jsonEncode({
       'type': type,
       'seq': sequence,
       'body': body,
       'mac': hostMac(key, [outgoing, sequence, type, body]),
     });
+  }
+
+  Uint8List _analyzerCrypt(List<int> data, String direction, int sequence) {
+    final encryptionKey = base64Url.decode(
+      hostMac(key, ['analyzer-chacha20-v1', direction]),
+    );
+    final nonce = ByteData(12)..setUint64(4, sequence, Endian.little);
+    return hostAnalyzerCipher(data, encryptionKey, nonce.buffer.asUint8List());
   }
 
   Map<String, dynamic> open(Map<String, dynamic> message) {
@@ -93,7 +117,13 @@ class HostEnvelope {
         !secureEquals(mac, hostMac(key, [incoming, seq, type, body]))) {
       throw const FormatException('Sequenz oder HMAC ungueltig');
     }
-    final payload = jsonDecode(body);
+    // Verify HMAC before decrypting. Legacy message types retain their exact
+    // wire format, including pairing and MIDI.
+    final plain =
+        ((type as String).startsWith('analyzer_') || type.startsWith('player_'))
+        ? utf8.decode(_analyzerCrypt(base64Decode(body), incoming, seq))
+        : body;
+    final payload = jsonDecode(plain);
     if (payload is! Map<String, dynamic>) {
       throw const FormatException('Ungueltige Nutzdaten');
     }

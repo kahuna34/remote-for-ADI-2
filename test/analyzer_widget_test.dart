@@ -425,7 +425,7 @@ void main() {
       controller.status = AnalyzerStatus.running;
       controller.notifyListeners();
       await tester.pump();
-      expect(find.text('Peak / RMS · dBFS'), findsOneWidget);
+      expect(find.text('Peak / RMS · dBFS'), findsNothing);
       await tester.tap(find.byType(AnalyzerDisplay));
       await tester.pumpAndSettle();
       tester.view.physicalSize = const Size(800, 360);
@@ -487,6 +487,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 500));
       expect(calls.where((c) => c == 'stop').length, 1);
       expect(tester.takeException(), isNull);
     },
@@ -648,12 +649,14 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 500));
     expect(calls.where((v) => v == 'stop').length, 1);
     navigator.pop();
     await tester.pumpAndSettle();
     expect(calls.where((v) => v == 'start').length, 2);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
     await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 500));
     expect(calls.where((v) => v == 'stop').length, 2);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pumpAndSettle();
@@ -680,7 +683,7 @@ void main() {
       tester.view.physicalSize = const Size(800, 360);
       await tester.pumpAndSettle();
       expect(find.byIcon(Icons.fullscreen_exit), findsOneWidget);
-      expect(find.byType(DropdownButton<AnalyzerView>), findsOneWidget);
+      expect(find.byType(AnalyzerChoices<AnalyzerView>), findsOneWidget);
       tester.view.physicalSize = const Size(360, 800);
       await tester.pumpAndSettle();
       expect(find.byIcon(Icons.fullscreen_exit), findsNothing);

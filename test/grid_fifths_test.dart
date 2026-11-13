@@ -331,8 +331,17 @@ void main() {
             }
             expect(
               find.descendant(of: tile, matching: find.byType(Text)),
-              findsOneWidget,
+              findsNWidgets(2),
             );
+            if (i == 2 || i == 3) {
+              expect(
+                find.descendant(
+                  of: tile,
+                  matching: find.text(i == 2 ? 'Loudness' : 'Crossfeed'),
+                ),
+                findsOneWidget,
+              );
+            }
             if (!editor && i < 4) await tester.tap(tile);
             previous = bounds;
           }

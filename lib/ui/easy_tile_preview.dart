@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../device/adi2_controller.dart';
@@ -24,6 +26,14 @@ class EasyTilePreview extends StatelessWidget {
   /// Use the tile itself as the canvas for large catalog previews.
   final bool fillPreview;
 
+  // Match the grid's minimum target for half-height fifths.
+  double get _tileHeight =>
+      tile.heightUnits *
+          (tile.size == EasyTileSize.fifth && tile.heightUnits == 0.5
+              ? 104
+              : 84) -
+      8;
+
   @override
   Widget build(BuildContext context) => FittedBox(
     fit: BoxFit.contain,
@@ -31,16 +41,11 @@ class EasyTilePreview extends StatelessWidget {
       width: fillPreview
           ? tile.widthUnits * (328 + 8) / easyGridUnits - 8
           : 328,
-      height: fillPreview ? tile.heightUnits * 84 - 8 : 160,
+      height: fillPreview ? _tileHeight : math.max(160, _tileHeight),
       child: Center(
         child: SizedBox(
           width: tile.widthUnits * (328 + 8) / easyGridUnits - 8,
-          height:
-              tile.heightUnits *
-                  (tile.size == EasyTileSize.fifth && tile.heightUnits == 0.5
-                      ? 104
-                      : 84) -
-              8,
+          height: _tileHeight,
           child: OutputsPage(
             ctrl: ctrl,
             previewTile: tile,

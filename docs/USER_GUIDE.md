@@ -1,6 +1,6 @@
 # Remote for ADI-2 — User guide
 
-Version **1.1.2 (4)** · [Project overview](../README.md) · [Deutsch](BENUTZERHANDBUCH.md)
+Version **1.2.0 (5)** · [Project overview](../README.md) · [Deutsch](BENUTZERHANDBUCH.md)
 
 This guide describes the current app. Controls depend on the selected model and values reported by the device. Screenshots show Android devices and the English interface. The app has been tested with all supported ADI-2 models on an Android smartphone and an Android tablet, and with the ADI-2 DAC on a Mac, also through the host. The Player integration currently supports Android only.
 
@@ -73,9 +73,9 @@ On Windows, run **Remote-for-ADI-2-Host-Windows-Setup.exe**. The host installs f
 
 On a Mac, open **Remote for ADI-2 Host** like any program. No window appears; an icon appears in the menu bar. On Windows the icon sits in the notification area of the taskbar; on Windows 11 it first appears in the hidden-icons area (^ arrow). Clicking the icon opens the menu:
 
-| Mac: host menu | Windows: host menu |
-| --- | --- |
-| ![Mac: host menu](screenshots/host/menu.png) | ![Windows: host menu](screenshots/host/windows_menu.png) |
+| Host menu (Mac; the Windows menu looks similar) |
+| --- |
+| ![Host menu](screenshots/host/menu.png) |
 
 | Item | Effect |
 | --- | --- |
@@ -105,11 +105,25 @@ Up to four smartphones/tablets can control the same host at the same time. Pair 
 
 The app then connects to this host automatically on every start. A direct USB connection on the smartphone takes priority. Being on the same Wi-Fi is not enough: without pairing, the host forwards nothing. The header shows the green **HOST** field next to **Custom Mode**. A long press on **HOST** opens a menu with the computer's name, **Remove pairing** (disconnects; you need to pair again afterwards) and **Manage hosts…**.
 
+### Computer playback
+
+Enable **Analyzer settings → Player on graph tap** to control computer playback from the analyzer overlay when connected through the host. Windows supports players exposing a Windows media session, including browsers with media-session integration. Track, artist, app and available artwork come from the computer; the buttons control its current session. Without an active session the display is empty. Older hosts need an update for this feature.
+
+On macOS, **Music.app and Spotify** are supported through public Apple Events. On first access with the overlay open, allow **Remote for ADI-2 Host** to automate the respective player. Change this later under **System Settings → Privacy & Security → Automation**. Accessibility permission is not needed. Only running players are queried: a playing player takes priority, otherwise the last selected player or Music. Music can supply embedded artwork. Spotify exposes an internet artwork URL, which is not downloaded. Other Mac players and browsers are unsupported. Denied automation prevents metadata and control. No extra host menu item is added.
+
+Player state and commands use the authenticated, encrypted local host connection. JPEG artwork is limited to 30 kB and sent to each client only when changed, without new external network requests. Only open overlays subscribe to playback. Multiple clients control the same current session.
+
 ### Behaviour through the host
 
 The first authenticated client opens USB MIDI; all connected clients share this port. The host releases it three seconds after the last client disconnects. One shared query cycle forwards the device responses and changes from other clients or the RME software to every connected app. Volume therefore appears almost immediately, EQ and other values after about one second; the EQ graph glides to the new state.
 
-Through the host, volume rises only while the app is in the foreground and keeps signalling the host, and never faster than the volume ramp. If the connection drops or the app goes to the background, that app’s increase stops and nothing is caught up later; other connected apps keep their own grants. All clients share the same maximum rise rate per output. Lowering, muting and Dim always work immediately. Device setups and factory settings cannot be loaded through the host, because they could raise volumes unnoticed. The analyzer is not yet available through the host. On tablets, its reserved display area shows a centred notice and keeps the channel rows in the same positions as USB mode.
+Through the host, volume rises only while the app is in the foreground and keeps signalling the host, and never faster than the volume ramp. If the connection drops or the app goes to the background, that app’s increase stops and nothing is caught up later; other connected apps keep their own grants. All clients share the same maximum rise rate per output. Lowering, muting and Dim always work immediately. Device setups and factory settings cannot be loaded through the host, because they could raise volumes unnoticed.
+
+The **analyzer through the host** is available in compact view, full screen and the tablet extra panel. The computer captures ADI-2 USB recording channels **1/2** and computes spectra, bands and levels. The app receives compact analysis values only; PCM stays on the computer and is never saved. Capture runs only while at least one connected app visibly uses the analyzer. Multiple clients and different band resolutions are supported. Loopback is still configured over MIDI.
+
+On Mac, grant microphone access to **Remote for ADI-2 Host** when first using its analyzer. If denied, open **System Settings → Privacy & Security → Microphone → Allow Remote for ADI-2 Host**, then select **Try again** in the analyzer; restart the host if necessary. On Windows, enable **Settings → Privacy (or Privacy & security) → Microphone → Allow desktop apps to access your microphone**. Without an unambiguous ADI-2 capture input, the app shows an error. Windows uses the device’s shared capture format; channels 1/2 must be available and the sample rate must be at least 40 kHz.
+
+**The app’s calibration test tone and analyzer self-test require a direct USB connection.** An external reference tone and manual level calibration remain available through the host. Measurement takes about three seconds through the host; offsets belong to the capture computer and ADI-2. Ballistics, Peak hold including the long-press reset, and loopback selection remain available.
 
 ## Outputs
 
@@ -203,13 +217,13 @@ Use this area to choose the additional information shown above the output contro
 
 In **App settings → Display below the header**, choose **Player**, **Status**, **Analyzer** or **none**. This area belongs to Outputs. Custom Mode uses the header choice saved in its own layout page.
 
-**Player** uses the active Android media session. Grant notification access using the offered settings link. It can show media information and artwork, send previous/next, play/pause and stop commands, and open the player by tapping its information. Availability depends on the media app. It does not contain a music library. If no usable player content exists, the configured status fallback may appear or the bar collapses. Other platforms do not currently provide this integration.
+**Player** uses the computer player when connected through a host, showing title, artist, app and artwork with previous/next and play/pause controls. Without a host, or without host player support, it uses the active Android media session; older hosts show **Update host**. The permissions below, Stop and opening the player app apply to the smartphone source. Grant notification access using the offered settings link. It can show media information and artwork, send previous/next, play/pause and stop commands, and open the player by tapping its information. Availability depends on the media app. It does not contain a music library. If no usable player content exists, the configured status fallback may appear or the bar collapses. Other smartphone platforms do not currently provide the local player integration; a current host can supply the computer player on those platforms too.
 
 **Status** shows a compact view of digital input state and clock/sample-rate information. Tap it to open the full Status page.
 
-| Smartphone: Player |
-| --- |
-| ![Smartphone: Player](screenshots/phone/player.png) |
+| Smartphone: Player | Tablet: computer player through the host |
+| --- | --- |
+| ![Smartphone: Player](screenshots/phone/player.png) | ![Tablet: computer player through the host](screenshots/tablet/land_outputs_player.png) |
 
 
 **Allow** opens Android notification-access settings. **Do not ask again** dismisses the app's prompt. The player bar controls another media app; it changes neither ADI-2 Source nor calibration. Analyzer or music recording still requires matching playback source and USB routing.
@@ -686,6 +700,18 @@ To configure a page for a headphone output:
 
 ## Analyzer
 
+The player bar, tablet **Player** extra pane and analyzer overlay share the same player source. With a current host they display and control the computer player, including title, artist, app and cover. Without a host, or with an older host, they use the smartphone player; missing host player support shows **Update host**. Android permission prompts apply only to the smartphone source. Visible player views share one host subscription, which ends 500 ms after the last view is hidden.
+
+**Player on graph tap** in Analyzer settings defaults to off and is saved. When enabled, tapping the graph opens a translucent overlay showing artwork (if available), track, artist, source/app and **Previous / Play-Pause / Next**, in compact view, the tablet extra panel and fullscreen. The overlay covers only the plot; meters and the information line stay visible. Short graphs omit artwork; very short graphs place track details beside the 36-pixel buttons. Another tap outside the buttons or five seconds without interaction closes it; each button restarts the timer. Fullscreen remains accessible through its icon. With the setting off, tapping the compact analyzer still opens fullscreen.
+
+| Player overlay on the analyzer (host mode) |
+| --- |
+| ![Player overlay on the analyzer](screenshots/tablet/land_analyzer_player_overlay.png) |
+
+With a direct USB connection the overlay uses the smartphone player (Android media session with notification access). A non-USB input on the active output shows **Source is not USB**, while playback controls remain available. **Auto** or an unknown input shows **USB source not confirmed**, because the actual Auto source is not reliably reported. Pro models use the selected output because their active-output bits have not been verified. In host mode playback always comes from the computer (see the host chapter).
+
+In portrait, **Peak hold** and **Reset** sit side by side below the Peak/RMS meters. Reset is enabled only while Peak hold is on. Settings and fullscreen are right-aligned above the meters without covering the graph. The information line contains text only; only multiline developer diagnostics can be expanded.
+
 The analyzer displays captured USB audio as a spectrum and as peak and RMS levels.
 
 Choose **Analyzer** under **Display below the header**, or use the tablet’s landscape **Extra panel**. Grant recording permission when requested. The app analyzes USB audio while the analyzer is visible. On Android, the app must also be in the foreground. On Mac, the analyzer continues in a visible window without focus. Capture stops when the analyzer is hidden or another page covers it. The app does not save the audio or use the smartphone microphone.
@@ -694,7 +720,11 @@ Choose **Analyzer** under **Display below the header**, or use the tablet’s la
 
 ### Platforms and limitations
 
-The analyzer is not yet available through the host. On tablets, its display area remains reserved and shows a centred notice, so channel rows stay in their USB-mode positions.
+The **analyzer through the host** is available in compact view, full screen and the tablet extra panel. The computer captures ADI-2 USB recording channels **1/2** and computes spectra, bands and levels. The app receives compact analysis values only; PCM stays on the computer and is never saved. Capture runs only while at least one connected app visibly uses the analyzer. Multiple clients and different band resolutions are supported. Loopback is still configured over MIDI.
+
+On Mac, grant microphone access to **Remote for ADI-2 Host** when first using its analyzer. If denied, open **System Settings → Privacy & Security → Microphone → Allow Remote for ADI-2 Host**, then select **Try again** in the analyzer; restart the host if necessary. On Windows, enable **Settings → Privacy (or Privacy & security) → Microphone → Allow desktop apps to access your microphone**. Without an unambiguous ADI-2 capture input, the app shows an error. Windows uses the device’s shared capture format; channels 1/2 must be available and the sample rate must be at least 40 kHz.
+
+**The app’s calibration test tone and analyzer self-test require a direct USB connection.** An external reference tone and manual level calibration remain available through the host. Measurement takes about three seconds through the host; offsets belong to the capture computer and ADI-2. Ballistics, Peak hold including the long-press reset, and loopback selection remain available.
 
 On **Android**, the app processes USB audio and checks the recording route. A message about the smartphone microphone or another recording device means that a valid ADI-2 recording is unavailable; do not use those readings for calibration. **Grant permission** allows access; **Try again** restarts capture after resolving an interruption.
 
@@ -709,12 +739,12 @@ Use **post FX** for comparison with the device: the signal is after EQ/effects a
 ### Display and readings
 
 - **Lines** and **Bars** choose the spectrum presentation. The frequency axis runs from 20 Hz to 20 kHz; Bars cover 25 Hz–20 kHz. **Band resolution** offers **1/3 octave**, **1/6 octave** and **1/12 octave**. For comparison with the device, use Bars and 1/3 octave.
-- **Peak hold** retains peak indications. **Peak hold time** offers 1 s (default), 2 s, 3 s, 5 s, 10 s and ∞; changes apply immediately and are saved. With ∞, markers stay until higher peaks. **A long press on Peak hold** resets the markers to the current level immediately. The **Peak hold** button is also available in portrait view at the top right of the analyzer whenever the selected tool supports peak hold. **Ballistics** offers **fast**, **medium** and **slow** response. Lines/Bars, Peak hold and Ballistics are remembered when the device is rotated or the app restarts.
+- **Peak hold** retains peak indications. **Peak hold time** offers 1 s (default), 2 s, 3 s, 5 s, 10 s and ∞; changes apply immediately and are saved. With ∞, markers stay until higher peaks. **A long press on Peak hold** resets the markers to the current level immediately. In compact portrait view, **Peak hold** and a separate **Reset** button sit below the meters; long press resets markers on the other Peak hold controls. **Ballistics** offers **fast**, **medium** and **slow** response. Lines/Bars, Peak hold and Ballistics are remembered when the device is rotated or the app restarts.
 - **Level range** selects 60, 80 or 100 dB of vertical range.
 - **Analyzer color** offers **Follow device**, **Green**, **Cyan**, **Amber**, **Mono**, **Red** and **Orange**.
 - **Peak / RMS · dBFS** shows left/right captured audio levels with the saved calibration offset. A full-scale sine has 0 dBFS peak and about −3 dBFS RMS. Clipping is shown separately. Spectrum bands reference a full-scale sine at the band centre to 0 dB. Filter responses and ballistics can differ from the device; its lowest band also includes DC.
 
-Open **Analyzer settings** for these options and calibration. In fullscreen, **Spectrum only** hides the control bar and **Show controls** restores it. The fullscreen illustrations below are landscape. Opening fullscreen manually switches to landscape on tablets too; leaving restores the previous orientation policy. Band resolution uses buttons beside **Spectrum**. **Ballistics** and **Loopback source** are compact dropdowns to the left of the top-right icons; long labels are shortened on narrow screens. Analyzer settings uses wrapping selection buttons for Ballistics, Band resolution, Analyzer color, Level range, Output (Pro / 2/4 only) and Loopback source; color buttons include swatches.
+Open **Analyzer settings** for these options and calibration. In fullscreen, **Spectrum only** hides the control bar and **Show controls** restores it. The fullscreen illustrations below are landscape. Opening fullscreen manually switches to landscape on tablets too; leaving restores the previous orientation policy. Band resolution uses buttons in the top toolbar. **Ballistics** and **Loopback source** are compact dropdowns to the left of the top-right icons; long labels are shortened on narrow screens. At the top of Analyzer settings, **Tool → Spectrum** selects the tool. Directly below, **Lines / Bars** buttons select its display, followed by band resolution. Fullscreen provides **Spectrum**, **Lines / Bars**, **Peak hold** and **Reset** in a toolbar that wraps when needed; Reset is enabled only with Peak hold on. Analyzer settings also uses wrapping selection buttons for Ballistics, Band resolution, Analyzer color, Level range, Output (Pro / 2/4 only) and Loopback source; color buttons include swatches.
 
 The screenshots below show an earlier control arrangement. The selection buttons and fullscreen header controls described above apply to the current version.
 
@@ -745,7 +775,7 @@ Low frequencies are on the left, high frequencies on the right; a taller indicat
 
 **Peak** describes peak values; **RMS** describes an averaged effective level. Two music signals can have equal peaks but different RMS levels. **Peak hold** briefly retains spectrum peaks: markers start falling again after the selected hold time (one second by default); ∞ keeps them until reset or higher peaks. **Ballistics** affects how quickly the spectrum falls; **slow** makes observation easier, while **fast** follows changes more quickly. **Level range** changes only the visible dB span, not recording gain.
 
-Tap the compact analyzer or **Fullscreen** to enlarge it. The information line can be expanded when shortened. **Spectrum only** hides the controls; tapping the display or **Show controls** restores them. These display actions do not change device EQ.
+Tap the compact analyzer or **Fullscreen** to enlarge it. Only multiline developer diagnostics in the information line can be expanded. **Spectrum only** hides the controls; tapping the display or **Show controls** restores them. These display actions do not change device EQ.
 
 **Note:** A calibration offset shifts the level display but improves neither frequency resolution nor a frequency response altered by Android effects. A difference from device metering is not automatically a fault: first match loopback source, presentation, band resolution and calibration.
 

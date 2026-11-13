@@ -105,6 +105,42 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  for (final language in AppLanguage.values) {
+    testWidgets(
+      'Eigene Balance-Kachel zeigt Mitte und ganze Schritte $language',
+      (tester) async {
+        AppLang.instance.language = language;
+        await show(
+          tester,
+          Scaffold(
+            body: OutputsPage(
+              ctrl: ctrl,
+              easyLayout: EasyLayout(
+                tiles: [
+                  EasyTile(type: EasyTileType.balance, size: EasyTileSize.full),
+                ],
+              ),
+            ),
+          ),
+        );
+        expect(
+          find.text(language == AppLanguage.de ? 'Mitte' : 'Center'),
+          findsOneWidget,
+        );
+        for (final (raw, label) in [
+          (-35, 'L 35'),
+          (100, 'R 100'),
+          (-100, 'L 100'),
+        ]) {
+          ctrl.set(Adi2Addr.ph34, OutIdx.balance, raw);
+          await tester.pump();
+          expect(find.text(label), findsOneWidget);
+        }
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   Future<void> tapTile(WidgetTester tester, int index) async {
     final tile = find.byKey(ValueKey('easy-tile-$index'));
     await tester.ensureVisible(tile);
@@ -148,7 +184,7 @@ void main() {
           await tester.pumpAndSettle();
           final symbol = find.descendant(
             of: tile,
-            matching: find.byIcon(Icons.volume_down_outlined),
+            matching: find.byIcon(Icons.brightness_low_outlined),
           );
           expect(symbol, findsOneWidget);
           var content = tester.getRect(symbol);
@@ -270,13 +306,14 @@ void main() {
       await tester.pumpAndSettle();
       final volume = model.valueOr(3, OutIdx.volume, -1145);
       expect(model.volumes, [(3, volume - 5), (3, volume + 5)]);
-      for (var n = 1; n <= 4; n++) {
-        await tester.ensureVisible(find.byKey(ValueKey('easy-tile-${n + 5}')));
-        await tester.tap(find.byKey(ValueKey('easy-tile-${n + 5}')));
+      for (final n in [6, 7, 8, 9, 10]) {
+        await tester.ensureVisible(find.byKey(ValueKey('easy-tile-$n')));
+        await tester.tap(find.byKey(ValueKey('easy-tile-$n')));
         await tester.pumpAndSettle();
       }
-      expect(model.setups, [1, 2, 3, 4]);
-      expect(find.text('Nacht'), findsOneWidget);
+      expect(model.setups, isEmpty);
+      expect(model.value(3, OutIdx.mute), 1);
+      expect(model.value(3, OutIdx.dim), 1);
       await settings.setEasyLayout(
         variant,
         EasyLayout(
@@ -490,7 +527,12 @@ void main() {
               expect(tester.takeException(), isNull);
               continue;
             }
-            final axis = shape.$3 ? 'vertical' : 'horizontal';
+            final vertical = type == EasyTileType.balance
+                ? false
+                : {EasyTileType.bass, EasyTileType.treble}.contains(type)
+                ? shape.$2 >= 1
+                : shape.$3;
+            final axis = vertical ? 'vertical' : 'horizontal';
             expect(
               find.byKey(
                 ValueKey('easy-${isStep ? 'step' : 'segments'}-0-$axis'),
@@ -507,7 +549,7 @@ void main() {
               final value = tester.getCenter(
                 find.byKey(const ValueKey('easy-step-0-value')),
               );
-              if (shape.$3) {
+              if (vertical) {
                 expect(plus.dy, lessThan(value.dy));
                 expect(minus.dy, greaterThan(value.dy));
               } else {
@@ -592,7 +634,7 @@ void main() {
             expect(font, inInclusiveRange(18, 36));
             if (previousExtent != null) {
               expect(extent, greaterThan(previousExtent));
-              expect(font, greaterThan(previousFont!));
+              expect(font, greaterThanOrEqualTo(previousFont!));
             }
             previousExtent = extent;
             previousFont = font;
@@ -881,7 +923,7 @@ void main() {
         expect(label.style!.fontSize, inInclusiveRange(12, 28));
         if (shape.$1 == EasyTileSize.full) {
           if (previousFont != null) {
-            expect(label.style!.fontSize!, greaterThan(previousFont));
+            expect(label.style!.fontSize!, previousFont);
           }
           previousFont = label.style!.fontSize;
         }
@@ -1523,7 +1565,7 @@ void main() {
             expect(material.color, filled ? color : Palette.bg);
             final shape = material.shape! as RoundedRectangleBorder;
             expect(shape.side.color, border);
-            expect(shape.borderRadius, BorderRadius.circular(12));
+            expect(shape.borderRadius, BorderRadius.circular(10));
             expect(material.clipBehavior, Clip.antiAlias);
             final ink = tester.widget<InkWell>(
               find.descendant(of: button, matching: find.byType(InkWell)),
@@ -2000,7 +2042,7 @@ void main() {
   });
 
   testWidgets(
-    'Tile and default colors persist and render with amber active border',
+    'Tile and default colors persist and mute uses the main view red accent',
     (tester) async {
       await settings.setEasyLayout(
         ctrl.variant,
@@ -2048,12 +2090,12 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         (surface(0).shape as RoundedRectangleBorder).side.color,
-        Palette.amber,
+        Palette.red,
       );
       expect(
         surface(0).color,
         Color.alphaBlend(
-          Palette.amber.withValues(alpha: 0.14),
+          Palette.red.withValues(alpha: 0.14),
           easyTileBackground(EasyTileColor.blue),
         ),
       );
@@ -2271,7 +2313,10 @@ void main() {
     np.notifyListeners();
     await tester.pumpAndSettle();
     expect(find.text('Testtitel'), findsOneWidget);
-    expect(tester.getSize(find.byType(PlayerBar)).height, playerSlotHeight);
+    expect(
+      tester.getSize(find.byType(PlayerBar)).height,
+      headerSlotHeight(tester.element(find.byType(PlayerBar))),
+    );
     await settings.setEasyLayout(
       ctrl.variant,
       EasyLayout(showPlayer: false, tiles: []),

@@ -30,6 +30,7 @@ enum ConnState {
   connecting,
   waitingForDevice,
   connected,
+  reconnecting,
   offline,
 }
 
@@ -84,6 +85,9 @@ class Adi2Controller extends ChangeNotifier {
   bool get viaHost => _viaHost;
   String? get hostName => _viaHost ? host.hostName : null;
 
+  /// Name des Hosts, mit dem gerade verbunden wird (für die Anzeige).
+  String? get pendingHostName => _viaHost ? _preferredHost?.host.name : null;
+
   /// Kennung des Hosts, über den gerade verbunden ist.
   String? get hostId => _viaHost ? _preferredHost?.host.id : null;
   bool get hostAvailable => Platform.isAndroid || Platform.isIOS;
@@ -95,6 +99,39 @@ class Adi2Controller extends ChangeNotifier {
   bool _hostConnecting = false;
   bool _hostForeground = true;
   HostCredentials? _preferredHost;
+
+  /// Letzte Anzeige bleibt sichtbar, die Sitzung ist noch nicht bedienbar.
+  bool get hostReconnecting => state == ConnState.reconnecting;
+  bool get hasDeviceDisplay => isConnected || hostReconnecting;
+  Timer? _hostBridge, _hostSync;
+  Set<int> _hostRequiredKeys = {};
+  bool _hostNeedsStatus = false, _hostGotStatus = false;
+  bool _hostGotParams = false;
+
+  /// Keine automatische Host-Verbindung bis zum Fortsetzen; USB bleibt frei.
+  bool hostPaused = false;
+  bool _handlingHostChange = false;
+
+  Future<void> pauseHost() async {
+    hostPaused = true;
+    if (_viaHost) disconnect();
+    await _saveHostPaused();
+    notifyListeners();
+  }
+
+  Future<void> resumeHost() async {
+    hostPaused = false;
+    await _saveHostPaused();
+    notifyListeners();
+    await _autoConnect();
+  }
+
+  Future<void> _saveHostPaused() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('host_paused', hostPaused);
+    } catch (_) {}
+  }
 
   Future<void> savePairedHost(HostCredentials credentials) async {
     final updated = [
@@ -113,6 +150,7 @@ class Adi2Controller extends ChangeNotifier {
   }
 
   Future<void> forgetHost(String id) async {
+    if (_preferredHost?.host.id == id && _viaHost) disconnect();
     final updated = pairedHosts.where((h) => h.host.id != id).toList();
     final prefs = await SharedPreferences.getInstance();
     if (!await prefs.setString(
@@ -132,12 +170,20 @@ class Adi2Controller extends ChangeNotifier {
   void setHostForeground(bool foreground) {
     _hostForeground = foreground;
     host.setForeground(foreground);
-    if (!foreground) stopAllVolumeRamps();
+    if (!foreground) {
+      stopAllVolumeRamps();
+      if (hostReconnecting) disconnect();
+    }
     if (foreground && (device == null || _viaHost)) unawaited(_autoConnect());
   }
 
   Future<void> connectHost(HostCredentials credentials) async {
     if (_hostConnecting || _disposed || offline || !hostAvailable) return;
+    if (hostPaused) {
+      // Manuelle Wahl eines Hosts hebt die Pause auf.
+      hostPaused = false;
+      unawaited(_saveHostPaused());
+    }
     if (device != null && !_viaHost) return;
     final discovered = hostDiscovery.hosts[credentials.host.id];
     if (discovered != null) {
@@ -147,28 +193,42 @@ class Adi2Controller extends ChangeNotifier {
         credentials.key,
       );
     }
+    final bridging =
+        hostReconnecting && _preferredHost?.host.id == credentials.host.id;
     _preferredHost = credentials;
     _hostConnecting = true;
-    _reset();
+    if (!bridging) _reset();
+    final session = _connectionSession;
     _offlineVariant = null;
     _offlineLabel = null;
     _viaHost = true;
     error = null;
-    state = ConnState.connecting;
+    if (!bridging) state = ConnState.connecting;
     notifyListeners();
     try {
       await host.connect(credentials);
-      if (_disposed || !_viaHost || !host.connected) return;
+      if (_disposed ||
+          !_viaHost ||
+          session != _connectionSession ||
+          !host.connected) {
+        return;
+      }
+      if (bridging && device?.name != host.deviceName) {
+        _reset();
+      }
       device = MidiDevice(
         'host:${credentials.host.id}',
         host.deviceName!,
         MidiDeviceType.network,
         true,
       );
-      state = ConnState.waitingForDevice;
+      if (!hostReconnecting) state = ConnState.waitingForDevice;
       _probe(); // immer frisch lesen, keine alten Werte oder Befehle übernehmen
     } catch (e) {
-      if (_viaHost && !_disposed) {
+      if (_viaHost &&
+          !_disposed &&
+          session == _connectionSession &&
+          !hostReconnecting) {
         _reset();
         error = hostErrorText(e.toString());
         state = ConnState.searching;
@@ -180,11 +240,130 @@ class Adi2Controller extends ChangeNotifier {
   }
 
   void _hostChanged() {
-    if (!_viaHost || host.connected || _hostConnecting || _disposed) return;
-    _reset();
-    error = hostErrorText(host.error ?? '');
-    state = ConnState.searching;
-    notifyListeners();
+    if (!_viaHost ||
+        host.connected ||
+        _hostConnecting ||
+        _disposed ||
+        _handlingHostChange) {
+      return;
+    }
+    _handlingHostChange = true;
+    try {
+      if (hostReconnecting) {
+        // Auch ein zweiter Abriss beim Abgleichen startet die Frist nicht neu.
+        _stopHostWork();
+      } else if (state == ConnState.connected &&
+          model != null &&
+          _confirmedValues.isNotEmpty &&
+          _hostForeground &&
+          !hostPaused &&
+          host.error != null &&
+          !host.error!.contains('revoked') &&
+          !host.error!.contains('usb_missing') &&
+          !host.error!.contains('usb_busy')) {
+        _hostRequiredKeys = _confirmedValues.keys
+            .where((k) => k >> 8 < 13)
+            .toSet();
+        _hostNeedsStatus = status != null;
+        state = ConnState.reconnecting;
+        _stopHostWork();
+        _hostBridge = Timer(const Duration(seconds: 10), () {
+          if (_disposed || !hostReconnecting) return;
+          _viaHost = false;
+          host.disconnect();
+          _reset();
+          state = ConnState.searching;
+          error = hostErrorText('');
+          notifyListeners();
+        });
+        host.setReconnecting(true);
+      } else {
+        _reset();
+        error = hostErrorText(host.error ?? '');
+        state = ConnState.searching;
+      }
+      notifyListeners();
+      Timer(const Duration(milliseconds: 300), () {
+        if (!_disposed &&
+            !offline &&
+            _hostForeground &&
+            !_hostConnecting &&
+            (device == null || hostReconnecting)) {
+          unawaited(_autoConnect());
+        }
+      });
+    } finally {
+      _handlingHostChange = false;
+    }
+  }
+
+  void _stopHostWork() {
+    _connectionSession++;
+    _presetSession++;
+    _presetRead = null;
+    _presetAccess = Future.value();
+    _capture = null;
+    _capturePreset = _incomingPreset = null;
+    eqPresetReadProgress = null;
+    _probeTimer?.cancel();
+    _watchdog?.cancel();
+    _volTimer?.cancel();
+    _volTimer = null;
+    _readbackTimer?.cancel();
+    _readbackTimer = null;
+    _readbackSent = null;
+    _hostSync?.cancel();
+    _hostSync = null;
+    stopAllVolumeRamps();
+    _eqTarget.clear();
+    _lastSentVol.clear();
+    _lastVolSentAt.clear();
+    _ownWriteAt.clear();
+    _confirmedValues.clear();
+    _confirmedMessages.clear();
+    _hostGotParams = _hostGotStatus = false;
+  }
+
+  void _checkHostSync() {
+    if (!hostReconnecting ||
+        !host.connected ||
+        !_hostGotParams ||
+        (_hostNeedsStatus && !_hostGotStatus) ||
+        !_hostRequiredKeys.every(_confirmedValues.containsKey)) {
+      return;
+    }
+    if (_hostSync != null) return;
+    final session = _connectionSession;
+    _hostSync = Timer(const Duration(milliseconds: 150), () {
+      if (_disposed ||
+          !hostReconnecting ||
+          !host.connected ||
+          session != _connectionSession) {
+        return;
+      }
+      _hostBridge?.cancel();
+      _hostBridge = null;
+      _hostSync = null;
+      _probeTimer?.cancel();
+      state = ConnState.connected;
+      error = null;
+      host.setReconnecting(false);
+      if (hostReconnecting || !host.connected) return;
+      _startWatchdog();
+      _applyLimits();
+      _volTimer = Timer.periodic(
+        const Duration(milliseconds: volTickMs),
+        (_) => _volTick(),
+      );
+      // Der alte Cache bleibt sichtbar, bis wieder alle Presets gelesen sind.
+      unawaited(
+        readEqPresets().catchError((Object e) {
+          debugPrint('EQ preset read failed: $e');
+          return <EqPresetData>[];
+        }),
+      );
+      notifyListeners();
+    });
   }
 
   final MidiCommand _midi;
@@ -291,6 +470,7 @@ class Adi2Controller extends ChangeNotifier {
   /// Lautstärke vorher um den Pegelunterschied gesenkt (bzw. danach langsam
   /// angehoben), sodass es gleich laut bleibt. Die dBu-Grenze gilt immer.
   void setRefLevel(int address, int index, {bool compensate = true}) {
+    if (hostReconnecting) return;
     final v = variant;
     if (v == null) return;
     final table = refTable(v, address);
@@ -578,6 +758,7 @@ class Adi2Controller extends ChangeNotifier {
             ((jsonDecode(prefs.getString('paired_hosts_v1') ?? '[]')) as List)
                 .map((j) => HostCredentials.fromJson(j as Map<String, dynamic>))
                 .toList();
+        hostPaused = prefs.getBool('host_paused') ?? false;
       } catch (_) {
         pairedHosts = [];
       }
@@ -638,13 +819,23 @@ class Adi2Controller extends ChangeNotifier {
     }
     final usb = autoConnectCandidates(devices, defaultTargetPlatform);
     if (_viaHost && usb.isNotEmpty) {
-      host.disconnect();
       _viaHost = false;
+      host.disconnect();
       _reset();
       await connect(usb.first);
       return;
     }
     if (_viaHost && host.connected) return;
+    if (hostReconnecting) {
+      final preferred = _preferredHost;
+      if (_hostForeground &&
+          !hostPaused &&
+          !_hostConnecting &&
+          preferred != null) {
+        await connectHost(preferred);
+      }
+      return;
+    }
     if (device != null) {
       final stillThere = devices.any((d) => d.id == device!.id);
       if (!stillThere) _lost(tr('Gerät getrennt'));
@@ -654,6 +845,7 @@ class Adi2Controller extends ChangeNotifier {
     if (cand.isEmpty) {
       final preferred = _preferredHost ?? pairedHosts.firstOrNull;
       if (hostAvailable &&
+          !hostPaused &&
           preferred != null &&
           _hostForeground &&
           !_hostConnecting) {
@@ -669,6 +861,7 @@ class Adi2Controller extends ChangeNotifier {
 
   Future<void> connect(MidiDevice d) async {
     if (_viaHost) {
+      _viaHost = false;
       host.disconnect();
     } else if (device != null) {
       _midi.disconnectDevice(device!);
@@ -748,8 +941,8 @@ class Adi2Controller extends ChangeNotifier {
 
   void disconnect() {
     if (_viaHost) {
-      host.disconnect();
       _viaHost = false;
+      host.disconnect();
     } else if (device != null) {
       _midi.disconnectDevice(device!);
     }
@@ -766,6 +959,12 @@ class Adi2Controller extends ChangeNotifier {
   }
 
   void _reset() {
+    _hostBridge?.cancel();
+    _hostBridge = null;
+    _hostSync?.cancel();
+    _hostSync = null;
+    if (hostReconnecting) state = ConnState.searching;
+    host.setReconnecting(false);
     _connectionSession++;
     _ccModeRequest++;
     _ccMode = UsbCcMode.unknown;
@@ -777,6 +976,8 @@ class Adi2Controller extends ChangeNotifier {
     _readbackTimer = null;
     volGuard.cancelAll();
     _lastSentVol.clear();
+    _lastVolSentAt.clear();
+    _ownWriteAt.clear();
     _eqTarget.clear();
     device = null;
     model = null;
@@ -808,11 +1009,16 @@ class Adi2Controller extends ChangeNotifier {
   }
 
   void _handle(Adi2Message m) {
+    if (hostReconnecting && model?.id != m.deviceId) {
+      final target = device;
+      _reset();
+      device = target;
+    }
     _lastRx = DateTime.now();
     if (model == null || model!.id != m.deviceId) {
       model = Adi2Model.fromId(m.deviceId);
     }
-    if (state != ConnState.connected) {
+    if (state != ConnState.connected && !hostReconnecting) {
       state = ConnState.connected;
       unawaited(refreshCcMode());
       error = null;
@@ -829,6 +1035,7 @@ class Adi2Controller extends ChangeNotifier {
     switch (m) {
       case Adi2ParamsMessage(:final params):
         _paramsMessages++;
+        if (hostReconnecting) _hostGotParams = true;
         analyzerSelfTestReadbacks.add(params);
         for (final p in params) {
           if (_isStaleVolumeReadback(p) || _isStaleOwnWrite(p)) continue;
@@ -848,10 +1055,13 @@ class Adi2Controller extends ChangeNotifier {
             _capture!.add(p);
             _lastCapture = DateTime.now();
           }
-          if (p.index == OutIdx.volume && volumeAddresses.contains(p.address)) {
+          if (!hostReconnecting &&
+              p.index == OutIdx.volume &&
+              volumeAddresses.contains(p.address)) {
             _onDeviceVolume(p.address, p.value);
           }
-          if (p.index == OutIdx.refLevel &&
+          if (!hostReconnecting &&
+              p.index == OutIdx.refLevel &&
               volumeAddresses.contains(p.address)) {
             _applyLimits();
           }
@@ -861,8 +1071,10 @@ class Adi2Controller extends ChangeNotifier {
       case Adi2StatusMessage(:final data):
         final prev = status?.activeOutput;
         status = Adi2Status(data);
+        if (hostReconnecting) _hostGotStatus = true;
         _maybeSwitchOutput(prev, status!.activeOutput);
     }
+    if (hostReconnecting) _checkHostSync();
     _maybeProbeDaFilter();
     notifyListeners();
   }
@@ -874,6 +1086,7 @@ class Adi2Controller extends ChangeNotifier {
       // Statusmeldung des Geräts); hier daher wie bei USB alle 10 s.
       if (++_watchdogTicks % 5 == 0 && _readbackTimer == null) _readback();
       if (DateTime.now().difference(_lastRx) > const Duration(seconds: 5)) {
+        if (_viaHost && host.awaitingSilenceTimeout) return;
         // Kein Status mehr -> neu anfragen
         state = ConnState.waitingForDevice;
         _connectionSession++;
@@ -892,6 +1105,13 @@ class Adi2Controller extends ChangeNotifier {
 
   void _send(Uint8List data) {
     if (device == null || offline) return;
+    if (_viaHost &&
+        (!host.connected ||
+            (hostReconnecting &&
+                data[5] != Adi2Cmd.request &&
+                data[5] != Adi2Cmd.presetRequest))) {
+      return;
+    }
     try {
       if (_viaHost) {
         host.sendMidi(data);
@@ -905,6 +1125,7 @@ class Adi2Controller extends ChangeNotifier {
 
   /// Setzt einen Parameter (optimistisch lokal, dann ans Gerät).
   void set(int address, int index, int value) {
+    if (hostReconnecting) return;
     if (isParamValueDisabled(address, index, value)) return;
     final id = model?.id;
     if (id == null) return;
@@ -938,6 +1159,7 @@ class Adi2Controller extends ChangeNotifier {
   }
 
   void setMany(List<Adi2Param> params) {
+    if (hostReconnecting) return;
     final id = model?.id;
     if (id == null || params.isEmpty) return;
     for (final p in params) {
@@ -1014,6 +1236,7 @@ class Adi2Controller extends ChangeNotifier {
   /// Ziel-Lautstärke (Rohwert, 0,1 dB). Lauter geht nur langsam, leiser
   /// sofort. Gekoppelte Ausgänge folgen um denselben Betrag.
   void setVolume(int address, int raw, {bool followLink = true}) {
+    if (hostReconnecting) return;
     if (followLink && opts.linked.contains(address) && opts.linked.length > 1) {
       final base = volGuard.target(address) ?? value(address, OutIdx.volume);
       if (base != null) {
@@ -1077,12 +1300,14 @@ class Adi2Controller extends ChangeNotifier {
   // --- Optionen (in der App gespeichert) ---
 
   Future<void> setLimitDbu(int address, double? dbu) async {
+    if (hostReconnecting) return;
     opts.of(address).limitDbu = dbu?.clamp(limitDbuMin, limitDbuMax).toDouble();
     _applyLimits();
     await _saveOptions();
   }
 
   Future<void> setRiseMode(RiseMode m) async {
+    if (hostReconnecting) return;
     opts.rise = m;
     volGuard.rate = m.rate;
     notifyListeners();
@@ -1090,6 +1315,7 @@ class Adi2Controller extends ChangeNotifier {
   }
 
   Future<void> setRecall(int address, int? raw) async {
+    if (hostReconnecting) return;
     opts.of(address).recallRaw = raw;
     notifyListeners();
     await _saveOptions();
@@ -1102,6 +1328,7 @@ class Adi2Controller extends ChangeNotifier {
   }
 
   Future<void> setLinked(int address, bool on) async {
+    if (hostReconnecting) return;
     on ? opts.linked.add(address) : opts.linked.remove(address);
     notifyListeners();
     await _saveOptions();
@@ -1110,6 +1337,7 @@ class Adi2Controller extends ChangeNotifier {
   /// Berechnet die Obergrenzen aus dBu-Grenze und Ref-Level und holt zu
   /// hohe Werte herunter.
   void _applyLimits({bool sendNow = false}) {
+    if (hostReconnecting) return;
     final v = variant;
     if (v == null) return;
     final lower = <Adi2Param>[];
@@ -1143,14 +1371,17 @@ class Adi2Controller extends ChangeNotifier {
 
   Future<void> _loadOptions() async {
     final id = model?.id;
-    if (id == null) return;
+    final session = _connectionSession;
+    if (id == null || _disposed) return;
+    var loaded = VolumeOptions();
     try {
       final prefs = await SharedPreferences.getInstance();
-      opts = VolumeOptions.decode(prefs.getString('vopts_$id'));
+      loaded = VolumeOptions.decode(prefs.getString('vopts_$id'));
     } catch (e) {
       debugPrint('Optionen laden fehlgeschlagen: $e');
-      opts = VolumeOptions();
     }
+    if (_disposed || session != _connectionSession || model?.id != id) return;
+    opts = loaded;
     volGuard.rate = opts.rise.rate;
     _applyLimits();
   }
@@ -1176,7 +1407,7 @@ class Adi2Controller extends ChangeNotifier {
   }
 
   void _volTick() {
-    if (analyzerSelfTestActive) return;
+    if (analyzerSelfTestActive || hostReconnecting) return;
     _eqTick();
     if (volGuard.isIdle) return;
     final out = volGuard.tick((a) => value(a, OutIdx.volume));
@@ -1200,6 +1431,7 @@ class Adi2Controller extends ChangeNotifier {
   /// EQ-Parameter setzen. Die Anzeige folgt sofort dem Ziel, gesendet wird
   /// im 50-ms-Takt; Gain-Anhebungen höchstens 0,5 dB pro Takt.
   void setEq(int address, int index, int raw) {
+    if (hostReconnecting) return;
     _eqTarget[address << 8 | index] = raw;
     notifyListeners();
   }
@@ -1228,6 +1460,7 @@ class Adi2Controller extends ChangeNotifier {
   /// EQ eines Kanals auf linear zurücksetzen (Gerätefunktion „Clear“).
   /// Offline: Werkseinstellungen der EQ-Werte eintragen.
   void resetEq(int channelAddr) {
+    if (hostReconnecting) return;
     final v = variant;
     if (v == null) return;
     _eqTarget.removeWhere((k, _) {
@@ -1262,7 +1495,9 @@ class Adi2Controller extends ChangeNotifier {
 
   /// Namen der 20 EQ-Presets anfordern (Gerät antwortet je Preset).
   Future<void> requestPresetNames() async {
-    if (offline || !isConnected || _eqPresets?.length == 20) return;
+    if (_disposed || offline || !isConnected || _eqPresets?.length == 20) {
+      return;
+    }
     try {
       await readEqPresets();
     } catch (e) {
@@ -1275,12 +1510,15 @@ class Adi2Controller extends ChangeNotifier {
   /// Manual-Stand um, statt neu zu laden (am ADI-2 DAC gemessen). Deshalb
   /// dann erst kurz Manual wählen und danach das Preset.
   Future<void> loadEqPreset(int leftAddr, int select) async {
+    if (hostReconnecting) return;
+    final session = _connectionSession;
     if (select >= 2 &&
         !offline &&
         value(leftAddr, EqIdx2.presetSelect) == select) {
       set(leftAddr, EqIdx2.presetSelect, 0);
       await Future<void>.delayed(const Duration(milliseconds: 200));
     }
+    if (session != _connectionSession) return;
     set(leftAddr, EqIdx2.presetSelect, select);
   }
 
@@ -1290,6 +1528,7 @@ class Adi2Controller extends ChangeNotifier {
   }
 
   Future<T> _withPresetAccess<T>(Future<T> Function() action) async {
+    if (hostReconnecting) throw StateError(tr('Nicht verbunden'));
     final session = _presetSession;
     return withDaFilterProbePaused(() async {
       final previous = _presetAccess;
@@ -1434,8 +1673,8 @@ class Adi2Controller extends ChangeNotifier {
   /// Offline-Stand oder die Werkseinstellungen.
   Future<void> startOffline(Adi2Variant v, {String? label}) async {
     if (_viaHost) {
-      host.disconnect();
       _viaHost = false;
+      host.disconnect();
     } else if (device != null) {
       _midi.disconnectDevice(device!);
     }
@@ -1519,6 +1758,7 @@ class Adi2Controller extends ChangeNotifier {
   /// nur übernommen, wenn sie leiser sind als am Gerät (nie lauter).
   /// Gibt die Zahl der gesendeten Parameter zurück.
   Future<int> transferOffline() async {
+    if (hostReconnecting) return 0;
     final session = _connectionSession;
     return withDaFilterProbePaused(() async {
       if (session != _connectionSession) return 0;
@@ -1526,7 +1766,7 @@ class Adi2Controller extends ChangeNotifier {
       if (v == null || offline || model == null) return 0;
       final prefs = await SharedPreferences.getInstance();
       final saved = prefs.getString(_offlineKey(v));
-      if (saved == null) return 0;
+      if (session != _connectionSession || saved == null) return 0;
       final j = jsonDecode(saved) as Map<String, dynamic>;
       return _applyValues({
         for (final e in j.entries) int.parse(e.key): e.value as int,
@@ -1537,6 +1777,7 @@ class Adi2Controller extends ChangeNotifier {
   /// Schreibt einen Satz Werte ins Gerät: nur Abweichungen, Lautstärken nur
   /// leiser, Ref-Level-Wechsel erst nach dem Senken. Gibt die Anzahl zurück.
   int _applyValues(Map<int, int> vals) {
+    if (hostReconnecting) return 0;
     final out = <Adi2Param>[];
     for (final e in vals.entries) {
       final a = e.key >> 8, i = e.key & 0xFF, val = e.value;
@@ -1594,7 +1835,7 @@ class Adi2Controller extends ChangeNotifier {
       return result;
     }
     final id = model?.id;
-    if (id == null || offline || !isConnected) {
+    if (_disposed || id == null || offline || !isConnected) {
       throw StateError(tr('Nicht verbunden'));
     }
     final session = _presetSession;
@@ -1796,6 +2037,7 @@ class Adi2Controller extends ChangeNotifier {
   }
 
   void loadSetup(int n) {
+    if (hostReconnecting) return;
     final session = _connectionSession;
     unawaited(
       withDaFilterProbePaused(() async {
@@ -1810,6 +2052,7 @@ class Adi2Controller extends ChangeNotifier {
   }
 
   void saveSetup(int n) {
+    if (hostReconnecting) return;
     final session = _connectionSession;
     unawaited(
       withDaFilterProbePaused(() async {
@@ -1822,6 +2065,7 @@ class Adi2Controller extends ChangeNotifier {
   }
 
   void loadFactory() {
+    if (hostReconnecting) return;
     final session = _connectionSession;
     unawaited(
       withDaFilterProbePaused(() async {
@@ -1836,6 +2080,7 @@ class Adi2Controller extends ChangeNotifier {
   }
 
   void renameSetup(int n, String name) {
+    if (hostReconnecting) return;
     final session = _connectionSession;
     unawaited(
       withDaFilterProbePaused(() async {
@@ -1856,6 +2101,8 @@ class Adi2Controller extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _hostBridge?.cancel();
+    _hostSync?.cancel();
     _hostRetry?.cancel();
     hostDiscovery.dispose();
     _hostRx?.cancel();

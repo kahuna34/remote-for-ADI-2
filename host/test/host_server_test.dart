@@ -3,6 +3,13 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:adi2_host/host_analyzer.dart';
+import 'package:adi2_host/host_player.dart';
+import 'package:adi2_remote/media/now_playing.dart';
+import 'package:adi2_remote/analyzer/analyzer_dsp.dart';
+
+import 'analyzer_capture_fake.dart';
+
 import 'package:adi2_host/desktop_midi.dart';
 import 'package:adi2_host/host_server.dart';
 import 'package:adi2_remote/host/host_client.dart';
@@ -79,8 +86,25 @@ class _Midi implements HostMidiPort {
   }
 }
 
+class _PlayerSource implements HostPlayerSource {
+  final commands = <String>[];
+  @override
+  Future<NowPlayingInfo> read() async => const NowPlayingInfo(
+    title: 'Host track',
+    artist: 'Artist',
+    app: 'Music',
+    playing: true,
+  );
+  @override
+  Future<void> command(String command) async {
+    commands.add(command);
+  }
+}
+
 void main() {
   late HostServer server;
+  late _PlayerSource playerSource;
+  late FakeAnalyzerCapture capture;
   late HostPairing pairing;
   late _Midi midi;
   late HostEndpoint endpoint;
@@ -94,13 +118,17 @@ void main() {
 
   setUp(() async {
     midi = _Midi();
+    capture = FakeAnalyzerCapture();
     pairing = HostPairing();
+    playerSource = _PlayerSource();
     server = HostServer(
       id: 'host',
       name: 'Computer',
       pairing: pairing,
       midi: midi,
       persist: () async {},
+      analyzer: HostAnalyzer(capture: capture),
+      player: HostPlayer(source: playerSource),
       closeDelay: const Duration(milliseconds: 30),
     );
     endpoint = HostEndpoint(
@@ -113,6 +141,7 @@ void main() {
   tearDown(() async {
     await server.stop();
     await midi.responses.close();
+    await capture.input.close();
   });
 
   Future<HostCredentials> pair([String name = 'Handy']) => HostClient.pair(
@@ -121,6 +150,136 @@ void main() {
     name,
     connectSocket: connectSocket,
   );
+
+  test('Host meldet sich regelmäßig; ruhige Sitzung bleibt über die Stille-Grenze verbunden', () async {
+    final client = HostClient(connectSocket: connectSocket);
+    addTearDown(client.dispose);
+    await client.connect(await pair('Ruhig'));
+    // Ohne 'alive' würde die App nach hostSilenceTimeout neu verbinden.
+    await Future<void>.delayed(
+      hostSilenceTimeout + const Duration(milliseconds: 1500),
+    );
+    expect(client.connected, isTrue);
+    expect(client.error, isNull);
+    client.disconnect();
+  });
+
+  test('Authenticated player capability, shared subscriptions, commands and cleanup', () async {
+    final first = HostClient(connectSocket: connectSocket);
+    final second = HostClient(connectSocket: connectSocket);
+    await first.connect(await pair('One'));
+    await second.connect(await pair('Two'));
+    expect(first.playerAvailable, true);
+    expect(first.playerInfo, isNull);
+    first.subscribePlayer('graph');
+    first.subscribePlayer('other');
+    second.subscribePlayer('graph');
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(first.playerInfo?.title, 'Host track');
+    expect(second.playerInfo?.playing, true);
+    first.playerCommand('pause');
+    second.playerCommand('next');
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(playerSource.commands, ['pause', 'next']);
+    first.unsubscribePlayer('graph');
+    first.playerCommand('previous');
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(playerSource.commands.last, 'previous');
+    first.unsubscribePlayer('other');
+    // Abmeldung erst nach dem Nachlauf (500 ms).
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    expect(first.playerInfo, isNull);
+    first.playerCommand('play');
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(playerSource.commands, ['pause', 'next', 'previous']);
+    second.disconnect();
+    first.disconnect();
+    expect(second.playerInfo, isNull);
+    expect(second.playerAvailable, false);
+    first.dispose();
+    second.dispose();
+  });
+
+  test('Authenticated analyzer start/frame/error/stop and disconnected peer cleanup', () async {
+    final client = HostClient(connectSocket: connectSocket);
+    await client.connect(await pair());
+    expect(client.analyzerAvailable, isTrue);
+    expect(client.analyzerVersion, 2);
+    expect(capture.starts, 0);
+    final events = <Map<String, dynamic>>[];
+    final subscription = client.analyzerEvents.stream.listen(events.add);
+    client.send('analyzer_start', {'bandResolution': 6});
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(capture.starts, 1);
+    capture.input.add({
+      'sampleRate': 48000,
+      'pcm': List<double>.filled(1600, 0.1),
+    });
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(events.single['type'], 'analyzer_frame');
+    expect(
+      events.single['bandResolution'],
+      AnalyzerBandResolution.sixth.bandsPerOctave,
+    );
+    capture.input.add({'status': 'permissionDenied'});
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(events.last['code'], 'analyzer_permission');
+    expect(client.connected, isTrue); // Analyzer errors do not affect MIDI.
+    client.send('analyzer_start', {'bandResolution': 3});
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    client.send('analyzer_stop');
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(capture.stops, 2);
+    client.send('analyzer_start', {'bandResolution': 12});
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    client.disconnect();
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(capture.stops, 3);
+    expect(server.analyzer.analysisCount, 0);
+    await subscription.cancel();
+    client.dispose();
+  });
+
+  test('Negotiated v2 metadata/frames and explicit v1 fallback share authenticated transport', () async {
+    final client = HostClient(connectSocket: connectSocket);
+    await client.connect(await pair());
+    final events = <Map<String, dynamic>>[];
+    final sub = client.analyzerEvents.stream.listen(events.add);
+    client.send('analyzer_start', {
+      'analyzerVersion': client.analyzerVersion,
+      'bandResolution': 12,
+      'bars': true,
+    });
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    capture.input.add({
+      'sampleRate': 48000,
+      'pcm': List<double>.filled(1600, .1),
+      'device': 'ADI-2 DAC',
+    });
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(events.map((e) => e['type']), [
+      'analyzer_metadata',
+      'analyzer_frame',
+    ]);
+    expect(events.first['sampleRate'], 48000);
+    expect(events.last['v'], 2);
+    expect(events.last.containsKey('sampleRate'), isFalse);
+    expect(events.last.containsKey('b'), isTrue);
+    client.send('analyzer_stop');
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    client.send('analyzer_start', {'analyzerVersion': 1, 'bandResolution': 3});
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    capture.input.add({
+      'sampleRate': 48000,
+      'pcm': List<double>.filled(1600, .1),
+    });
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(events.last['v'], 1);
+    expect(events.last['sampleRate'], 48000);
+    expect(client.connected, isTrue);
+    await sub.cancel();
+    client.dispose();
+  });
 
   test('Belegter TCP-Port erhält einen erreichbaren Ausweichport', () async {
     final occupied = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
@@ -437,6 +596,58 @@ void main() {
     expect(midi.sent, isEmpty);
   });
 
+  test('Client überbrückt Player-Anzeige, authentifiziert neu und verwirft Befehle', () async {
+    late _Socket wire;
+    final client = HostClient(
+      connectSocket: (uri) async {
+        wire = await connectSocket(uri) as _Socket;
+        return wire;
+      },
+    );
+    addTearDown(client.dispose);
+    final credentials = await pair();
+    final owner = Object();
+    // Entspricht der Überbrückungsentscheidung im Gerätecontroller und
+    // dem Player-Abonnement einer weiterhin sichtbaren Oberfläche.
+    void changed() {
+      if (!client.connected && client.error != null && !client.reconnecting) {
+        client.setReconnecting(true);
+      }
+      if (client.connected && !client.reconnecting) {
+        client.subscribePlayer(owner);
+      }
+    }
+
+    client.addListener(changed);
+    addTearDown(() => client.removeListener(changed));
+    await client.connect(credentials);
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    final previous = client.playerInfo;
+    expect(previous?.title, 'Host track');
+    await wire.close();
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    expect(client.connected, isFalse);
+    expect(client.reconnecting, isTrue);
+    expect(client.playerInfo, same(previous));
+    client.playerCommand('play');
+    await client.connect(credentials);
+    expect(client.connected, isTrue);
+    expect(client.reconnecting, isTrue);
+    expect(client.playerInfo, same(previous));
+    client.playerCommand('previous');
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    expect(playerSource.commands, isEmpty);
+    client.setReconnecting(false);
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    expect(client.playerInfo?.title, 'Host track');
+    client.playerCommand('next');
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    expect(playerSource.commands, ['next']);
+    client.disconnect();
+    expect(client.playerInfo, isNull);
+    expect(client.reconnecting, isFalse);
+  });
+
   test('Client-Transport verwirft Offline-Senden bei neuer Sitzung', () async {
     final credentials = await pair();
     final client = HostClient(connectSocket: connectSocket);
@@ -502,7 +713,7 @@ void main() {
     // WLAN-Aussetzer über 1 s trennen nicht mehr; erst nach
     // HostServer.sessionTimeout ohne Lebenszeichen.
     expect(server.connectedNames, hasLength(2));
-    expect(HostServer.sessionTimeout, const Duration(seconds: 6));
+    expect(HostServer.sessionTimeout, const Duration(seconds: 15));
     expect(other.connected, isTrue);
     expect(midi.closes, 0);
     expect(server.filter.granted, isTrue);

@@ -220,13 +220,16 @@ void main() {
         final spectrum = find.byKey(const ValueKey('analyzer-spectrum'));
         final plotRect = tester.getRect(spectrum);
         final belowRect = tester.getRect(find.text('Below analyzer'));
-        final summary = tester.widget<Text>(
+        expect(
           find.byKey(const ValueKey('analyzer-info-summary')),
+          findsNothing,
         );
-        expect(summary.maxLines, 1);
-        expect(summary.overflow, TextOverflow.ellipsis);
+        expect(
+          find.byKey(const ValueKey('analyzer-diagnostics')),
+          findsNothing,
+        );
         final toggle = find.byKey(const ValueKey('analyzer-info-toggle'));
-        expect(find.byIcon(Icons.expand_more), findsOneWidget);
+        expect(find.byIcon(Icons.info_outline), findsOneWidget);
         await tester.tap(toggle);
         await tester.pumpAndSettle();
         final details = find.byKey(const ValueKey('analyzer-info-expanded'));
@@ -245,7 +248,7 @@ void main() {
         expect(tester.getRect(details).top, greaterThanOrEqualTo(0));
         expect(tester.getRect(spectrum), plotRect);
         expect(tester.getRect(find.text('Below analyzer')), belowRect);
-        expect(find.byIcon(Icons.expand_less), findsOneWidget);
+        expect(find.byIcon(Icons.info_outline), findsOneWidget);
         expect(parentTaps, 0);
         await tester.tap(toggle);
         await tester.pumpAndSettle();
@@ -415,5 +418,7 @@ void main() {
       expect(plot.height, greaterThan(130));
       expect(tester.takeException(), isNull);
     }
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(milliseconds: 500));
   });
 }

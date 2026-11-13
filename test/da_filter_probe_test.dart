@@ -485,7 +485,15 @@ void main() {
     );
     expect(segment.onPressed, isNull);
     expect(
-      (segment.child! as Text).style!.color,
+      tester
+          .widget<Text>(
+            find.descendant(
+              of: find.byKey(const ValueKey('easy-segment-0-5')),
+              matching: find.byType(Text),
+            ),
+          )
+          .style!
+          .color,
       Palette.muted.withValues(alpha: 0.45),
     );
     midi.writes.clear();

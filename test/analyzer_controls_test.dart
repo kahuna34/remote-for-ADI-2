@@ -127,6 +127,56 @@ void main() {
       },
     );
   }
+  for (final language in AppLanguage.values) {
+    testWidgets('tool and spectrum buttons in settings: $language', (
+      tester,
+    ) async {
+      AppLang.instance.language = language;
+      final controller = AnalyzerController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildTheme(),
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () =>
+                    showAnalyzerSettings(context, controller, null),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      expect(find.text(tr('Werkzeug')), findsOneWidget);
+      final tool = find.byKey(const ValueKey('analyzer-tool'));
+      final mode = find.byKey(const ValueKey('analyzer-spectrum-mode'));
+      final bands = find.byKey(const ValueKey('analyzer-band-resolution'));
+      expect(
+        tester.widget<AnalyzerChoices<AnalyzerView>>(tool).values,
+        AnalyzerView.values,
+      );
+      expect(
+        find.descendant(of: tool, matching: find.text(tr('Spektrum'))),
+        findsOneWidget,
+      );
+      expect(tester.getRect(tool).bottom, lessThan(tester.getRect(mode).top));
+      expect(tester.getRect(mode).bottom, lessThan(tester.getRect(bands).top));
+      for (final bars in [true, false]) {
+        final label = find.text(tr(bars ? 'Balken' : 'Linien'));
+        expect(
+          find.ancestor(of: label, matching: find.byType(ChoiceChip)),
+          findsOneWidget,
+        );
+        await tester.tap(label);
+        await tester.pump();
+        expect(controller.bars, bars);
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
   testWidgets(
     'settings sheet has color, range, ballistics and offline loopback',
     (tester) async {
@@ -156,6 +206,8 @@ void main() {
       expect(find.text('Abgriff'), findsNothing);
       expect(find.byWidgetPredicate((w) => w is DropdownButton), findsNothing);
       for (final key in [
+        'analyzer-tool',
+        'analyzer-spectrum-mode',
         'analyzer-color',
         'analyzer-range',
         'analyzer-ballistics',
@@ -459,16 +511,50 @@ void main() {
         findsNothing,
       );
       expect(find.byIcon(Icons.input), findsNothing);
+      // The capture fake has no data. Supply a display frame for the meter
+      // placement checks; the real idle toolbar is checked before this too.
+      expect(
+        find.byIcon(Icons.settings_outlined).hitTestable(),
+        findsOneWidget,
+      );
+      analyzer.status = AnalyzerStatus.running;
+      analyzer.frame = AnalyzerFrame(
+        sampleRate: 48000,
+        spectrum: List.filled(2049, .1),
+        peak: [-20, -20],
+        rms: [-24, -24],
+        clipped: [false, false],
+      );
+      analyzer.notifyListeners();
+      await tester.pump();
+      // Peak hold and Reset share the bottom row below the full-width spectrum.
+      expect(
+        tester.getSize(find.byKey(const ValueKey('analyzer-peak-hold'))).height,
+        greaterThanOrEqualTo(28),
+      );
+      expect(find.text('Peak hold'), findsOneWidget);
+      expect(find.byKey(const ValueKey('analyzer-peak-reset')), findsOneWidget);
       final gear = find.byIcon(Icons.settings_outlined);
+      final toolbar = find.byKey(const ValueKey('analyzer-compact-buttons'));
+      final toolbarRect = tester.getRect(toolbar);
+      expect(
+        toolbarRect.top,
+        greaterThanOrEqualTo(
+          tester
+              .getRect(find.byKey(const ValueKey('analyzer-spectrum')))
+              .bottom,
+        ),
+      );
       final fullscreen = find.byIcon(Icons.fullscreen);
       for (final target in [
         find.ancestor(of: gear, matching: find.byType(IconButton)),
         find.ancestor(of: fullscreen, matching: find.byType(IconButton)),
       ]) {
-        expect(tester.getSize(target).width, greaterThanOrEqualTo(40));
-        expect(tester.getSize(target).height, greaterThanOrEqualTo(40));
+        expect(tester.getSize(target), const Size(44, 32));
+        expect(toolbarRect.contains(tester.getCenter(target)), isTrue);
+        expect(target.hitTestable(), findsOneWidget);
       }
-      expect(tester.getCenter(fullscreen).dx - tester.getCenter(gear).dx, 40);
+      expect(tester.getCenter(fullscreen).dx - tester.getCenter(gear).dx, 50);
       ctrl.set(Adi2Addr.line, OutIdx.loopback, 2);
       await tester.pump();
       await tester.tap(gear);
@@ -543,6 +629,7 @@ void main() {
     expect(calls.where((c) => c == 'start').length, 1);
     await tester.pumpWidget(const SizedBox());
     await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 500));
     expect(calls.where((c) => c == 'stop').length, 1);
     analyzer.dispose();
     messenger.setMockMethodCallHandler(
@@ -799,4 +886,48 @@ void main() {
     expect(controller.peakHold, !before);
     await tester.pumpWidget(const SizedBox());
   });
+  testWidgets(
+    'Kompaktes Peak-hold-Symbol ist 40×40, farbig und behält Tap/Langdruck',
+    (tester) async {
+      final controller = AnalyzerController();
+      addTearDown(controller.dispose);
+      controller.setPeakHold(false);
+      controller.spectrum.update([-10], .1);
+      controller.spectrum.update([-50], 5);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildTheme(),
+          home: Scaffold(
+            body: ListenableBuilder(
+              listenable: controller,
+              builder: (context, _) =>
+                  AnalyzerPeakHoldChip(controller: controller, compact: true),
+            ),
+          ),
+        ),
+      );
+      final button = find.descendant(
+        of: find.byKey(const ValueKey('analyzer-peak-hold')),
+        matching: find.byType(IconButton),
+      );
+      expect(tester.getSize(button), const Size(40, 40));
+      expect(tester.widget<IconButton>(button).iconSize, 18);
+      expect(find.byType(FilterChip), findsNothing);
+      final inactive = tester.widget<IconButton>(button).color;
+      await tester.tap(button);
+      await tester.pump();
+      expect(controller.peakHold, isTrue);
+      expect(tester.widget<IconButton>(button).color, isNot(inactive));
+      expect(
+        find.byTooltip(tr('Peak hold – lang drücken: zurücksetzen')),
+        findsOneWidget,
+      );
+      await tester.longPress(button);
+      await tester.pump();
+      expect(controller.spectrum.held, controller.spectrum.values);
+      expect(controller.peakHold, isTrue);
+      expect(find.byType(SnackBar), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 }

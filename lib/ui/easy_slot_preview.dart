@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../easy/easy_layout.dart';
+import '../device/adi2_controller.dart';
+import 'easy_tile_preview.dart';
 import '../l10n/l10n.dart';
 import 'easy_tile_grid.dart';
 import 'theme.dart';
@@ -37,12 +39,16 @@ class EasySlotPreview extends StatelessWidget {
     super.key,
     required this.index,
     required this.layout,
+    this.ctrl,
+    this.output,
     this.name,
     this.active = false,
     required this.onTap,
   });
   final int index;
   final EasyLayout? layout;
+  final Adi2Controller? ctrl;
+  final int? output;
   final String? name;
   final bool active;
   final VoidCallback onTap;
@@ -54,11 +60,11 @@ class EasySlotPreview extends StatelessWidget {
     label: trf('Eigene Ansicht {n}', {'n': index + 1}),
     child: InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(10),
       child: Container(
         padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: active ? Palette.amber : Palette.line,
             width: active ? 2 : 1,
@@ -83,15 +89,16 @@ class EasySlotPreview extends StatelessWidget {
                       )
                     : null,
               ),
-              Text(
-                trf('Slot {n}', {'n': index + 1}),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: ts(11),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  trf('Slot {n}', {'n': index + 1}),
+                  style: buttonLabelStyle(context),
+                ),
               ),
               const SizedBox(height: 4),
               if (layout != null)
-                EasyLayoutPreview(layout: layout!)
+                EasyLayoutPreview(layout: layout!, ctrl: ctrl, output: output)
               else
                 CustomPaint(
                   painter: _DashedFrame(),
@@ -101,17 +108,15 @@ class EasySlotPreview extends StatelessWidget {
                     child: Center(
                       child: Text(
                         tr('leer'),
-                        style: ts(11, color: Palette.muted),
+                        style: buttonStatusStyle(context),
                       ),
                     ),
                   ),
                 ),
               if (name != null)
-                Text(
-                  name!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: ts(11),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(name!, style: buttonStatusStyle(context)),
                 ),
             ],
           ),
@@ -145,8 +150,15 @@ class _DashedFrame extends CustomPainter {
 
 /// Decorative miniature using the same placement and colors as the editor.
 class EasyLayoutPreview extends StatelessWidget {
-  const EasyLayoutPreview({super.key, required this.layout});
+  const EasyLayoutPreview({
+    super.key,
+    required this.layout,
+    this.ctrl,
+    this.output,
+  });
   final EasyLayout layout;
+  final Adi2Controller? ctrl;
+  final int? output;
 
   @override
   Widget build(BuildContext context) {
@@ -181,9 +193,20 @@ class EasyLayoutPreview extends StatelessWidget {
                           color: easyTileBackground(
                             layout.tiles[p.index].color ?? layout.defaultColor,
                           ),
-                          borderRadius: BorderRadius.circular(4),
+                          borderRadius: BorderRadius.circular(10 * unit / 5.6),
                           border: Border.all(color: Palette.line),
                         ),
+                        child: ctrl == null
+                            ? null
+                            : IgnorePointer(
+                                child: EasyTilePreview(
+                                  ctrl: ctrl!,
+                                  tile: layout.tiles[p.index],
+                                  output: output,
+                                  defaultColor: layout.defaultColor,
+                                  fillPreview: true,
+                                ),
+                              ),
                       ),
                     ),
                   ),

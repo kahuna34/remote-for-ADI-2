@@ -395,6 +395,8 @@ class _EasyModeCard extends StatelessWidget {
                         padding: EdgeInsets.only(right: i == 3 ? 0 : 6),
                         child: EasySlotPreview(
                           key: ValueKey('easy-slot-$i'),
+                          ctrl: ctrl,
+                          output: selected?.address,
                           index: i,
                           layout: slots!.layouts[i]?.pageFor(selected!.address),
                           name: slots.names[i],

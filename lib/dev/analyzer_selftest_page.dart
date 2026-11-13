@@ -30,23 +30,26 @@ class _AnalyzerSelfTestEntryState extends State<AnalyzerSelfTestEntry> {
   Widget build(BuildContext context) => GestureDetector(
     key: const ValueKey('analyzer-selftest-entry'),
     behavior: HitTestBehavior.opaque,
-    onTap: () {
-      final now = DateTime.now();
-      if (first == null ||
-          now.difference(first!) > const Duration(seconds: 4)) {
-        first = now;
-        taps = 0;
-      }
-      if (++taps < 5) return;
-      taps = 0;
-      first = null;
-      analyzerDeveloperMode.value = true;
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => AnalyzerSelfTestPage(ctrl: widget.ctrl),
-        ),
-      );
-    },
+    onTap: widget.ctrl?.viaHost == true
+        ? null
+        : () {
+            if (widget.ctrl?.viaHost == true) return;
+            final now = DateTime.now();
+            if (first == null ||
+                now.difference(first!) > const Duration(seconds: 4)) {
+              first = now;
+              taps = 0;
+            }
+            if (++taps < 5) return;
+            taps = 0;
+            first = null;
+            analyzerDeveloperMode.value = true;
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => AnalyzerSelfTestPage(ctrl: widget.ctrl),
+              ),
+            );
+          },
     child: widget.child,
   );
 }
@@ -106,7 +109,7 @@ class _AnalyzerSelfTestPageState extends State<AnalyzerSelfTestPage>
 
   Future<void> _start() async {
     final s = session;
-    if (s == null || output == null) return;
+    if (s == null || output == null || widget.ctrl?.viaHost == true) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(

@@ -148,8 +148,9 @@ class _VolumeRingState extends State<VolumeRing> {
                   children: [
                     // Zahl genau in der Ringmitte
                     Positioned(
-                      left: side * 0.18,
-                      right: side * 0.18,
+                      // Smartphone: mehr Abstand zum Ring.
+                      left: side * (isTablet(context) ? 0.18 : 0.22),
+                      right: side * (isTablet(context) ? 0.18 : 0.22),
                       top: side * 0.5 - side * 0.19,
                       height: side * 0.28,
                       child: Center(
@@ -158,7 +159,7 @@ class _VolumeRingState extends State<VolumeRing> {
                           child: Text(
                             widget.muted ? tr('Mute') : _fmt(widget.actualDb),
                             style: ts(
-                              side * 0.19,
+                              side * (isTablet(context) ? 0.19 : 0.17),
                               weight: 300,
                               width: 112,
                               color: widget.muted ? Palette.red : Palette.text,

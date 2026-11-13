@@ -2,7 +2,7 @@
 
 [Deutsch](docs/README.de.md)
 
-Remote for ADI-2 is a free Flutter app for controlling compatible ADI-2 audio interfaces directly over USB MIDI from a smartphone or tablet. It provides output and device controls, an EQ editor, setups, backups, a configurable control panel and a USB audio analyzer. Version **1.1.2 (4)**. © 2026 Markus Rass.
+Remote for ADI-2 is a free Flutter app for controlling compatible ADI-2 audio interfaces directly over USB MIDI from a smartphone or tablet. It provides output and device controls, an EQ editor, setups, backups, a configurable control panel and a USB audio analyzer. Version **1.2.0 (5)**. © 2026 Markus Rass.
 
 ## Download
 

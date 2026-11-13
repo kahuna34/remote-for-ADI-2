@@ -1,10 +1,15 @@
 import 'dart:async';
+
+import 'host_analyzer_protocol.dart';
+
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
 import 'host_protocol.dart';
+import 'host_player_protocol.dart';
+import '../media/now_playing.dart';
 
 class HostCredentials {
   const HostCredentials(this.host, this.deviceId, this.key);
@@ -24,8 +29,11 @@ class HostCredentials {
 
 typedef HostSocketConnector = Future<WebSocket> Function(Uri uri);
 
-Future<WebSocket> _connectHostSocket(Uri uri) =>
-    WebSocket.connect(uri.toString());
+Future<WebSocket> _connectHostSocket(Uri uri) => WebSocket.connect(
+  uri.toString(),
+  // Keine Kompression: verschlüsselte Nutzdaten, siehe Host.
+  compression: CompressionOptions.compressionOff,
+);
 
 /// Abriss verwirft die gesamte Sitzung. Die nächste Verbindung verlangt
 /// einen neuen Challenge-Response und einen neuen Geräteabgleich im Controller.
@@ -34,6 +42,60 @@ class HostClient extends ChangeNotifier {
     : _connectSocket = connectSocket ?? _connectHostSocket;
   final HostSocketConnector _connectSocket;
   final packets = StreamController<Uint8List>.broadcast(sync: true);
+  final analyzerEvents = StreamController<Map<String, dynamic>>.broadcast(
+    sync: true,
+  );
+
+  /// Nur die Darstellung überbrücken; jede TCP-Sitzung wird neu authentifiziert.
+  bool reconnecting = false;
+  void setReconnecting(bool value) {
+    if (reconnecting == value) return;
+    reconnecting = value;
+    if (!value && !connected) _clearPlayer();
+    notifyListeners();
+  }
+
+  bool playerAvailable = false;
+  NowPlayingInfo? playerInfo;
+  final Set<Object> _playerOwners = {};
+  Timer? _playerStopTimer;
+  bool _playerSubscribed = false;
+  void subscribePlayer(Object owner) {
+    if (!playerAvailable || (!connected && !reconnecting)) return;
+    _playerStopTimer?.cancel();
+    _playerStopTimer = null;
+    _playerOwners.add(owner);
+    if (reconnecting) return;
+    if (!_playerSubscribed) {
+      _playerSubscribed = true;
+      send('player_subscribe');
+    }
+  }
+
+  void unsubscribePlayer(Object owner) {
+    if (_playerOwners.remove(owner) && _playerOwners.isEmpty) {
+      _playerStopTimer = Timer(const Duration(milliseconds: 500), () {
+        _playerStopTimer = null;
+        if (_playerSubscribed && connected) send('player_unsubscribe');
+        _playerSubscribed = false;
+        if (!reconnecting) playerInfo = null;
+      });
+    }
+  }
+
+  void playerCommand(String command) {
+    if (connected &&
+        !reconnecting &&
+        playerAvailable &&
+        _playerOwners.isNotEmpty &&
+        hostPlayerCommands.contains(command)) {
+      send('player_command', {'command': command});
+    }
+  }
+
+  bool analyzerAvailable = false;
+  int analyzerVersion = 0;
+  String? analyzerPlatform;
   WebSocket? _socket;
   StreamSubscription<dynamic>? _subscription;
   HostEnvelope? _envelope;
@@ -95,7 +157,7 @@ class HostClient extends ChangeNotifier {
   }
 
   Future<void> connect(HostCredentials value) async {
-    disconnect();
+    _disconnect(preservePresentation: reconnecting);
     credentials = value;
     error = null;
     final generation = _generation;
@@ -115,10 +177,28 @@ class HostClient extends ChangeNotifier {
       _subscription = socket.listen(
         (frame) {
           if (generation != _generation) return;
+          _lastReceived.reset();
           try {
             final message = decodeHostMessage(frame);
             if (_envelope != null) {
               final data = _envelope!.open(message);
+              if (data['type'] == 'player_state' &&
+                  playerAvailable &&
+                  _playerSubscribed) {
+                // Ein unlesbarer Player-Status trennt nie die Verbindung.
+                try {
+                  playerInfo = decodeHostPlayerState(data, playerInfo);
+                  notifyListeners();
+                } on FormatException catch (e) {
+                  debugPrint('Player-Status verworfen: $e');
+                }
+              }
+              if (data['type'] == 'analyzer_metadata' ||
+                  data['type'] == 'analyzer_frame' ||
+                  data['type'] == 'analyzer_error') {
+                if (data['type'] == 'analyzer_frame') analyzerFramesReceived++;
+                analyzerEvents.add(data);
+              }
               if (data['type'] == 'midi') packets.add(decodeMidi(data['data']));
               if (data['type'] == 'usb_missing' ||
                   data['type'] == 'usb_busy' ||
@@ -152,12 +232,20 @@ class HostClient extends ChangeNotifier {
                 throw const FormatException('Host-Nachweis ungueltig');
               }
               deviceName = message['deviceName'] as String;
+              analyzerVersion = negotiateHostAnalyzerVersion(
+                message['analyzerVersion'],
+              );
+              analyzerAvailable = analyzerVersion > 0;
+              playerAvailable =
+                  negotiateHostPlayerVersion(message['playerVersion']) > 0;
+              analyzerPlatform = message['analyzerPlatform'] as String?;
               _envelope = HostEnvelope(
                 key!,
                 outgoing: 'client',
                 incoming: 'server',
               );
               _startHeartbeat();
+              _startSilenceWatch(message['alive'] == true);
               ready.complete();
               notifyListeners();
             } else {
@@ -173,7 +261,10 @@ class HostClient extends ChangeNotifier {
           if (!ready.isCompleted) {
             ready.completeError(StateError('Host getrennt'));
           }
-          _lost('Host getrennt');
+          _lost(
+            'Host getrennt (Code ${socket?.closeCode}, '
+            '${socket?.closeReason ?? ''})',
+          );
         },
         onError: (Object e) {
           if (generation != _generation) return;
@@ -183,22 +274,54 @@ class HostClient extends ChangeNotifier {
       );
       await ready.future.timeout(const Duration(seconds: 8));
     } catch (_) {
-      if (generation == _generation) disconnect();
+      if (generation == _generation) {
+        _disconnect(preservePresentation: reconnecting);
+      }
       rethrow;
     } finally {
       if (identical(_pendingConnection, ready)) _pendingConnection = null;
     }
   }
 
+  final _lastReceived = Stopwatch()..start();
+  Timer? _silenceWatch;
+
+  /// Bei ausbleibenden Lebenszeichen entscheidet der Transport-Watchdog.
+  /// MIDI-/Analyzer-Watchdogs dürfen ihm keinen sichtbaren Reset vorwegnehmen.
+  bool get awaitingSilenceTimeout =>
+      _silenceWatch != null && _lastReceived.elapsed >= hostAliveInterval * 2;
+
+  /// Erkennt Verbindungen, bei denen nur noch die App sendet, aber vom Host
+  /// nichts mehr ankommt (WLAN hält einzelne Verbindungen fest). Nur bei
+  /// Hosts, die regelmäßig 'alive' senden.
+  void _startSilenceWatch(bool hostSendsAlive) {
+    _silenceWatch?.cancel();
+    _silenceWatch = null;
+    if (!hostSendsAlive) return;
+    _lastReceived.reset();
+    _silenceWatch = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!_foreground || !connected) {
+        _lastReceived.reset();
+        return;
+      }
+      if (_lastReceived.elapsed >= hostSilenceTimeout) {
+        _lost('Host antwortet nicht');
+      }
+    });
+  }
+
   void _startHeartbeat() {
     _heartbeat?.cancel();
     if (!_foreground || !connected) return;
-    send('heartbeat');
-    _heartbeat = Timer.periodic(
-      hostHeartbeatInterval,
-      (_) => send('heartbeat'),
-    );
+    _sendHeartbeat();
+    _heartbeat = Timer.periodic(hostHeartbeatInterval, (_) => _sendHeartbeat());
   }
+
+  /// Empfangene Analyzer-Bilder seit dem letzten analyzer_start; der Host
+  /// drosselt damit, wenn Bilder sich im WLAN stauen.
+  int analyzerFramesReceived = 0;
+
+  void _sendHeartbeat() => send('heartbeat', {'af': analyzerFramesReceived});
 
   void setForeground(bool value) {
     _foreground = value;
@@ -211,6 +334,7 @@ class HostClient extends ChangeNotifier {
   }
 
   void send(String type, [Map<String, dynamic> payload = const {}]) {
+    if (type == 'analyzer_start') analyzerFramesReceived = 0;
     final envelope = _envelope, socket = _socket;
     if (envelope == null || socket == null) return;
     try {
@@ -223,12 +347,20 @@ class HostClient extends ChangeNotifier {
   void sendMidi(Uint8List bytes) => send('midi', {'data': base64Encode(bytes)});
 
   void _lost(String why) {
-    disconnect();
+    // Im Logcat sichtbar (auch Release), damit Abbrüche nachvollziehbar sind.
+    debugPrint('Host-Verbindung verloren: $why');
     error = why;
-    notifyListeners();
+    _disconnect(preservePresentation: true);
+    if (!reconnecting) _clearPlayer();
   }
 
   void disconnect() {
+    error = null;
+    reconnecting = false;
+    _disconnect();
+  }
+
+  void _disconnect({bool preservePresentation = false}) {
     final pending = _pendingConnection;
     _pendingConnection = null;
     if (pending != null && !pending.isCompleted) {
@@ -237,18 +369,36 @@ class HostClient extends ChangeNotifier {
     _generation++;
     _heartbeat?.cancel();
     _heartbeat = null;
+    _silenceWatch?.cancel();
+    _silenceWatch = null;
     _envelope = null;
     _subscription?.cancel();
     _subscription = null;
     _socket?.close();
     _socket = null;
     deviceName = null;
+    if (!preservePresentation) _clearPlayer();
+    _playerSubscribed = false;
+    analyzerAvailable = false;
+    analyzerVersion = 0;
+    analyzerPlatform = null;
+    notifyListeners();
+  }
+
+  void _clearPlayer() {
+    playerAvailable = false;
+    playerInfo = null;
+    _playerStopTimer?.cancel();
+    _playerStopTimer = null;
+    _playerSubscribed = false;
+    _playerOwners.clear();
   }
 
   @override
   void dispose() {
     disconnect();
     packets.close();
+    analyzerEvents.close();
     super.dispose();
   }
 }

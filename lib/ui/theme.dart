@@ -3,6 +3,8 @@
 
 import 'package:flutter/material.dart';
 
+import 'responsive_layout.dart';
+
 abstract final class Palette {
   static const bg = Color(0xFF1D2329);
   static const surf = Color(0xFF272E36);
@@ -51,6 +53,18 @@ TextStyle ts(
   );
 }
 
+/// Einheitliche Beschriftung der Bedientasten auf der Hauptansicht.
+TextStyle buttonLabelStyle(BuildContext context) =>
+    ts(isTablet(context) ? 15 : 14, weight: 600);
+
+/// Zweite Zeile: neutrale Statusangabe oder aktiver/eingestellter Wert.
+TextStyle buttonStatusStyle(BuildContext context, {bool active = false}) => ts(
+  isTablet(context) ? 13 : 12,
+  weight: 600,
+  narrow: true,
+  color: active ? Palette.amber : Palette.text,
+);
+
 FontWeight _w(double w) =>
     FontWeight.values[((w / 100).round() - 1).clamp(0, 8)];
 
@@ -80,6 +94,9 @@ ThemeData buildTheme() {
       titleTextStyle: ts(20, weight: 600),
     ),
     navigationBarTheme: NavigationBarThemeData(
+      // Niedriger als der Standard (80), damit über der Leiste Platz für
+      // einen Abstand zu den Knöpfen bleibt.
+      height: 64,
       backgroundColor: Palette.surf,
       indicatorColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,

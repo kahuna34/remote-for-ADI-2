@@ -301,7 +301,7 @@ void main() {
             EasyLongPressAction.lock => 'Lock',
             EasyLongPressAction.bass => 'Bass',
             EasyLongPressAction.treble => 'Treble',
-            EasyLongPressAction.balance => 'Bal',
+            EasyLongPressAction.balance => 'Balance',
             EasyLongPressAction.refLevel => 'Ref Level, Line Out',
             EasyLongPressAction.daFilter => 'DA-Filter',
             EasyLongPressAction.source => 'Quelle',

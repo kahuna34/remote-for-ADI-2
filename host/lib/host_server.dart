@@ -8,6 +8,13 @@ import 'package:adi2_remote/protocol/adi2_codec.dart';
 import 'package:flutter/foundation.dart';
 
 import 'host_log.dart';
+import 'host_analyzer.dart';
+import 'host_player.dart';
+
+import 'package:adi2_remote/host/host_player_protocol.dart';
+
+import 'package:adi2_remote/host/host_analyzer_protocol.dart';
+
 import 'volume_filter.dart';
 
 abstract class HostMidiPort {
@@ -29,7 +36,7 @@ class _Peer {
   final created = DateTime.now();
   HostEnvelope? envelope;
   String? deviceId, clientName;
-  Duration? authenticatedAt, lastHeartbeat;
+  Duration? authenticatedAt, lastHeartbeat, lastAlive;
   bool active = true;
   void send(String type, [Map<String, dynamic> payload = const {}]) {
     if (!active) return;
@@ -47,8 +54,15 @@ class HostServer extends ChangeNotifier {
     required this.midi,
     required this.persist,
     HostVolumeFilter? filter,
+    HostAnalyzer? analyzer,
+    HostPlayer? player,
     this.closeDelay = const Duration(seconds: 3),
-  }) : filter = filter ?? HostVolumeFilter();
+  }) : player = player ?? HostPlayer(source: NativeHostPlayerSource()),
+       filter = filter ?? HostVolumeFilter(),
+       analyzer =
+           analyzer ?? HostAnalyzer(capture: NativeHostAnalyzerCapture());
+  final HostAnalyzer analyzer;
+  final HostPlayer player;
   final String id, name;
   final HostPairing pairing;
   final HostMidiPort midi;
@@ -138,7 +152,14 @@ class HostServer extends ChangeNotifier {
       }
       try {
         accept(
-          await WebSocketTransformer.upgrade(request, maxPayloadLength: 32768),
+          await WebSocketTransformer.upgrade(
+            request,
+            maxPayloadLength: 32768,
+            // Keine permessage-deflate-Kompression: Nutzdaten sind
+            // verschlüsselt (nicht komprimierbar), und mit Kompression kam es
+            // am Tablet zu Protokollfehlern (1002) und Abbrüchen.
+            compression: CompressionOptions.compressionOff,
+          ),
         );
       } catch (_) {
         // Ein abgebrochener HTTP-Handshake beendet nur diesen Verbindungsversuch.
@@ -179,9 +200,19 @@ class HostServer extends ChangeNotifier {
           );
           _send(peer, 'session_expired');
           _drop(peer);
-        } else if (_leaseExpired(peer)) {
-          // Nur die Freigabe zum Anheben endet; die Verbindung bleibt.
-          filter.release(peer);
+        } else {
+          if (_leaseExpired(peer)) {
+            // Nur die Freigabe zum Anheben endet; die Verbindung bleibt.
+            filter.release(peer);
+          }
+          // Lebenszeichen des Hosts: Die App erkennt daran eine einseitig
+          // hängende Verbindung (WLAN) und baut sie neu auf.
+          final now = _clock.elapsed;
+          if (peer.lastAlive == null ||
+              now - peer.lastAlive! >= hostAliveInterval) {
+            peer.lastAlive = now;
+            _send(peer, 'alive');
+          }
         }
       }
     });
@@ -282,7 +313,9 @@ class HostServer extends ChangeNotifier {
     }
     _ensureSessionRuntime();
     final peer = _Peer(socket);
-    peer.socket.pingInterval = const Duration(seconds: 3);
+    // Keine WebSocket-Pings: dart:io trennte damit laufende Sitzungen am
+    // Tablet (Code 1001), obwohl Lebenszeichen ankamen. Tote Verbindungen
+    // erkennt sessionTimeout über die Lebenszeichen der App.
     _peers.add(peer);
     _send(peer, 'hello', {
       'hostId': id,
@@ -302,7 +335,10 @@ class HostServer extends ChangeNotifier {
       onDone: () {
         timeout.cancel();
         if (peer.envelope != null && peer.active) {
-          HostLog.write('Client ${peer.clientName ?? '?'}: Verbindung beendet');
+          HostLog.write(
+            'Client ${peer.clientName ?? '?'}: Verbindung beendet '
+            '(Code ${peer.socket.closeCode}, ${peer.socket.closeReason ?? ''})',
+          );
         }
         _drop(peer);
       },
@@ -317,7 +353,7 @@ class HostServer extends ChangeNotifier {
   /// Verbindung erst nach längerer Funkstille trennen. WLAN-Pakete kommen
   /// oft über eine Sekunde verzögert; der Lautstärkeschutz hängt allein an
   /// der kurzen Freigabe ([hostGrantLifetime]).
-  static const sessionTimeout = Duration(seconds: 6);
+  static const sessionTimeout = Duration(seconds: 15);
 
   bool _sessionTimedOut(_Peer peer) {
     final last = peer.lastHeartbeat ?? peer.authenticatedAt;
@@ -345,9 +381,36 @@ class HostServer extends ChangeNotifier {
           case 'heartbeat':
             peer.lastHeartbeat = _clock.elapsed;
             filter.heartbeat(peer);
+            analyzer.acknowledge(peer, data['af']);
           case 'release':
             filter.release(peer);
             _drop(peer);
+          case 'player_subscribe':
+            player.subscribe(
+              peer,
+              (type, payload) => _send(peer, type, payload),
+            );
+          case 'player_unsubscribe':
+            player.unsubscribe(peer);
+          case 'player_command':
+            player.command(peer, data['command']);
+          case 'analyzer_start':
+            unawaited(
+              analyzer.start(
+                peer,
+                hostAnalyzerResolution(data['bandResolution']),
+                (type, payload) {
+                  _send(peer, type, payload);
+                },
+                version:
+                    negotiateHostAnalyzerVersion(data['analyzerVersion']) == 2
+                    ? 2
+                    : 1,
+                bars: data['bars'] == true,
+              ),
+            );
+          case 'analyzer_stop':
+            unawaited(analyzer.stop(peer));
           case 'midi':
             if (!_usbOpen) {
               _send(peer, 'usb_missing');
@@ -459,6 +522,10 @@ class HostServer extends ChangeNotifier {
       }
       if (!_send(peer, 'authenticated', {
         'deviceName': _deviceName!,
+        'analyzerVersion': hostAnalyzerVersion,
+        'playerVersion': hostPlayerVersion,
+        'alive': true,
+        'analyzerPlatform': Platform.operatingSystem,
         'proof': hostMac(device.key, ['server', ...context]),
       })) {
         return;
@@ -499,6 +566,8 @@ class HostServer extends ChangeNotifier {
     unawaited(peer.socket.close());
     if (!_sessions.remove(peer)) return;
     filter.release(peer);
+    player.unsubscribe(peer);
+    unawaited(analyzer.stop(peer));
     if (_sessions.isEmpty) {
       _resetDeviceState();
       if (status == 'Clients verbunden') status = 'Bereit';
@@ -561,6 +630,8 @@ class HostServer extends ChangeNotifier {
     await _server?.close(force: true);
     await _usbWork.catchError((Object _) {});
     _usbOpen = false;
+    await player.dispose();
+    await analyzer.dispose();
     await midi.close();
   }
 }

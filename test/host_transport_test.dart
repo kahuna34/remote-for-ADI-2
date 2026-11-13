@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:adi2_remote/device/adi2_controller.dart';
 import 'package:adi2_remote/eq/eq_model.dart';
+import 'package:adi2_remote/media/now_playing.dart';
 import 'package:adi2_remote/host/host_client.dart';
 import 'package:adi2_remote/host/host_errors.dart';
 import 'package:adi2_remote/l10n/l10n.dart';
@@ -10,6 +11,7 @@ import 'package:adi2_remote/host/host_discovery.dart';
 import 'package:adi2_remote/protocol/adi2_codec.dart';
 import 'package:adi2_remote/protocol/adi2_params.dart';
 import 'package:adi2_remote/ui/home_page.dart';
+import 'package:adi2_remote/ui/outputs_page.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_midi_command/flutter_midi_command.dart';
@@ -35,6 +37,10 @@ class _Midi implements MidiCommand {
 
 class _Host extends HostClient {
   bool online = false;
+  @override
+  bool awaitingSilenceTimeout = false;
+  bool failConnect = false;
+  String nextDeviceName = 'ADI-2 Pro (56010042)';
   final sent = <Uint8List>[];
   void Function(Uint8List)? onSend;
   @override
@@ -42,14 +48,17 @@ class _Host extends HostClient {
   @override
   Future<void> connect(HostCredentials value) async {
     credentials = value;
+    if (failConnect) throw StateError('Host antwortet nicht');
+    error = null;
     online = true;
-    deviceName = 'ADI-2 Pro (56010042)';
+    deviceName = nextDeviceName;
     notifyListeners();
   }
 
   @override
   void disconnect() {
     online = false;
+    super.disconnect();
   }
 
   @override
@@ -60,7 +69,8 @@ class _Host extends HostClient {
     }
   }
 
-  void drop() {
+  void drop([String why = 'Host antwortet nicht']) {
+    error = why;
     online = false;
     notifyListeners();
   }
@@ -109,7 +119,7 @@ void main() {
   });
 
   test(
-    'Abriss verwirft Rampe und Zustand, Wiederverbindung liest neu',
+    'Abriss erhält Anzeige, verwirft Rampe und Eingaben, Abgleich liest neu',
     () async {
       await controller.start();
       await controller.connectHost(credentials);
@@ -128,16 +138,305 @@ void main() {
       expect(controller.volGuard.isIdle, isFalse);
       host.drop();
       expect(controller.volGuard.isIdle, isTrue);
-      expect(controller.value(3, OutIdx.volume), isNull);
+      expect(controller.value(3, OutIdx.volume), -500);
+      expect(controller.model, Adi2Model.pro);
+      expect(controller.hostReconnecting, isTrue);
+      expect(controller.isConnected, isFalse);
       final before = host.sent.length;
       controller.setVolume(3, 0);
+      controller.set(3, OutIdx.polarity, 2);
+      controller.setEq(4, 4, 10);
+      controller.loadSetup(1);
+      expect(controller.volGuard.isIdle, isTrue);
+      expect(host.sent.length, before);
       await controller.connectHost(credentials);
       expect(
         host.sent.skip(before).every((p) => p[5] == Adi2Cmd.request),
         isTrue,
       );
-      expect(controller.value(3, OutIdx.volume), isNull);
+      expect(controller.value(3, OutIdx.volume), -500);
+      expect(controller.isConnected, isFalse); // Auth allein genügt nicht.
+      final fresh = buildSetParams(0x72, [
+        const Adi2Param(3, OutIdx.volume, -650),
+      ]).single..[5] = Adi2Cmd.paramsToRemote;
+      host.packets.add(fresh);
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      expect(controller.hostReconnecting, isFalse);
+      expect(controller.isConnected, isTrue);
+      expect(controller.value(3, OutIdx.volume), -650);
+      expect(controller.volGuard.isIdle, isTrue);
+      expect(
+        host.sent.skip(before).every((p) => p[5] == Adi2Cmd.request),
+        isTrue,
+      );
+      controller.set(3, OutIdx.polarity, 1);
+      expect(host.sent.last[5], Adi2Cmd.paramsToDevice);
       await Future<void>.delayed(const Duration(milliseconds: 650));
+    },
+  );
+
+  test(
+    'MIDI-Watchdog leert vor der Transport-Stille-Erkennung keine Anzeige',
+    () async {
+      await controller.start();
+      await controller.connectHost(credentials);
+      host.packets.add(
+        buildSetParams(0x72, [const Adi2Param(3, OutIdx.volume, -500)]).single
+          ..[5] = Adi2Cmd.paramsToRemote,
+      );
+      host.awaitingSilenceTimeout = true;
+      await Future<void>.delayed(const Duration(milliseconds: 6200));
+      expect(controller.state, ConnState.connected);
+      expect(controller.value(3, OutIdx.volume), -500);
+      host.drop();
+      expect(controller.hostReconnecting, isTrue);
+      expect(controller.value(3, OutIdx.volume), -500);
+    },
+  );
+
+  void receive({int id = 0x72, int volume = -500, int? polarity}) {
+    host.packets.add(
+      buildSetParams(id, [
+        Adi2Param(3, OutIdx.volume, volume),
+        if (polarity != null) Adi2Param(3, OutIdx.polarity, polarity),
+      ]).single..[5] = Adi2Cmd.paramsToRemote,
+    );
+  }
+
+  Future<void> cleanup(WidgetTester tester) async {
+    controller.dispose();
+    disposed = true;
+    await tester.pump(const Duration(seconds: 1));
+  }
+
+  testWidgets('Ohne Neuverbindung endet die Anzeige nach genau zehn Sekunden', (
+    tester,
+  ) async {
+    await controller.start();
+    await controller.connectHost(credentials);
+    receive();
+    controller.selectedOutput = 6;
+    controller.names[1] = 'Studio';
+    host.failConnect = true;
+    host.drop();
+    await tester.pump(const Duration(milliseconds: 9999));
+    expect(controller.hostReconnecting, isTrue);
+    expect(controller.model, Adi2Model.pro);
+    expect(controller.selectedOutput, 6);
+    expect(controller.names[1], 'Studio');
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(controller.state, ConnState.searching);
+    expect(controller.model, isNull);
+    expect(controller.value(3, OutIdx.volume), isNull);
+    expect(host.reconnecting, isFalse);
+    await cleanup(tester);
+  });
+
+  testWidgets(
+    'Unvollständiger Abgleich sperrt trotz Authentifizierung bis zum Timeout',
+    (tester) async {
+      await controller.start();
+      await controller.connectHost(credentials);
+      receive(polarity: 0);
+      host.drop();
+      await controller.connectHost(credentials);
+      receive(volume: -700); // Polarity wurde noch nicht neu bestätigt.
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(controller.hostReconnecting, isTrue);
+      final before = host.sent.length;
+      controller.set(3, OutIdx.polarity, 2);
+      controller.setMany([const Adi2Param(3, OutIdx.volume, 0)]);
+      expect(host.sent, hasLength(before));
+      await tester.pump(const Duration(milliseconds: 9500));
+      expect(controller.model, isNull);
+      expect(controller.hostReconnecting, isFalse);
+      await cleanup(tester);
+    },
+  );
+
+  for (final action in [
+    'Trennen',
+    'Pause',
+    'Offline',
+    'Hintergrund',
+    'Kopplung entfernen',
+    'USB',
+  ]) {
+    testWidgets('$action beendet die Überbrückung sofort', (tester) async {
+      await controller.start();
+      await controller.connectHost(credentials);
+      receive();
+      host.drop();
+      switch (action) {
+        case 'Trennen':
+          controller.disconnect();
+        case 'Pause':
+          await controller.pauseHost();
+        case 'Offline':
+          await controller.startOffline(Adi2Variant.dac);
+        case 'Hintergrund':
+          controller.setHostForeground(false);
+        case 'Kopplung entfernen':
+          await controller.forgetHost(credentials.host.id);
+        case 'USB':
+          await controller.connect(
+            MidiDevice('usb', 'ADI-2 DAC', MidiDeviceType.serial, false),
+          );
+      }
+      expect(controller.hostReconnecting, isFalse);
+      expect(controller.viaHost, isFalse);
+      expect(controller.volGuard.isIdle, isTrue);
+      expect(controller.model, action == 'Offline' ? Adi2Model.dac : isNull);
+      await cleanup(tester);
+    });
+  }
+
+  testWidgets(
+    'Frischer Status und alle Parameter sind vor Freigabe erforderlich',
+    (tester) async {
+      await controller.start();
+      await controller.connectHost(credentials);
+      receive(polarity: 0);
+      void status() => host.packets.add(
+        Uint8List.fromList([
+          0xf0,
+          ...rmeVendor,
+          0x72,
+          Adi2Cmd.status,
+          ...List.filled(24, 0),
+          0xf7,
+        ]),
+      );
+      status();
+      controller.selectedOutput = 3;
+      host.drop();
+      await controller.connectHost(credentials);
+      receive(volume: -700, polarity: 2);
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(controller.hostReconnecting, isTrue);
+      status();
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(controller.hostReconnecting, isFalse);
+      expect(controller.value(3, OutIdx.volume), -700);
+      expect(controller.value(3, OutIdx.polarity), 2);
+      expect(controller.selectedOutput, 3);
+      await cleanup(tester);
+    },
+  );
+
+  testWidgets(
+    'Gedrücktgehaltene Lautstärketaste läuft nach dem Abgleich nicht weiter',
+    (tester) async {
+      await controller.start();
+      await controller.connectHost(credentials);
+      receive();
+      controller.selectedOutput = 3;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: OutputsPage(ctrl: controller)),
+        ),
+      );
+      final plus = find.descendant(
+        of: find.byKey(const ValueKey('output-volume-buttons')),
+        matching: find.byIcon(Icons.add),
+      );
+      final gesture = await tester.startGesture(tester.getCenter(plus));
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(host.sent.any((p) => p[5] == Adi2Cmd.paramsToDevice), isTrue);
+      host.drop();
+      await controller.connectHost(credentials);
+      receive(volume: -700);
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(controller.isConnected, isTrue);
+      final writes = host.sent
+          .where((p) => p[5] == Adi2Cmd.paramsToDevice)
+          .length;
+      await tester.pump(const Duration(seconds: 1));
+      expect(controller.volGuard.isIdle, isTrue);
+      expect(
+        host.sent.where((p) => p[5] == Adi2Cmd.paramsToDevice),
+        hasLength(writes),
+      );
+      await gesture.up();
+      await tester.pumpWidget(const SizedBox());
+      await cleanup(tester);
+    },
+  );
+
+  testWidgets('Neuer Abriss verlängert die ursprüngliche Frist nicht', (
+    tester,
+  ) async {
+    await controller.start();
+    await controller.connectHost(credentials);
+    receive();
+    host.drop();
+    await tester.pump(const Duration(seconds: 6));
+    await controller.connectHost(credentials);
+    host.drop();
+    await tester.pump(const Duration(seconds: 4));
+    expect(controller.model, isNull);
+    expect(controller.hostReconnecting, isFalse);
+    await cleanup(tester);
+  });
+
+  testWidgets('Anderes Gerät oder Modell löscht die alte Anzeige', (
+    tester,
+  ) async {
+    await controller.start();
+    await controller.connectHost(credentials);
+    receive();
+    host.drop();
+    host.nextDeviceName = 'ADI-2 DAC (12345678)';
+    await controller.connectHost(credentials);
+    expect(controller.hostReconnecting, isFalse);
+    expect(controller.model, isNull);
+    expect(controller.state, ConnState.waitingForDevice);
+    receive(id: 0x71);
+    expect(controller.model, Adi2Model.dac);
+    host.drop();
+    await controller.connectHost(credentials);
+    receive(id: 0x73); // Gleicher USB-Name, andere Protokoll-ID.
+    expect(controller.hostReconnecting, isFalse);
+    expect(controller.model, Adi2Model.pro4);
+    expect(controller.device, isNotNull);
+    await cleanup(tester);
+  });
+
+  testWidgets(
+    'Hauptansicht bleibt mit übersetztem Neuverbindungsstatus stehen',
+    (tester) async {
+      final language = AppLang.instance.language;
+      addTearDown(() => AppLang.instance.language = language);
+      AppLang.instance.language = AppLanguage.de;
+      await controller.start();
+      await controller.connectHost(credentials);
+      receive();
+      final np = NowPlaying();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: HomePage(ctrl: controller, np: np),
+        ),
+      );
+      await tester.pump();
+      host.failConnect = true;
+      host.drop();
+      await tester.pump();
+      expect(find.text('ADI-2 Pro EX'), findsOneWidget);
+      expect(find.text('Verbinde neu …'), findsOneWidget);
+      expect(find.byType(ConnectPage), findsNothing);
+      expect(find.byKey(const ValueKey('host-badge-menu')), findsOneWidget);
+      expect(
+        find.byWidgetPredicate((w) => w is IgnorePointer && w.ignoring),
+        findsWidgets,
+      );
+      AppLang.instance.language = AppLanguage.en;
+      controller.notifyListeners();
+      await tester.pump();
+      expect(find.text('Reconnecting…'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      np.dispose();
+      await cleanup(tester);
     },
   );
 
@@ -318,4 +617,31 @@ void main() {
     controller.dispose();
     disposed = true;
   });
+
+  test(
+    'Pausierte Host-Verbindung verbindet nicht automatisch, Fortsetzen schon',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      await controller.start();
+      await controller.savePairedHost(credentials);
+      await controller.connectHost(credentials);
+      expect(controller.viaHost, isTrue);
+      receive();
+      await controller.pauseHost();
+      expect(controller.model, isNull);
+      expect(controller.hostReconnecting, isFalse);
+      expect(controller.viaHost, isFalse);
+      expect(controller.hostPaused, isTrue);
+      controller.setHostForeground(true);
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.viaHost, isFalse);
+      expect(
+        (await SharedPreferences.getInstance()).getBool('host_paused'),
+        isTrue,
+      );
+      await controller.resumeHost();
+      expect(controller.hostPaused, isFalse);
+      expect(controller.viaHost, isTrue);
+    },
+  );
 }

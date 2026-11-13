@@ -50,6 +50,8 @@ class AnalyzerFrame {
     required this.rms,
     required this.clipped,
     this.seconds = 1 / 60,
+    this.spectrumBinHz = 0,
+    this.logSpectrum = false,
     this.bassSpectrum = const [],
     this.bassBinHz = 0,
     this.bandLevels = const [],
@@ -62,6 +64,12 @@ class AnalyzerFrame {
   List<double> get displayPeak => meterPeak.isEmpty ? peak : meterPeak;
   List<double> get displayRms => meterRms.isEmpty ? rms : meterRms;
   final int sampleRate;
+
+  /// Explicit spacing permits a transport to omit inaudible FFT bins.
+  final double spectrumBinHz;
+
+  /// Already corrected display levels at equally spaced log frequencies.
+  final bool logSpectrum;
 
   /// Linear-bin, Hann coherent-gain corrected amplitude, Max-L/R (no mono or polarity penalty).
   final List<double> spectrum;
@@ -80,6 +88,8 @@ class AnalyzerFrame {
         values.map((v) => v * gain).toList();
     return AnalyzerFrame(
       sampleRate: sampleRate,
+      spectrumBinHz: spectrumBinHz,
+      logSpectrum: logSpectrum,
       spectrum: linear(spectrum),
       bassSpectrum: linear(bassSpectrum),
       bassBinHz: bassBinHz,
@@ -97,6 +107,8 @@ class AnalyzerFrame {
   AnalyzerFrame withBass(List<double> bass, double spacing) => AnalyzerFrame(
     sampleRate: sampleRate,
     spectrum: spectrum,
+    spectrumBinHz: spectrumBinHz,
+    logSpectrum: logSpectrum,
     peak: peak,
     rms: rms,
     clipped: clipped,
@@ -111,7 +123,9 @@ class AnalyzerFrame {
   final List<double> peak, rms;
   final List<bool> clipped;
   final double seconds;
-  double get binHz => sampleRate / ((spectrum.length - 1) * 2);
+  double get binHz => spectrumBinHz > 0
+      ? spectrumBinHz
+      : sampleRate / ((spectrum.length - 1) * 2);
 
   factory AnalyzerFrame.fromMap(Map<dynamic, dynamic> m) => AnalyzerFrame(
     sampleRate: m['sampleRate'] as int,
@@ -152,6 +166,42 @@ class AnalyzerFrame {
             .map((v) => v.toDouble())
             .toList() ??
         const [],
+  );
+}
+
+/// Keep transients, clipping and time-weighted RMS when a transport coalesces
+/// frames. The most recent spectrum, bands and ballistic meter values win.
+AnalyzerFrame coalesceAnalyzerFrames(AnalyzerFrame? old, AnalyzerFrame next) {
+  if (old == null ||
+      old.sampleRate != next.sampleRate ||
+      old.bandResolution != next.bandResolution) {
+    return next;
+  }
+  final seconds = old.seconds + next.seconds;
+  return AnalyzerFrame(
+    sampleRate: next.sampleRate,
+    spectrum: next.spectrum,
+    spectrumBinHz: next.spectrumBinHz,
+    logSpectrum: next.logSpectrum,
+    bassSpectrum: next.bassSpectrum,
+    bassBinHz: next.bassBinHz,
+    bandLevels: next.bandLevels,
+    bandResolution: next.bandResolution,
+    peak: List.generate(2, (i) => math.max(old.peak[i], next.peak[i])),
+    rms: List.generate(
+      2,
+      (i) => amplitudeDb(
+        math.sqrt(
+          (math.pow(10, old.rms[i] / 10) * old.seconds +
+                  math.pow(10, next.rms[i] / 10) * next.seconds) /
+              seconds,
+        ),
+      ),
+    ),
+    meterPeak: next.meterPeak,
+    meterRms: next.meterRms,
+    clipped: List.generate(2, (i) => old.clipped[i] || next.clipped[i]),
+    seconds: seconds,
   );
 }
 
@@ -486,4 +536,29 @@ List<double> analyzerLineDb(List<double> bins) {
     }
   }
   return result;
+}
+
+/// Resample an already logarithmic display, retaining maxima when reducing it.
+List<double> resampleLogSpectrum(List<double> values, int columns) {
+  if (values.length < 2 || columns < 2) return const [];
+  return List.generate(columns, (i) {
+    final x = i * (values.length - 1) / (columns - 1);
+    final lo = x.floor(), hi = math.min(lo + 1, values.length - 1);
+    var value = values[lo] + (values[hi] - values[lo]) * (x - lo);
+    for (
+      var k = math.max(
+        0,
+        ((i - .5) * (values.length - 1) / (columns - 1)).ceil(),
+      );
+      k <=
+          math.min(
+            values.length - 1,
+            ((i + .5) * (values.length - 1) / (columns - 1)).floor(),
+          );
+      k++
+    ) {
+      value = math.max(value, values[k]);
+    }
+    return value;
+  });
 }

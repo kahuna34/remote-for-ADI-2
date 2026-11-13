@@ -197,6 +197,20 @@ Future<void> showHostMenu(BuildContext context, Adi2Controller c) =>
               },
             ),
             ListTile(
+              key: const ValueKey('host-menu-pause'),
+              leading: const Icon(Icons.pause_circle_outline),
+              title: Text(tr('Verbindung pausieren')),
+              subtitle: Text(
+                tr(
+                  'Trennt und verbindet nicht mehr automatisch, bis du sie fortsetzt.',
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(sheet);
+                unawaited(c.pauseHost());
+              },
+            ),
+            ListTile(
               key: const ValueKey('host-menu-manage'),
               leading: const Icon(Icons.settings_ethernet),
               title: Text(tr('Hosts verwalten…')),
@@ -254,33 +268,6 @@ class HostBadge extends StatelessWidget {
       style: ts(11, weight: 600, color: Colors.white).copyWith(height: 1.0),
     ),
   );
-}
-
-class _HostAnalyzerNotice extends StatelessWidget {
-  const _HostAnalyzerNotice({this.expanded = false});
-  final bool expanded;
-  @override
-  Widget build(BuildContext context) {
-    final message = Text(
-      tr('Analyzer über Host folgt in einer späteren Stufe.'),
-      textAlign: isTablet(context) ? TextAlign.center : null,
-    );
-    if (!isTablet(context)) {
-      return Padding(padding: const EdgeInsets.all(16), child: message);
-    }
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      child: SizedBox(
-        key: const ValueKey('host-analyzer-slot'),
-        height: expanded ? null : headerSlotHeight(context) - 8,
-        child: Panel(
-          child: Center(
-            child: Padding(padding: const EdgeInsets.all(16), child: message),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 class _OfflineBadge extends StatelessWidget {
@@ -404,7 +391,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       ]),
       builder: (context, _) {
         final c = widget.ctrl;
-        if (!c.isConnected || c.variant == null) {
+        if (!c.hasDeviceDisplay || c.variant == null) {
           _tab = null;
           return ConnectPage(ctrl: c, np: widget.np);
         }
@@ -425,9 +412,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         }
         final headerLayout = layout.pageFor(headerOutput!);
         final playerVisible =
+            c.viaHost ||
             widget.np.supported &&
-            ((!widget.np.access && !widget.np.promptDismissed) ||
-                widget.np.access && widget.np.info?.hasContent == true);
+                ((!widget.np.access && !widget.np.promptDismissed) ||
+                    widget.np.access && widget.np.info?.hasContent == true);
         final header = easy
             ? headerLayout.headerContent
             : settings.headerContent;
@@ -470,18 +458,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         final rate = (srIdx != null && srIdx >= 0 && srIdx < srNames.length)
             ? '${srNames[srIdx]} kHz'
             : null;
-        final connectionRate =
-            rate == null ||
-                (idx == outputsIndex && header == HeaderContent.analyzer)
-            ? ''
-            : ', $rate';
+        // Abtastrate immer in der Kopfzeile: Die Analyzer-Infozeile ist
+        // zugeklappt und zeigt sie nicht mehr dauerhaft.
+        final connectionRate = rate == null ? '' : ', $rate';
         final outputHeader = <Widget>[
           if (header == HeaderContent.analyzer)
-            c.viaHost
-                ? const _HostAnalyzerNotice()
-                : AnalyzerPanel(controller: _analyzer, deviceController: c)
+            AnalyzerPanel(
+              controller: _analyzer,
+              deviceController: c,
+              np: widget.np,
+            )
           else if (header == HeaderContent.player)
             PlayerBar(
+              deviceController: c,
               np: widget.np,
               collapseWhenEmpty: !showStatus,
               fallback: showStatus
@@ -561,6 +550,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                           child: Text(
                             c.offline
                                 ? tr('Kein Gerät verbunden')
+                                : c.hostReconnecting
+                                ? tr('Verbinde neu …')
                                 : c.viaHost
                                 ? trf('Verbunden über Host{rate}', {
                                     'rate': connectionRate,
@@ -591,7 +582,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                         child: GestureDetector(
                           key: const ValueKey('host-badge-menu'),
                           onLongPress: () => showHostMenu(context, c),
-                          child: const HostBadge(),
+                          onTap: () => ScaffoldMessenger.of(context)
+                            ..hideCurrentSnackBar()
+                            ..showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  tr('Gedrückt halten öffnet das Host-Menü.'),
+                                ),
+                                duration: const Duration(seconds: 2),
+                              ),
+                            ),
+                          child: Opacity(
+                            opacity: c.hostReconnecting ? 0.5 : 1,
+                            child: const HostBadge(),
+                          ),
                         ),
                       ),
                     Padding(
@@ -673,30 +677,36 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             ),
             if (idx == outputsIndex && !landscape) ...outputHeader,
             Expanded(
-              child: landscape && idx == outputsIndex
-                  ? Row(
-                      key: const ValueKey('tablet-output-columns'),
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            children: [
-                              if (easy) ...outputHeader,
-                              Expanded(child: tabs[idx].$3),
-                            ],
-                          ),
-                        ),
-                        const VerticalDivider(width: 1),
-                        Expanded(
-                          child: _extraContent(
-                            c,
-                            headerOutput,
-                            availableOutputs,
-                          ),
-                        ),
-                      ],
-                    )
-                  : tabs[idx].$3,
+              child: IgnorePointer(
+                ignoring: c.hostReconnecting,
+                child: Opacity(
+                  opacity: c.hostReconnecting ? 0.65 : 1,
+                  child: landscape && idx == outputsIndex
+                      ? Row(
+                          key: const ValueKey('tablet-output-columns'),
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                children: [
+                                  if (easy) ...outputHeader,
+                                  Expanded(child: tabs[idx].$3),
+                                ],
+                              ),
+                            ),
+                            const VerticalDivider(width: 1),
+                            Expanded(
+                              child: _extraContent(
+                                c,
+                                headerOutput,
+                                availableOutputs,
+                              ),
+                            ),
+                          ],
+                        )
+                      : tabs[idx].$3,
+                ),
+              ),
             ),
           ],
         );
@@ -709,18 +719,36 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 if (landscape)
                   SizedBox(
                     width: tabletNavigationRailWidth,
-                    child: NavigationRail(
-                      minWidth: tabletNavigationRailWidth,
-                      selectedIndex: idx,
-                      labelType: NavigationRailLabelType.all,
-                      onDestinationSelected: (i) => setState(() => _tab = i),
-                      destinations: [
-                        for (final t in tabs)
-                          NavigationRailDestination(
-                            icon: Icon(t.$2),
-                            label: Text(t.$1),
-                          ),
-                      ],
+                    // Kategorien gleichmäßig über die Höhe verteilen statt
+                    // eng untereinander.
+                    child: LayoutBuilder(
+                      builder: (context, box) {
+                        // Größere Beschriftungen brauchen ihren Anteil an der Höhe;
+                        // die Zwischenräume werden entsprechend kleiner.
+                        final itemHeight =
+                            72.0 * MediaQuery.textScalerOf(context).scale(1);
+                        final gap =
+                            ((box.maxHeight - tabs.length * itemHeight) /
+                                    (tabs.length * 2))
+                                .clamp(4.0, 40.0);
+                        return NavigationRail(
+                          scrollable: true,
+                          minWidth: tabletNavigationRailWidth,
+                          selectedIndex: idx,
+                          groupAlignment: 0,
+                          labelType: NavigationRailLabelType.all,
+                          onDestinationSelected: (i) =>
+                              setState(() => _tab = i),
+                          destinations: [
+                            for (final t in tabs)
+                              NavigationRailDestination(
+                                padding: EdgeInsets.symmetric(vertical: gap),
+                                icon: Icon(t.$2),
+                                label: Text(t.$1),
+                              ),
+                          ],
+                        );
+                      },
                     ),
                   ),
                 Expanded(
@@ -835,18 +863,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               title: title,
               embedded: true,
             ),
-            TabletExtraContent.analyzer =>
-              ctrl.viaHost
-                  ? const _HostAnalyzerNotice(expanded: true)
-                  : AnalyzerPanel(
-                      controller: _analyzer,
-                      deviceController: ctrl,
-                      expanded: true,
-                    ),
+            TabletExtraContent.analyzer => AnalyzerPanel(
+              controller: _analyzer,
+              deviceController: ctrl,
+              expanded: true,
+              np: widget.np,
+            ),
             TabletExtraContent.status => StatusPage(ctrl: ctrl),
             TabletExtraContent.player => ListView(
               children: [
                 PlayerBar(
+                  deviceController: ctrl,
                   np: widget.np,
                   fallback: Padding(
                     padding: const EdgeInsets.all(20),
@@ -883,12 +910,17 @@ class ConnectPage extends StatelessWidget {
       ConnState.idle => tr('Nicht verbunden'),
       ConnState.searching => tr('Suche ADI-2 …'),
       ConnState.connecting => trf('Verbinde mit {name} …', {
-        'name': c.device?.name,
+        'name':
+            c.device?.name ??
+            (c.pendingHostName == null
+                ? 'ADI-2'
+                : trf('Host {name}', {'name': c.pendingHostName!})),
       }),
       ConnState.waitingForDevice => trf('Warte auf Antwort von {name} …', {
         'name': c.device?.name,
       }),
       ConnState.connected => tr('Verbunden'),
+      ConnState.reconnecting => tr('Verbinde neu …'),
       ConnState.offline => tr('Offline'),
     };
     return Scaffold(
@@ -970,6 +1002,16 @@ class ConnectPage extends StatelessWidget {
                   ],
                 ),
               ),
+              if (c.hostAvailable && c.hostPaused)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: FilledButton.icon(
+                    key: const ValueKey('host-resume'),
+                    onPressed: () => unawaited(c.resumeHost()),
+                    icon: const Icon(Icons.play_arrow),
+                    label: Text(tr('Host-Verbindung fortsetzen')),
+                  ),
+                ),
               if (c.hostAvailable)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8),

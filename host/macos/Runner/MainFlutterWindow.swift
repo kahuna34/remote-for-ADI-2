@@ -2,6 +2,8 @@ import Cocoa
 import FlutterMacOS
 
 class MainFlutterWindow: NSWindow {
+  private var analyzerCapture: AnalyzerCapture?
+  private var hostPlayer: HostPlayer?
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
     let windowFrame = self.frame
@@ -9,6 +11,8 @@ class MainFlutterWindow: NSWindow {
     self.setFrame(windowFrame, display: true)
 
     RegisterGeneratedPlugins(registry: flutterViewController)
+    analyzerCapture = AnalyzerCapture(messenger: flutterViewController.engine.binaryMessenger)
+    hostPlayer = HostPlayer(messenger: flutterViewController.engine.binaryMessenger)
 
     super.awakeFromNib()
 

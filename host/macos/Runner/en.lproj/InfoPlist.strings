@@ -1,0 +1,3 @@
+"NSMicrophoneUsageDescription" = "Remote for ADI-2 Host reads the ADI-2 USB capture for the app’s analyzer.";
+
+"NSAppleEventsUsageDescription" = "Remote for ADI-2 Host displays tracks from Music and Spotify and controls playback from your phone.";

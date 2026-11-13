@@ -25,6 +25,10 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
+  analyzer_capture_ = std::make_unique<AnalyzerCapture>(
+      flutter_controller_->engine()->messenger(), GetHandle());
+  host_player_ = std::make_unique<HostPlayer>(
+      flutter_controller_->engine()->messenger(), GetHandle());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   // Der Host startet unsichtbar. Nur das Tray-Menü öffnet ein Fenster.
@@ -36,6 +40,8 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  host_player_.reset();
+  analyzer_capture_.reset();
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }
@@ -47,6 +53,14 @@ LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
+  if (message == HostPlayer::kMessage) {
+    if (host_player_) host_player_->Drain();
+    return 0;
+  }
+  if (message == AnalyzerCapture::kMessage) {
+    if (analyzer_capture_) analyzer_capture_->Drain();
+    return 0;
+  }
   // Give Flutter, including plugins, an opportunity to handle window messages.
   if (flutter_controller_) {
     std::optional<LRESULT> result =
