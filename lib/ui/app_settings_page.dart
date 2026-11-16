@@ -6,6 +6,7 @@ import '../app_settings.dart';
 import '../protocol/adi2_params.dart';
 import '../device/adi2_controller.dart';
 import 'easy_mode_editor.dart';
+import 'main_view_colors_editor.dart';
 import 'easy_slot_preview.dart';
 import 'outputs_page.dart';
 import '../device/supported_models.dart';
@@ -36,9 +37,13 @@ class AppSettingsPage extends StatelessWidget {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
             children: [
+              // Je nach Modus nur der passende Editor: Hauptansicht-Farben
+              // ohne Custom-Modus, Custom-Editor nur im Custom-Modus.
               ListenableBuilder(
                 listenable: Listenable.merge([AppSettings.instance, ?ctrl]),
-                builder: (context, _) => _EasyModeCard(ctrl: ctrl),
+                builder: (context, _) => AppSettings.instance.easyMode
+                    ? _EasyModeCard(ctrl: ctrl)
+                    : _MainViewCard(ctrl: ctrl),
               ),
               const SizedBox(height: 12),
               Padding(
@@ -328,13 +333,11 @@ class _EasyModeCard extends StatelessWidget {
         (variant == null ? null : (variant.isDac ? outputs[1] : outputs.last));
     final shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(18),
-      side: BorderSide(color: Palette.amber.withValues(alpha: 0.7)),
+      side: const BorderSide(color: Palette.line),
     );
     return Material(
-      color: Color.alphaBlend(
-        Palette.amber.withValues(alpha: 0.08),
-        Palette.surf,
-      ),
+      key: const ValueKey('easy-settings-card'),
+      color: Palette.surf,
       shape: shape,
       clipBehavior: Clip.antiAlias,
       child: Padding(
@@ -347,12 +350,12 @@ class _EasyModeCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Palette.amber.withValues(alpha: 0.15),
+                    color: Palette.surf2,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
                     Icons.dashboard_customize,
-                    color: Palette.amber,
+                    color: Palette.muted,
                     size: 26,
                   ),
                 ),
@@ -373,8 +376,12 @@ class _EasyModeCard extends StatelessWidget {
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
-              child: FilledButton.icon(
+              child: OutlinedButton.icon(
                 key: const ValueKey('easy-open-editor'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Palette.text,
+                  side: const BorderSide(color: Palette.line),
+                ),
                 icon: const Icon(Icons.edit_outlined),
                 label: Text(tr('Bearbeiten')),
                 onPressed: () => Navigator.push(
@@ -423,4 +430,72 @@ class _EasyModeCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _MainViewCard extends StatelessWidget {
+  const _MainViewCard({this.ctrl});
+  final Adi2Controller? ctrl;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    key: const ValueKey('main-view-settings-card'),
+    color: Palette.surf,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(18),
+      side: const BorderSide(color: Palette.line),
+    ),
+    clipBehavior: Clip.antiAlias,
+    child: Padding(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Palette.surf2,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.palette_outlined,
+                  color: Palette.muted,
+                  size: 26,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  tr('Hauptansicht anpassen'),
+                  style: ts(20, weight: 650),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            tr('Farben der Knöpfe in der Hauptansicht wählen'),
+            style: ts(14, color: Palette.muted, height: 1.4),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            key: const ValueKey('main-view-open-editor'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Palette.text,
+              side: const BorderSide(color: Palette.line),
+            ),
+            icon: const Icon(Icons.palette_outlined),
+            label: Text(tr('Farben wählen')),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => MainViewColorsEditor(ctrl: ctrl),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }

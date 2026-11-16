@@ -18,6 +18,7 @@ import '../protocol/adi2_params.dart';
 import '../protocol/adi2_codec.dart';
 import 'outputs_page.dart';
 import 'responsive_layout.dart';
+import 'theme.dart' show ts;
 import '../eq/eq_model.dart';
 
 /// Each tool supplies its own optional toolbar controls.
@@ -527,7 +528,19 @@ class _AnalyzerLoopbackControlsState extends State<AnalyzerLoopbackControls> {
           )
         else
           _AnalyzerSettingField(
-            title: Text(tr('Loopback-Quelle')),
+            title: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(child: Text(tr('Loopback-Quelle'))),
+                IconButton(
+                  key: const ValueKey('analyzer-loopback-info'),
+                  tooltip: tr('Info'),
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.info_outline, size: 20),
+                  onPressed: () => _showLoopbackInfo(context),
+                ),
+              ],
+            ),
             controlWidth: 280,
             trailing: AnalyzerChoices<int>(
               key: const ValueKey('analyzer-loopback-tap'),
@@ -544,6 +557,48 @@ class _AnalyzerLoopbackControlsState extends State<AnalyzerLoopbackControls> {
     },
   );
 }
+
+/// Erklärt, warum ein Wechsel des Ausgangs den Loopback umlegen kann.
+Future<void> _showLoopbackInfo(BuildContext context) =>
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            key: const ValueKey('analyzer-loopback-info-sheet'),
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(tr('Loopback-Quelle'), style: ts(20, weight: 600)),
+              const SizedBox(height: 12),
+              for (final text in [
+                tr(
+                  'Der Analyzer misst das Signal, das per Loopback auf USB 1/2 liegt.',
+                ),
+                tr(
+                  'Ausgang „Automatisch“: Der Analyzer folgt dem in der Hauptansicht gewählten Ausgang. Beim Wechsel legt die App dessen Loopback auf USB 1/2; der bisher gemessene Ausgang gibt USB 1/2 ab.',
+                ),
+                tr(
+                  'Fester Ausgang: Der Analyzer misst immer diesen Ausgang; ein Wechsel in der Hauptansicht ändert den Loopback nicht.',
+                ),
+                tr(
+                  'pre FX / post FX / post −6 dB: Abgriff vor oder nach EQ und Effekten, −6 dB mit Reserve.',
+                ),
+                tr(
+                  'ADI-2 DAC: ein gemeinsamer Loopback für alle Ausgänge, daher kein Umlegen.',
+                ),
+              ])
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Text(text, style: ts(15)),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
 
 Future<void> showAnalyzerSettings(
   BuildContext context,
@@ -636,10 +691,13 @@ Future<void> showAnalyzerSettings(
               ),
               const AnalyzerColorSetting(),
               const AnalyzerRangeSetting(),
-              AnalyzerCalibrationSetting(
-                controller: controller,
-                deviceController: ctrl,
-              ),
+              // Kalibrierung braucht den Testton per USB vom Smartphone;
+              // über den Host gibt es sie nicht, also auch nicht im Menü.
+              if (!controller.viaHost && ctrl?.viaHost != true)
+                AnalyzerCalibrationSetting(
+                  controller: controller,
+                  deviceController: ctrl,
+                ),
             ],
             AnalyzerLoopbackControls(ctrl: ctrl, routing: routing),
             const Padding(

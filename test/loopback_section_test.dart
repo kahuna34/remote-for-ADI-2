@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:adi2_remote/device/adi2_controller.dart';
 import 'package:adi2_remote/device/backup.dart';
+import 'package:adi2_remote/device/loopback.dart';
 import 'package:adi2_remote/device/usb_cc_mode.dart';
 import 'package:adi2_remote/l10n/l10n.dart';
 import 'package:adi2_remote/protocol/adi2_codec.dart';
@@ -168,6 +169,41 @@ void main() {
       );
     }
   }
+
+  testWidgets('Einschalten nimmt ein freies USB-Paar statt ein belegtes', (
+    tester,
+  ) async {
+    final ctrl = await show(tester, Adi2Variant.pro4ex);
+    try {
+      ctrl.updateMode(UsbCcMode.stereo);
+      // Line Out belegt 1/2, Phones 3/4 ist aus.
+      ctrl.set(
+        Adi2Addr.line,
+        OutIdx.loopback,
+        encodeLoopback(tap: 2, pair: 0, hasInput: true),
+      );
+      ctrl.set(Adi2Addr.ph34, OutIdx.loopback, 0);
+      await tester.pumpAndSettle();
+      ctrl.writes.clear();
+      await tap(tester, choice(Adi2Addr.ph34, 'post FX'));
+      final ph34 = decodeLoopback(
+        ctrl.value(Adi2Addr.ph34, OutIdx.loopback)!,
+        hasInput: true,
+      );
+      expect(ph34.tap, 2);
+      expect(ph34.pair, 1); // 3/4, nicht das belegte 1/2
+      // Line Out wurde nicht verdrängt.
+      expect(
+        decodeLoopback(
+          ctrl.value(Adi2Addr.line, OutIdx.loopback)!,
+          hasInput: true,
+        ).tap,
+        2,
+      );
+    } finally {
+      ctrl.dispose();
+    }
+  });
 
   testWidgets('Geräteseite enthält Panel und übersetzte Erklärung', (
     tester,

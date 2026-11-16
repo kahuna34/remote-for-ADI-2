@@ -508,12 +508,12 @@ void main() {
         for (final client in clients) {
           client.sendMidi(request);
         }
-        // Deutlich unter der 40-ms-Ruhezeit, damit Testlast nicht als
-        // Antwortpause zählt.
+        // Deutlich unter der Ruhezeit (HostServer.quietBeforePoll), damit
+        // Testlast nicht als Antwortpause zählt.
         await Future<void>.delayed(const Duration(milliseconds: 15));
       }
       expect(midi.sent.length, before);
-      await Future<void>.delayed(const Duration(milliseconds: 80));
+      await Future<void>.delayed(const Duration(milliseconds: 200));
       expect(midi.sent.length, greaterThan(before));
     },
   );
@@ -816,8 +816,10 @@ void main() {
     Duration ms(int v) => Duration(milliseconds: v);
     // Gerät sendet noch (letzte Nachricht vor 10 ms): warten.
     expect(HostServer.pollDue(ms(500), ms(490), ms(300)), isFalse);
-    // Still seit 40 ms und letzte Abfrage lang genug her: fragen.
-    expect(HostServer.pollDue(ms(500), ms(460), ms(300)), isTrue);
+    // Pausen zwischen Antwortteilen bis ~90 ms: nach 60 ms noch warten.
+    expect(HostServer.pollDue(ms(500), ms(440), ms(300)), isFalse);
+    // Still seit 120 ms und letzte Abfrage lang genug her: fragen.
+    expect(HostServer.pollDue(ms(500), ms(380), ms(300)), isTrue);
     // Zu kurz nach der letzten Abfrage: warten.
     expect(HostServer.pollDue(ms(500), ms(400), ms(450)), isFalse);
     // In der Statuspause nie.

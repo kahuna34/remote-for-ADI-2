@@ -2,6 +2,14 @@
 // Platzhalter wie {n} müssen in beiden Sprachen gleich heißen.
 
 const Map<String, String> stringsEn = {
+  'Alle zurücksetzen': 'Reset all',
+  'Hauptansicht anpassen': 'Customize main view',
+  'Farben der Knöpfe in der Hauptansicht wählen':
+      'Choose colors for the main view buttons',
+  'Farben wählen': 'Choose colors',
+  'Knopf antippen, um seine Farbe zu ändern. Änderungen werden automatisch gespeichert.':
+      'Tap a button to change its color. Changes are saved automatically.',
+
   'Anzeige im Hauptfenster': 'Main view shows',
   'Pegel (Peak/RMS)': 'Levels (Peak/RMS)',
   'Spektrum anzeigen': 'Show spectrum',
@@ -30,6 +38,16 @@ const Map<String, String> stringsEn = {
   'belegt: {Ausgang}': 'occupied: {Ausgang}',
   'Loopback von {Ausgang} ausgeschaltet, weil {Paar} jetzt belegt ist':
       'Loopback from {Ausgang} switched off because {Paar} is now occupied',
+  'USB {Paar} ist belegt': 'USB {Paar} is in use',
+  'Der Analyzer misst das Signal, das per Loopback auf USB 1/2 liegt.':
+      'The analyzer measures the signal that loopback sends to USB 1/2.',
+  'Ausgang „Automatisch“: Der Analyzer folgt dem in der Hauptansicht gewählten Ausgang. Beim Wechsel legt die App dessen Loopback auf USB 1/2; der bisher gemessene Ausgang gibt USB 1/2 ab.': 'Output "Automatic": the analyzer follows the output selected on the main page. When you switch, the app moves that output\'s loopback to USB 1/2; the previously measured output gives up USB 1/2.',
+  'Fester Ausgang: Der Analyzer misst immer diesen Ausgang; ein Wechsel in der Hauptansicht ändert den Loopback nicht.': 'Fixed output: the analyzer always measures this output; switching on the main page does not change the loopback.',
+  'pre FX / post FX / post −6 dB: Abgriff vor oder nach EQ und Effekten, −6 dB mit Reserve.': 'pre FX / post FX / post −6 dB: tap before or after EQ and effects, −6 dB with headroom.',
+  'ADI-2 DAC: ein gemeinsamer Loopback für alle Ausgänge, daher kein Umlegen.':
+      'ADI-2 DAC: one shared loopback for all outputs, so nothing is moved.',
+  '{Ausgang} nutzt dieses Paar. Übernehmen schaltet dort den Loopback aus.':
+      '{Ausgang} uses this pair. Taking it over switches loopback off there.',
 
   'Peak hold – lang drücken: zurücksetzen': 'Peak hold – long press to reset',
   'Peak-Marken zurückgesetzt': 'Peak markers reset',
@@ -957,6 +975,9 @@ const Map<String, String> stringsEn = {
   'L': 'L',
   'R': 'R',
   'Bass/Treble in Kurve': 'Include bass/treble in curve',
+  'Bass und Treble aktiv': 'Bass and treble on',
+  'Schaltet Bass und Treble gemeinsam ein oder aus':
+      'Switches bass and treble on or off together',
   'EQ-Presets (1–20)': 'EQ presets (1–20)',
   'EQ-Presets werden eingelesen…': 'Reading EQ presets…',
   '{n}  {name}': '{n}  {name}',

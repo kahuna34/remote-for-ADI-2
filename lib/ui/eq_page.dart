@@ -460,13 +460,35 @@ class EqBandControls extends StatelessWidget {
                   style: ts(16, weight: 600),
                 ),
               ),
-              if (b.isBassTreble && onBassTrebleEnabled != null)
-                Switch(
-                  value: bassTrebleEnabled,
-                  onChanged: onBassTrebleEnabled,
-                ),
             ],
           ),
+          // Gemeinsamer Geräteschalter: Bass und Treble zusammen ein/aus.
+          // Eigene Beschriftung, damit er nicht nur für das gezeigte Band wirkt.
+          if (b.isBassTreble && onBassTrebleEnabled != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Row(
+                key: const ValueKey('bass-treble-load-with-eq'),
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(tr('Bass und Treble aktiv'), style: ts(15)),
+                        Text(
+                          tr('Schaltet Bass und Treble gemeinsam ein oder aus'),
+                          style: ts(12, color: Palette.muted),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: bassTrebleEnabled,
+                    onChanged: onBassTrebleEnabled,
+                  ),
+                ],
+              ),
+            ),
           if (showType && b.types.length > 1)
             Padding(
               padding: const EdgeInsets.only(top: 6, bottom: 2),

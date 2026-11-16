@@ -3,6 +3,7 @@ import 'package:adi2_remote/easy/easy_layout.dart';
 import 'dart:math' as math;
 
 import 'package:adi2_remote/app_settings.dart';
+import 'package:adi2_remote/main_view_colors.dart';
 
 import 'package:adi2_remote/device/adi2_controller.dart';
 import 'package:adi2_remote/device/offline_defaults.dart';
@@ -126,12 +127,20 @@ void main() {
           settings.easyMode,
           settings.showPlayer,
           settings.showStatus,
+          settings.showAnalyzer,
         );
         addTearDown(() {
           settings.easyMode = previous.$1;
           settings.showPlayer = previous.$2;
           settings.showStatus = previous.$3;
+          settings.showAnalyzer = previous.$4;
+          return settings.resetMainViewColors();
         });
+        await settings.load();
+        for (final id in MainViewControl.values) {
+          await settings.setMainViewColor(id, EasyTileColor.graphite);
+        }
+        settings.showAnalyzer = false;
         settings.easyMode = false;
         settings.showPlayer = true;
         settings.showStatus = true;
@@ -812,6 +821,35 @@ void main() {
       expect(controller.eqWrites.length + controller.writes.length, count);
     });
   }
+
+  testWidgets('Gedrückthalten lauter endet spätestens nach der Höchstdauer', (
+    tester,
+  ) async {
+    await showPage(tester);
+    final plus = find
+        .descendant(
+          of: find.byKey(const ValueKey('output-volume-buttons')),
+          matching: find.text('0,5 dB'),
+        )
+        .last;
+    final gesture = await tester.startGesture(tester.getCenter(plus));
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    // Während des Haltens wird lauter gestellt.
+    expect(controller.volumeWrites, isNotEmpty);
+    for (var i = 0; i < 80; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    // Nach 8 s endet das Anheben, obwohl der Finger noch liegt.
+    final count = controller.volumeWrites.length;
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(controller.volumeWrites.length, count);
+    await gesture.up();
+    await tester.pump(const Duration(seconds: 1));
+  });
 
   for (final band in eqBands.where((b) => b.isBassTreble)) {
     testWidgets(

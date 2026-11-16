@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'easy/easy_layout.dart';
+import 'main_view_colors.dart';
 import 'analyzer/header_content.dart';
 import 'analyzer/analyzer_dsp.dart';
 import 'protocol/adi2_params.dart';
@@ -77,6 +78,50 @@ class AppSettings extends ChangeNotifier {
     return _persistEasy(
       (prefs) => prefs.setString('tablet_extra_content', content.name),
     );
+  }
+
+  final Map<MainViewControl, EasyTileColor> _mainViewColors = {};
+
+  /// Standardfarben der Hauptansicht (untere Knopfreihen getönt); alles
+  /// andere Graphit. Eigene Wahl des Nutzers (auch Graphit) hat Vorrang.
+  static const defaultMainViewColors = {
+    MainViewControl.mute: EasyTileColor.red,
+    MainViewControl.dim: EasyTileColor.rose,
+    MainViewControl.loudness: EasyTileColor.olive,
+    MainViewControl.crossfeed: EasyTileColor.olive,
+    MainViewControl.recall: EasyTileColor.petrol,
+    MainViewControl.source: EasyTileColor.green,
+    MainViewControl.eq: EasyTileColor.violet,
+    MainViewControl.limit: EasyTileColor.copper,
+    MainViewControl.settings: EasyTileColor.blue,
+  };
+
+  EasyTileColor mainViewColor(MainViewControl id) =>
+      _mainViewColors[id] ??
+      defaultMainViewColors[id] ??
+      EasyTileColor.graphite;
+
+  Future<void> setMainViewColor(MainViewControl id, EasyTileColor color) {
+    if (color == (defaultMainViewColors[id] ?? EasyTileColor.graphite)) {
+      _mainViewColors.remove(id);
+    } else {
+      _mainViewColors[id] = color;
+    }
+    return _saveMainViewColors();
+  }
+
+  Future<void> resetMainViewColors() {
+    _mainViewColors.clear();
+    return _saveMainViewColors();
+  }
+
+  Future<void> _saveMainViewColors() {
+    final stored = jsonEncode({
+      for (final entry in _mainViewColors.entries)
+        entry.key.name: entry.value.name,
+    });
+    notifyListeners();
+    return _persistEasy((prefs) => prefs.setString('main_view_colors', stored));
   }
 
   bool easyMode = false;
@@ -240,7 +285,7 @@ class AppSettings extends ChangeNotifier {
 
   /// Überleben das Neuaufbauen der Anzeige, z. B. beim Drehen des Tablets.
   /// Ohne notifyListeners: Nur der AnalyzerController liest sie beim Erzeugen.
-  bool analyzerBars = false;
+  bool analyzerBars = true; // Erststart: Balken
   bool analyzerPeakHold = true;
   bool analyzerPlayerOnTap = false;
   AnalyzerMainView analyzerMainView = AnalyzerMainView.both;
@@ -495,6 +540,20 @@ class AppSettings extends ChangeNotifier {
       skippedUpdateVersion = prefs.getString('skipped_update_version');
       availableUpdateVersion = prefs.getString('available_update_version');
       availableUpdateUrl = prefs.getString('available_update_url');
+      _mainViewColors.clear();
+      try {
+        final stored = jsonDecode(prefs.getString('main_view_colors') ?? '{}');
+        if (stored is Map) {
+          for (final id in MainViewControl.values) {
+            final color = EasyTileColor.values
+                .where((color) => color.name == stored[id.name])
+                .firstOrNull;
+            if (color != null) _mainViewColors[id] = color;
+          }
+        }
+      } on FormatException {
+        // Invalid color data falls back to the original appearance.
+      }
       easyMode = prefs.getBool('easy_mode') ?? false;
       _easySlots.clear();
       for (final variant in Adi2Variant.values) {
@@ -523,7 +582,7 @@ class AppSettings extends ChangeNotifier {
               )
               .firstOrNull ??
           AnalyzerBandResolution.third;
-      analyzerBars = prefs.getBool('analyzer_bars') ?? false;
+      analyzerBars = prefs.getBool('analyzer_bars') ?? true;
       analyzerPeakHold = prefs.getBool('analyzer_peak_hold') ?? true;
       analyzerPlayerOnTap = prefs.getBool('analyzer_player_on_tap') ?? false;
       analyzerMainView = AnalyzerMainView.values.firstWhere(
@@ -554,7 +613,11 @@ class AppSettings extends ChangeNotifier {
       if (analyzerLoopbackTap < 0 || analyzerLoopbackTap > 3) {
         analyzerLoopbackTap = 0;
       }
-      showAnalyzer = prefs.getBool('show_analyzer') ?? false;
+      // Erststart: Analyzer unter der Kopfzeile, damit er sofort sichtbar ist.
+      showAnalyzer =
+          prefs.getBool('show_analyzer') ??
+          !(prefs.containsKey('show_player') ||
+              prefs.containsKey('show_status'));
       showPlayer = prefs.getBool('show_player') ?? true;
       showStatus = prefs.getBool('show_status') ?? true;
       autoSwitchOutput = prefs.getBool('auto_switch_output') ?? true;

@@ -1,9 +1,13 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../l10n/l10n.dart';
+import '../app_settings.dart';
+import '../main_view_colors.dart';
+import 'main_view_control_surface.dart';
 import '../device/adi2_controller.dart';
 import '../device/volume_options.dart';
 import '../eq/eq_model.dart';
@@ -90,6 +94,22 @@ class _OutputsPageState extends State<OutputsPage> {
     super.initState();
     _inputsBlocked = c.hostReconnecting;
     c.addListener(_connectionChanged);
+    GestureBinding.instance.pointerRouter.addGlobalRoute(_globalPointer);
+  }
+
+  /// Finger, die gerade irgendwo auf dem Bildschirm liegen. Eine
+  /// Wiederholung (Gedrückthalten) läuft nur, solange mindestens einer
+  /// aufliegt – auch wenn das Loslassen die Taste selbst nie erreicht
+  /// (z. B. weil sich das Layout währenddessen neu aufbaut).
+  final Set<int> _pointersDown = {};
+
+  void _globalPointer(PointerEvent e) {
+    if (e is PointerDownEvent) {
+      _pointersDown.add(e.pointer);
+    } else if (e is PointerUpEvent || e is PointerCancelEvent) {
+      _pointersDown.remove(e.pointer);
+      if (_pointersDown.isEmpty && _repeat != null) _stopRepeat(_repeatAddress);
+    }
   }
 
   @override
@@ -119,12 +139,28 @@ class _OutputsPageState extends State<OutputsPage> {
   /// Gedrückthalten: leiser alle 150 ms (≈3,3 dB/s), lauter alle 250 ms
   /// (≈2 dB/s, zusätzlich vom Lautstärkeschutz gebremst). Jeder Schritt
   /// geht vom Ist-Wert am Gerät aus, damit sich nichts aufstaut.
+  int _repeatAddress = 0;
+
+  /// Höchstdauer einer Wiederholung; danach muss neu gedrückt werden.
+  static const _maxRepeat = Duration(seconds: 8);
+
   void _startRepeat(int a, int step, {VoidCallback? onStep}) {
     if (c.hostReconnecting) return;
     _repeat?.cancel();
+    _repeatAddress = a;
+    final period = step > 0 ? 250 : 150;
+    var ticks = 0;
     if (onStep == null && step > 0) setState(() => _holdingUp = true);
-    _repeat = Timer.periodic(Duration(milliseconds: step > 0 ? 250 : 150), (_) {
+    _repeat = Timer.periodic(Duration(milliseconds: period), (_) {
       if (!mounted) return;
+      // Sicherheit: ohne aufliegenden Finger oder nach der Höchstdauer endet
+      // jede Wiederholung sofort, eine laufende Anhebung wird gestoppt.
+      ticks++;
+      if (_pointersDown.isEmpty || ticks * period > _maxRepeat.inMilliseconds) {
+        _stopRepeat(a);
+        c.stopVolumeRamp(a);
+        return;
+      }
       if (onStep != null) {
         onStep();
       } else {
@@ -411,7 +447,9 @@ class _OutputsPageState extends State<OutputsPage> {
 
   @override
   void dispose() {
+    GestureBinding.instance.pointerRouter.removeGlobalRoute(_globalPointer);
     c.removeListener(_connectionChanged);
+    if (_repeat != null) c.stopVolumeRamp(_repeatAddress);
     _repeat?.cancel();
     _flashTimer?.cancel();
     super.dispose();
@@ -837,8 +875,9 @@ class _OutputsPageState extends State<OutputsPage> {
       maxLines: 1,
       style: buttonLabelStyle(context),
     );
-    final control = Material(
-      key: ValueKey('${band.label}-tile'),
+    final control = MainViewControlSurface(
+      id: band == eqBands.last ? MainViewControl.treble : MainViewControl.bass,
+      materialKey: ValueKey('${band.label}-tile'),
       color: Palette.surf,
       shape: _controlShape,
       clipBehavior: Clip.antiAlias,
@@ -960,8 +999,9 @@ class _OutputsPageState extends State<OutputsPage> {
     }
 
     final value = formatBalance(raw);
-    return Material(
-      key: const ValueKey('Balance-tile'),
+    return MainViewControlSurface(
+      id: MainViewControl.balance,
+      materialKey: const ValueKey('Balance-tile'),
       color: Palette.surf,
       shape: _controlShape,
       clipBehavior: Clip.antiAlias,
@@ -1048,7 +1088,7 @@ class _OutputsPageState extends State<OutputsPage> {
     if (widget.easyLayout != null) return _buildEasyPanel(widget.easyLayout!);
     return LayoutBuilder(
       builder: (context, constraints) => ListenableBuilder(
-        listenable: c,
+        listenable: Listenable.merge([c, AppSettings.instance]),
         builder: (context, _) {
           if (isTablet(context)) {
             // The parent has already removed the header, app navigation and
@@ -1123,12 +1163,17 @@ class _OutputsPageState extends State<OutputsPage> {
     final sideWidth = isTablet(context) ? 64.0 : (compact ? 56.0 : 64.0);
     final v = c.variant!;
     final outs = outputsFor(v);
-    if (!v.isDac &&
+    final colorPreview = MainViewColorScope.maybeOf(context) != null;
+    if (!colorPreview &&
+        !v.isDac &&
         c.valueOr(Adi2Addr.device, 8, 0) == 0 &&
         _sel == Adi2Addr.ph12) {
       _sel = outs.last.address;
     }
-    final o = _current(outs);
+    final o = colorPreview
+        ? outs.where((o) => o.address == widget.editorOutput).firstOrNull ??
+              outs.first
+        : _current(outs);
     final a = o.address;
 
     final volRaw = c.valueOr(a, OutIdx.volume, -100);
@@ -1185,6 +1230,7 @@ class _OutputsPageState extends State<OutputsPage> {
       children: [
         Expanded(
           child: _SoftButton(
+            controlId: MainViewControl.volumeDown,
             icon: Icons.remove,
             label: '0,5 dB',
             compact: compact,
@@ -1197,6 +1243,7 @@ class _OutputsPageState extends State<OutputsPage> {
         const SizedBox(width: 8),
         Expanded(
           child: _SoftButton(
+            controlId: MainViewControl.volumeUp,
             icon: Icons.add,
             label: '0,5 dB',
             compact: compact,
@@ -1227,6 +1274,10 @@ class _OutputsPageState extends State<OutputsPage> {
                 active: c.status?.activeOutput,
                 disabled: dualOff ? {Adi2Addr.ph12} : const {},
                 onSelect: (x) {
+                  if (colorPreview) {
+                    MainViewColorScope.maybeOf(context)!.onOutputSelected(x);
+                    return;
+                  }
                   if (dualOff && x == Adi2Addr.ph12) {
                     ScaffoldMessenger.of(context)
                       ..hideCurrentSnackBar()
@@ -1246,7 +1297,7 @@ class _OutputsPageState extends State<OutputsPage> {
                   setState(() => _sel = x);
                   widget.onOutputSelected?.call();
                 },
-                onLongPress: v.isDac ? null : _phonesSheet,
+                onLongPress: v.isDac || colorPreview ? null : _phonesSheet,
               ),
               SizedBox(height: compact ? 4 : 8),
               Expanded(
@@ -1316,18 +1367,21 @@ class _OutputsPageState extends State<OutputsPage> {
                                           // Meldung darüber Luft hat.
                                           : ringBox.maxHeight *
                                                 (isTablet(context) ? 0.8 : 1),
-                                      child: VolumeRing(
-                                        actualDb: volRaw / 10,
-                                        targetDb: target == null
-                                            ? null
-                                            : target / 10,
-                                        limitDb: limitRaw / 10,
-                                        muted: muted || autoMute,
-                                        enabled: !locked,
-                                        onChanged: (db) =>
-                                            c.setVolume(a, (db * 10).round()),
-                                        onRelease: () => _onRelease(o),
-                                        levelText: _levelText(v, a, volRaw),
+                                      child: IgnorePointer(
+                                        ignoring: colorPreview,
+                                        child: VolumeRing(
+                                          actualDb: volRaw / 10,
+                                          targetDb: target == null
+                                              ? null
+                                              : target / 10,
+                                          limitDb: limitRaw / 10,
+                                          muted: muted || autoMute,
+                                          enabled: !locked,
+                                          onChanged: (db) =>
+                                              c.setVolume(a, (db * 10).round()),
+                                          onRelease: () => _onRelease(o),
+                                          levelText: _levelText(v, a, volRaw),
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -1366,6 +1420,7 @@ class _OutputsPageState extends State<OutputsPage> {
                             width: topSide,
                             child: _SideButton(
                               key: const ValueKey('output-ref-level'),
+                              controlId: MainViewControl.refLevel,
                               height: rowHeight,
                               caption: tr('Ref Level'),
                               icon: _fixedRef(o)
@@ -1389,6 +1444,7 @@ class _OutputsPageState extends State<OutputsPage> {
                             width: topSide,
                             child: _SideButton(
                               key: const ValueKey('output-da-filter'),
+                              controlId: MainViewControl.daFilter,
                               height: rowHeight,
                               caption: tr('DA-Filter'),
                               icon: Icons.filter_alt_outlined,
@@ -1404,7 +1460,10 @@ class _OutputsPageState extends State<OutputsPage> {
                           Positioned(
                             left: 92,
                             right: 92,
-                            top: rowHeight + (compact ? 22 : 34),
+                            // Smartphone: direkt unter der Balance-Zeile, über dem Ring.
+                            top:
+                                rowHeight +
+                                (isTablet(context) ? (compact ? 22 : 34) : 6),
                             child: IgnorePointer(
                               child: ColoredBox(
                                 color: Palette.bg,
@@ -1437,6 +1496,7 @@ class _OutputsPageState extends State<OutputsPage> {
                           ? null
                           : _SideButton(
                               key: const ValueKey('output-lock'),
+                              controlId: MainViewControl.lock,
                               height: isTablet(context)
                                   ? controlHeight
                                   : phoneLockRowHeight,
@@ -1456,6 +1516,7 @@ class _OutputsPageState extends State<OutputsPage> {
                       width: sideWidth,
                       child: _SideButton(
                         key: const ValueKey('output-link'),
+                        controlId: MainViewControl.link,
                         height: isTablet(context)
                             ? controlHeight
                             : phoneLockRowHeight,
@@ -1486,6 +1547,7 @@ class _OutputsPageState extends State<OutputsPage> {
                       [
                             if (c.value(a, OutIdx.mute) != null)
                               _Key(
+                                controlId: MainViewControl.mute,
                                 compact: compact,
                                 icon: Icons.volume_off_outlined,
                                 label: tr('Mute'),
@@ -1499,6 +1561,7 @@ class _OutputsPageState extends State<OutputsPage> {
                               ),
                             if (c.value(a, OutIdx.dim) != null)
                               _Key(
+                                controlId: MainViewControl.dim,
                                 compact: compact,
                                 icon: Icons.brightness_low_outlined,
                                 label: tr('Dim'),
@@ -1515,6 +1578,7 @@ class _OutputsPageState extends State<OutputsPage> {
                             if (a == Adi2Addr.line &&
                                 c.value(a, OutIdx.loudness) != null)
                               _Key(
+                                controlId: MainViewControl.loudness,
                                 compact: compact,
                                 icon: Icons.graphic_eq,
                                 label: tr('Loudness'),
@@ -1542,6 +1606,7 @@ class _OutputsPageState extends State<OutputsPage> {
                               ),
                             if (crossfeed != null)
                               _Key(
+                                controlId: MainViewControl.crossfeed,
                                 compact: compact,
                                 icon: Icons.spatial_audio_off,
                                 label: tr('Crossfeed'),
@@ -1565,6 +1630,7 @@ class _OutputsPageState extends State<OutputsPage> {
                                     _pickChoice(a, def(OutIdx.crossfeed)),
                               ),
                             _Key(
+                              controlId: MainViewControl.recall,
                               compact: compact,
                               icon: Icons.bookmark_outline,
                               label: tr('Recall'),
@@ -1606,6 +1672,7 @@ class _OutputsPageState extends State<OutputsPage> {
                   children: [
                     Expanded(
                       child: _Tile(
+                        controlId: MainViewControl.source,
                         compact: compact,
                         icon: Icons.input,
                         label: tr('Quelle'),
@@ -1621,6 +1688,7 @@ class _OutputsPageState extends State<OutputsPage> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: _Tile(
+                        controlId: MainViewControl.eq,
                         compact: compact,
                         icon: Icons.tune,
                         label: tr('EQ'),
@@ -1640,6 +1708,7 @@ class _OutputsPageState extends State<OutputsPage> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: _Tile(
+                        controlId: MainViewControl.limit,
                         compact: compact,
                         icon: Icons.shield_outlined,
                         label: tr('Limit'),
@@ -1658,6 +1727,7 @@ class _OutputsPageState extends State<OutputsPage> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: _Tile(
+                        controlId: MainViewControl.settings,
                         compact: compact,
                         icon: Icons.settings_outlined,
                         label: tr('Settings'),
@@ -1777,6 +1847,7 @@ class OutputSwitch extends StatelessWidget {
 
 class _SoftButton extends StatelessWidget {
   const _SoftButton({
+    this.controlId,
     required this.label,
     this.compact = false,
     this.growth = 0,
@@ -1785,6 +1856,7 @@ class _SoftButton extends StatelessWidget {
     this.onHoldStart,
     this.onHoldEnd,
   });
+  final MainViewControl? controlId;
   final String label;
   final bool compact;
   final double growth;
@@ -1795,6 +1867,7 @@ class _SoftButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (MainViewColorScope.maybeOf(context) != null) return _material(context);
     return GestureDetector(
       onLongPressStart: onHoldStart == null ? null : (_) => onHoldStart!(),
       onLongPressEnd: onHoldStart == null ? null : (_) => onHoldEnd?.call(),
@@ -1804,7 +1877,8 @@ class _SoftButton extends StatelessWidget {
   }
 
   Widget _material(BuildContext context) {
-    return Material(
+    return MainViewControlSurface(
+      id: controlId,
       color: Palette.surf,
       shape: _controlShape,
       child: InkWell(
@@ -1850,6 +1924,7 @@ String _short(double db) =>
 /// Taste mit Leuchtstreifen wie am Gerät; aktiv leuchtet sie in [color].
 class _Key extends StatelessWidget {
   const _Key({
+    this.controlId,
     this.compact = false,
     required this.icon,
     required this.label,
@@ -1861,6 +1936,7 @@ class _Key extends StatelessWidget {
     this.caption,
     this.tooltip,
   });
+  final MainViewControl? controlId;
   final IconData icon;
   final String label;
   final bool on;
@@ -1876,7 +1952,8 @@ class _Key extends StatelessWidget {
   Widget build(BuildContext context) {
     return Tooltip(
       message: tooltip ?? '',
-      child: Material(
+      child: MainViewControlSurface(
+        id: controlId,
         color: on
             ? Color.alphaBlend(color.withValues(alpha: 0.14), Palette.surf)
             : Palette.surf,
@@ -1970,6 +2047,7 @@ class _Key extends StatelessWidget {
 /// Kompakte Kachel: Symbol, Bezeichnung, aktueller Wert.
 class _Tile extends StatelessWidget {
   const _Tile({
+    this.controlId,
     this.compact = false,
     required this.icon,
     required this.label,
@@ -1977,6 +2055,7 @@ class _Tile extends StatelessWidget {
     this.onTap,
     this.highlight = false,
   });
+  final MainViewControl? controlId;
   final IconData icon;
   final String label, value;
   final VoidCallback? onTap;
@@ -2008,7 +2087,8 @@ class _Tile extends StatelessWidget {
         ),
       ],
     );
-    return Material(
+    return MainViewControlSurface(
+      id: controlId,
       color: Palette.surf,
       shape: _controlShape,
       child: InkWell(
@@ -2122,6 +2202,7 @@ const _controlShape = RoundedRectangleBorder(
 /// Kleiner Knopf in der Seitenspalte (z. B. Lock).
 class _SideButton extends StatelessWidget {
   const _SideButton({
+    this.controlId,
     super.key,
     required this.icon,
     required this.label,
@@ -2131,6 +2212,7 @@ class _SideButton extends StatelessWidget {
     this.caption,
     this.height = _controlHeight,
   });
+  final MainViewControl? controlId;
   final double height;
   final IconData icon;
   final String label;
@@ -2140,7 +2222,8 @@ class _SideButton extends StatelessWidget {
   final VoidCallback? onLongPress;
 
   @override
-  Widget build(BuildContext context) => Material(
+  Widget build(BuildContext context) => MainViewControlSurface(
+    id: controlId,
     color: on
         ? Color.alphaBlend(Palette.amber.withValues(alpha: 0.14), Palette.surf)
         : Palette.surf,

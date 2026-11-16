@@ -139,14 +139,27 @@ class _LoopbackOutput extends StatelessWidget {
       )!,
       hasInput: hasInput,
     );
-    void set(int tap, int pair) => setLoopbackRoute(
-      ctrl,
-      output.address,
-      tap: tap,
-      pair: pair,
-      onDisplaced: (address, pair) =>
-          showLoopbackDisplaced(context, ctrl, address, pair),
-    );
+    Future<void> set(int tap, int pair) async {
+      // Belegtes Paar nur nach Rückfrage übernehmen.
+      final occupants = tap == 0
+          ? const <int>[]
+          : loopbackOccupants(ctrl, output.address, pair);
+      if (occupants.isNotEmpty &&
+          !await confirmLoopbackTakeover(context, ctrl, occupants, pair)) {
+        return;
+      }
+      setLoopbackRoute(
+        ctrl,
+        output.address,
+        tap: tap,
+        pair: pair,
+        onDisplaced: (address, pair) {
+          if (context.mounted) {
+            showLoopbackDisplaced(context, ctrl, address, pair);
+          }
+        },
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -164,7 +177,20 @@ class _LoopbackOutput extends StatelessWidget {
         ParamChoices(
           labels: [tr('Aus'), tr('pre FX'), tr('post FX'), tr('post −6 dB')],
           selected: selection.tap,
-          onSelected: (tap) => set(tap, selection.pair),
+          // Beim Einschalten ein freies Paar wählen, statt ein belegtes
+          // (das gespeicherte 1/2 eines ausgeschalteten Loopbacks) zu nehmen.
+          onSelected: (tap) => set(
+            tap,
+            hasInput && selection.tap == 0 && tap != 0
+                ? firstFreeLoopbackPair(
+                    ctrl,
+                    output.address,
+                    // 5/6 nur automatisch, wenn Mehrkanal sicher bekannt ist.
+                    stereo: ctrl.ccMode != UsbCcMode.multi,
+                    fallback: selection.pair,
+                  )
+                : selection.pair,
+          ),
         ),
         if (hasInput && selection.tap != 0) ...[
           const SizedBox(height: 8),

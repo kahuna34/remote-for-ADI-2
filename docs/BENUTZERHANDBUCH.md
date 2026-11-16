@@ -1,6 +1,6 @@
 # Remote for ADI-2 — Benutzerhandbuch
 
-Version **1.2.0 (5)** · [Projektübersicht](README.de.md) · [English](USER_GUIDE.md)
+Version **1.2.1 (6)** · [Projektübersicht](README.de.md) · [English](USER_GUIDE.md)
 
 Dieses Handbuch beschreibt die aktuelle App. Die verfügbaren Regler hängen vom gewählten Modell und den vom Gerät gemeldeten Werten ab. Die Screenshots zeigen Android-Geräte mit englischer Oberfläche. Getestet ist die App mit allen unterstützten ADI-2-Modellen auf Android-Smartphone und Android-Tablet sowie mit dem ADI-2 DAC am Mac, auch über den Host. Die Player-Anbindung unterstützt derzeit nur Android.
 
@@ -650,6 +650,8 @@ Mit **Hinzufügen** Ring, Lautstärkeschritte, Ausgangswahl, Klang-/Ausgangsregl
 
 Über das Bearbeitungssymbol Beschriftung, Kachelfarbe, Ziel und Größe ändern. Die Breitenauswahl bietet je nach Größenregeln des Kacheltyps Bruchteile von einem Fünftel bis zur vollen Breite. Höhen sind in halben Zeilen bis zu zwei Zeilen möglich, ebenfalls abhängig vom Kacheltyp. Für weitere Breiten seitlich wischen. Im Editor eine Kachel lange drücken und auf dem Raster verschieben. Fixieren hält ihre Rasterposition fest. Bei Kollisionen können fixierte Kacheln mit Hinweis an die nächste freie Position rücken. Eine **Standardfarbe** wählen oder einzelne Kachelfarben überschreiben.
 
+Alle seitenweiten Optionen stehen oberhalb des Kachelrasters: **Für alle Ausgänge gleich**, Ausgangswahl/Kopieren, **Standardfarbe** und **Anzeige unter der Kopfzeile**. Unter dem Raster bleibt die Aktionsleiste mit **Hinzufügen**, **Löschen**, **Speichern** und **Standard**.
+
 **Für alle Ausgänge gleich** verwendet eine gemeinsame Seite. Für getrennte Ausgangsseiten ausschalten. Im Editor den Ausgang wählen oder zwischen Ausgangsseiten wischen. **Auf andere Ausgänge kopieren …** überschreibt nach Bestätigung die gewählten Zielseiten. Jede Seite hat ihre eigene **Anzeige unter der Kopfzeile**.
 
 Außerhalb des Editors öffnet langes Drücken die passenden Details, etwa Loudness-Parameter, Crossfeed-Stärke, Recall-Verwaltung, Ausgangsoptionen oder den Basic-Mode-Signalplan. Gedrückt halten der Lautstärketasten wiederholt die Änderung und öffnet kein Menü. Eine gehaltene Geräte-Setup-Kachel bietet Laden, Speichern des aktuellen Zustands und Umbenennen. Lautstärkerampen, Grenzen und Gerätesperren gelten weiter.
@@ -866,12 +868,17 @@ Im Querformat liegt die Navigation links. Ausgänge belegt die linke Inhaltsspal
 
 ## App-Einstellungen
 
+**Hauptansicht anpassen → Farben wählen** öffnet eine Vorschau der Ausgänge mit den echten Knöpfen. Einen Knopf antippen und eine Kachelfarbe oder **Standard** für die bisherige Optik wählen. Die Farbe wird automatisch je Knopf gespeichert und gilt auf Smartphone und Tablet für alle Ausgänge. **Alle zurücksetzen** entfernt alle Farbanpassungen. Aktive Zustände bleiben erkennbar; Ausgangswahl und Lautstärkering behalten ihre Optik. In der Vorschau wechselt die Ausgangswahl nur den angezeigten Ausgang; die Knöpfe senden keine Gerätebefehle.
+
+Die separate, neutral gestaltete Karte **Eigene Ansicht einrichten** enthält weiterhin den Layout-Editor und die vier Slot-Vorschauen.
+
 **Automatisch nach Updates suchen** ist standardmäßig an. Die App fragt beim Start und danach höchstens einmal täglich nur bei GitHub nach der neuesten Version, ohne Nutzerdaten zu senden. Der Schalter schaltet die automatische Prüfung ab; **Jetzt nach Updates suchen** funktioniert weiterhin. Bei einem Update öffnet **Laden** den Download im externen Browser. **Später** unterdrückt den automatischen Hinweis für diese Version; in den Einstellungen bleibt **Laden** sichtbar. Es gibt keine automatischen Downloads oder Installationen.
 
 Hier passen Sie Sprache, Zusatzanzeigen und Bedienverhalten der App an.
 
 Das Zahnrad (**App**) in der Kopfzeile öffnet **App-Einstellungen**:
 
+- **Hauptansicht anpassen**, Farben der Hauptansicht-Knöpfe.
 - **Eigene Ansicht einrichten**, Editor und vier Slot-Vorschauen.
 - **Sprache**: English oder Deutsch.
 - **Anzeige unter der Kopfzeile**: Player, Status, Analyzer oder nichts.

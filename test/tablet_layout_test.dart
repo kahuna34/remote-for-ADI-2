@@ -238,8 +238,20 @@ void main() {
     });
   }
 
+  testWidgets('Leere Einstellungen zeigen den Analyzer unter der Kopfzeile', (
+    tester,
+  ) async {
+    expect(AppSettings.instance.headerContent, HeaderContent.analyzer);
+    await prepare(tester, const Size(360, 740));
+    expect(find.byType(AnalyzerPanel), findsOneWidget);
+    expect(find.byType(PlayerBar), findsNothing);
+    expect(find.byKey(const ValueKey('digital-mini')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   for (final size in [const Size(360, 740), const Size(411, 914)]) {
     testWidgets('Handy bleibt einspaltig bei $size', (tester) async {
+      await AppSettings.instance.setHeaderContent(HeaderContent.player);
       await prepare(tester, size);
       expect(find.byType(NavigationBar), findsOneWidget);
       expect(find.byType(NavigationRail), findsNothing);
@@ -260,6 +272,7 @@ void main() {
   testWidgets('Tablet-Hochformat 600×960 vergrößert die Hauptansicht', (
     tester,
   ) async {
+    await AppSettings.instance.setHeaderContent(HeaderContent.player);
     await prepare(tester, const Size(600, 960));
     expect(find.byType(NavigationBar), findsOneWidget);
     expect(find.byType(NavigationRail), findsNothing);

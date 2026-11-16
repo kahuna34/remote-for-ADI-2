@@ -951,127 +951,145 @@ class _EasyModeEditorState extends State<_ModelEditor> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text(
-                        trf('Eigene Ansicht {n}', {
-                          'n': _settings.easySlots(_variant).active + 1,
-                        }),
-                        style: ts(16, weight: 600),
-                      ),
-                      SwitchListTile(
-                        key: const ValueKey('easy-same-page'),
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(tr('Für alle Ausgänge gleich')),
-                        value: _setup.samePageForAllOutputs,
-                        onChanged: (same) => _settings.setEasyLayout(
-                          _variant,
-                          _setup.setSamePageForAllOutputs(
-                            same,
-                            outputsFor(_variant).map((o) => o.address),
-                            selectedOutput: _output,
-                          ),
-                        ),
-                      ),
-                      if (!_setup.samePageForAllOutputs) ...[
-                        OutputSwitch(
-                          key: const ValueKey('easy-editor-outputs'),
-                          compact: true,
-                          outs: outputsFor(_variant),
-                          selected: _output,
-                          onSelect: (output) =>
-                              setState(() => _output = output),
-                        ),
-                        TextButton.icon(
-                          key: const ValueKey('easy-copy-outputs'),
-                          icon: const Icon(Icons.copy_outlined),
-                          label: Text(tr('Auf andere Ausgänge kopieren …')),
-                          onPressed: _copyToOutputs,
-                        ),
-                      ],
-                      ExpansionTile(
-                        key: const ValueKey('easy-layout-color'),
-                        tilePadding: EdgeInsets.zero,
-                        title: Text(tr('Standardfarbe')),
-                        leading: CircleAvatar(
-                          radius: 12,
-                          backgroundColor: easyTileBackground(
-                            _layout.defaultColor,
-                          ),
-                        ),
+                      Column(
+                        key: const ValueKey('easy-editor-options'),
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          EasyColorPicker(
-                            value: _layout.defaultColor,
-                            onChanged: (color) =>
-                                _save(_layout.copyWith(defaultColor: color)),
+                          Text(
+                            trf('Eigene Ansicht {n}', {
+                              'n': _settings.easySlots(_variant).active + 1,
+                            }),
+                            style: ts(16, weight: 600),
                           ),
-                        ],
-                      ),
-                      HeaderContentPicker(
-                        value: _layout.headerContent,
-                        onChanged: (content) =>
-                            _save(_layout.withHeaderContent(content)),
-                      ),
-                      FittedBox(
-                        key: const ValueKey('easy-editor-hints'),
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.push_pin_outlined,
-                              size: 14,
-                              color: Palette.muted,
+                          SwitchListTile(
+                            key: const ValueKey('easy-same-page'),
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(tr('Für alle Ausgänge gleich')),
+                            value: _setup.samePageForAllOutputs,
+                            onChanged: (same) => _settings.setEasyLayout(
+                              _variant,
+                              _setup.setSamePageForAllOutputs(
+                                same,
+                                outputsFor(_variant).map((o) => o.address),
+                                selectedOutput: _output,
+                              ),
                             ),
-                            Text(
-                              tr('fixieren'),
-                              style: ts(12, color: Palette.muted),
+                          ),
+                          if (!_setup.samePageForAllOutputs) ...[
+                            OutputSwitch(
+                              key: const ValueKey('easy-editor-outputs'),
+                              compact: true,
+                              outs: outputsFor(_variant),
+                              selected: _output,
+                              onSelect: (output) =>
+                                  setState(() => _output = output),
                             ),
-                            Text(' · ', style: ts(12, color: Palette.muted)),
-                            const Icon(
-                              Icons.edit_outlined,
-                              size: 14,
-                              color: Palette.muted,
-                            ),
-                            Text(
-                              tr('bearbeiten'),
-                              style: ts(12, color: Palette.muted),
-                            ),
-                            Text(' · ', style: ts(12, color: Palette.muted)),
-                            Text(
-                              tr('lange drücken = verschieben'),
-                              style: ts(12, color: Palette.muted),
+                            TextButton.icon(
+                              key: const ValueKey('easy-copy-outputs'),
+                              icon: const Icon(Icons.copy_outlined),
+                              label: Text(tr('Auf andere Ausgänge kopieren …')),
+                              onPressed: _copyToOutputs,
                             ),
                           ],
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      if (_layout.positionsAdjusted)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: Text(
-                            tr(
-                              'Fixierte Kacheln wurden an die nächste freie Rasterposition verschoben.',
+                          ExpansionTile(
+                            key: const ValueKey('easy-layout-color'),
+                            tilePadding: EdgeInsets.zero,
+                            title: Text(tr('Standardfarbe')),
+                            leading: CircleAvatar(
+                              radius: 12,
+                              backgroundColor: easyTileBackground(
+                                _layout.defaultColor,
+                              ),
                             ),
-                            key: const ValueKey('easy-position-warning'),
-                            style: ts(13, color: Palette.amber),
+                            children: [
+                              EasyColorPicker(
+                                value: _layout.defaultColor,
+                                onChanged: (color) => _save(
+                                  _layout.copyWith(defaultColor: color),
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                      LayoutBuilder(
-                        builder: (context, bounds) => Align(
-                          alignment: Alignment.topCenter,
-                          child: SizedBox(
-                            width: isTabletLandscape(context)
-                                ? tabletOutputColumnWidth(bounds.maxWidth + 32)
-                                : null,
-                            height: 400,
-                            child: OutputsPage(
-                              key: ValueKey((_variant, _output)),
-                              editorOutput: _output,
-                              ctrl: _ctrl,
-                              easyLayout: _layout,
-                              onPinTile: _pin,
-                              onMoveTile: _moveTile,
-                              onEditTile: (index) =>
-                                  _edit(_layout.tiles[index], index),
+                          HeaderContentPicker(
+                            value: _layout.headerContent,
+                            onChanged: (content) =>
+                                _save(_layout.withHeaderContent(content)),
+                          ),
+                          FittedBox(
+                            key: const ValueKey('easy-editor-hints'),
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.push_pin_outlined,
+                                  size: 14,
+                                  color: Palette.muted,
+                                ),
+                                Text(
+                                  tr('fixieren'),
+                                  style: ts(12, color: Palette.muted),
+                                ),
+                                Text(
+                                  ' · ',
+                                  style: ts(12, color: Palette.muted),
+                                ),
+                                const Icon(
+                                  Icons.edit_outlined,
+                                  size: 14,
+                                  color: Palette.muted,
+                                ),
+                                Text(
+                                  tr('bearbeiten'),
+                                  style: ts(12, color: Palette.muted),
+                                ),
+                                Text(
+                                  ' · ',
+                                  style: ts(12, color: Palette.muted),
+                                ),
+                                Text(
+                                  tr('lange drücken = verschieben'),
+                                  style: ts(12, color: Palette.muted),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          if (_layout.positionsAdjusted)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: Text(
+                                tr(
+                                  'Fixierte Kacheln wurden an die nächste freie Rasterposition verschoben.',
+                                ),
+                                key: const ValueKey('easy-position-warning'),
+                                style: ts(13, color: Palette.amber),
+                              ),
+                            ),
+                        ],
+                      ),
+                      SizedBox(
+                        key: const ValueKey('easy-editor-layout'),
+                        child: LayoutBuilder(
+                          builder: (context, bounds) => Align(
+                            alignment: Alignment.topCenter,
+                            child: SizedBox(
+                              width: isTabletLandscape(context)
+                                  ? tabletOutputColumnWidth(
+                                      bounds.maxWidth + 32,
+                                    )
+                                  : null,
+                              height: 400,
+                              child: OutputsPage(
+                                key: ValueKey((_variant, _output)),
+                                editorOutput: _output,
+                                ctrl: _ctrl,
+                                easyLayout: _layout,
+                                onPinTile: _pin,
+                                onMoveTile: _moveTile,
+                                onEditTile: (index) =>
+                                    _edit(_layout.tiles[index], index),
+                              ),
                             ),
                           ),
                         ),

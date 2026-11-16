@@ -1,6 +1,6 @@
 # Remote for ADI-2 — User guide
 
-Version **1.2.0 (5)** · [Project overview](../README.md) · [Deutsch](BENUTZERHANDBUCH.md)
+Version **1.2.1 (6)** · [Project overview](../README.md) · [Deutsch](BENUTZERHANDBUCH.md)
 
 This guide describes the current app. Controls depend on the selected model and values reported by the device. Screenshots show Android devices and the English interface. The app has been tested with all supported ADI-2 models on an Android smartphone and an Android tablet, and with the ADI-2 DAC on a Mac, also through the host. The Player integration currently supports Android only.
 
@@ -644,6 +644,8 @@ Tap **Custom Mode** in the header to switch to the saved tile layout. The regula
 | ![Custom Mode editor](screenshots/tablet/custom_editor.png) |
 
 
+All page-wide options appear above the tile grid: the shared-page switch, output selection/copying, default color and display below the header. Only the action bar with **Add**, **Delete**, **Save** and **Standard** remains below the grid.
+
 There are four layout slots per model variant. ADI-2 Pro and ADI-2 Pro EX share these slots. Tap a slot preview in App settings and confirm to activate it. Empty slots use the default layout until edited. In the editor, **Save** stores the current layout in a chosen slot with an optional name. **Delete** removes the tiles and name; the slot is then free and shows the default layout. **Standard** replaces the tiles with the default layout and keeps the name. Both actions ask for confirmation first.
 
 Use **Add** for a ring, volume steps, output selector, sound/output controls or direct buttons. Direct buttons can recall device setups, EQ presets, an explicit source, Basic Mode or volume, toggle outputs, or apply an app EQ preset. A library preset is copied into its tile; later library edits do not automatically update that copy. A tile can refer to the **Selected output** or a fixed output when offered.
@@ -866,12 +868,17 @@ In landscape, navigation moves to the left. Outputs occupies the left content co
 
 ## App settings
 
+**Customize main view → Choose colors** opens an Outputs preview using the real buttons. Tap a button and choose a tile color or **Standard** for its original appearance. Colors are saved automatically per button and apply to all outputs on phones and tablets. **Reset all** removes all color overrides. Active states stay recognizable; output selection and the volume ring keep their appearance. In the preview, output selection only changes the displayed output; the buttons send no device commands.
+
+The separate, neutral **Configure Custom Mode** card still contains the layout editor and four slot previews.
+
 **Check for updates automatically** is enabled by default. At startup and then at most once a day, the app only asks GitHub for the latest version without sending user data. The switch disables automatic checks; **Check for updates now** still works. When an update is available, **Download** opens the download in the external browser. **Later** suppresses the automatic dialog for that version; **Download** remains available in settings. Downloads and installations are never automatic.
 
 Use these settings to customize the app language, additional displays and interaction.
 
 Open the gear icon (**App**) in the header. **App settings** provides:
 
+- **Customize main view**, colors for the main view buttons.
 - **Configure Custom Mode**, its editor and four slot previews.
 - **Language**: English or Deutsch.
 - **Display below the header**: Player, Status, Analyzer or none.

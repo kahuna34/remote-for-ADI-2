@@ -52,7 +52,7 @@ class _Device extends Adi2Controller {
 
 void main() {
   setUp(() async {
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues({'analyzer_bars': false});
     await AppSettings.instance.load();
     await AppSettings.instance.setHeaderContent(HeaderContent.analyzer);
     await AppSettings.instance.setTabletExtraContent(

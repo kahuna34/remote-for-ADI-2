@@ -531,7 +531,24 @@ class Adi2Controller extends ChangeNotifier {
   /// Auf der Hauptseite gewählter Ausgang (Adresse 3/6/9), null = Standard.
   final selectedOutputChanges = ValueNotifier<int?>(null);
   int? get selectedOutput => selectedOutputChanges.value;
-  set selectedOutput(int? value) => selectedOutputChanges.value = value;
+  set selectedOutput(int? value) {
+    if (selectedOutputChanges.value == value) return;
+    selectedOutputChanges.value = value;
+    // Werte des neu gewählten Ausgangs sofort vom Gerät holen: Über den Host
+    // kommt die vollständige Antwort sonst erst im nächsten großen Zyklus, und
+    // am Gerät gedrehte Werte erscheinen verzögert.
+    if (state == ConnState.connected && value != null) {
+      final now = DateTime.now();
+      final last = _outputReadAt;
+      if (last == null ||
+          now.difference(last) > const Duration(milliseconds: 300)) {
+        _outputReadAt = now;
+        _readback();
+      }
+    }
+  }
+
+  DateTime? _outputReadAt;
 
   String? _offlineLabel;
 
@@ -1369,18 +1386,33 @@ class Adi2Controller extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Obergrenze, Recall, Kopplung und Anstiegstempo gehören zum einzelnen
+  /// Gerät (Seriennummer). Ohne Seriennummer (z. B. offline) gilt der
+  /// Modellschlüssel; er dient zugleich als Startwert für neue Geräte.
+  String? get _optionsSerialKey {
+    final serial = deviceSerial;
+    return serial == null ? null : 'vopts_sn_$serial';
+  }
+
   Future<void> _loadOptions() async {
     final id = model?.id;
+    final serialKey = _optionsSerialKey;
     final session = _connectionSession;
     if (id == null || _disposed) return;
     var loaded = VolumeOptions();
     try {
       final prefs = await SharedPreferences.getInstance();
-      loaded = VolumeOptions.decode(prefs.getString('vopts_$id'));
+      final own = serialKey == null ? null : prefs.getString(serialKey);
+      loaded = VolumeOptions.decode(own ?? prefs.getString('vopts_$id'));
     } catch (e) {
       debugPrint('Optionen laden fehlgeschlagen: $e');
     }
-    if (_disposed || session != _connectionSession || model?.id != id) return;
+    if (_disposed ||
+        session != _connectionSession ||
+        model?.id != id ||
+        _optionsSerialKey != serialKey) {
+      return;
+    }
     opts = loaded;
     volGuard.rate = opts.rise.rate;
     _applyLimits();
@@ -1389,9 +1421,13 @@ class Adi2Controller extends ChangeNotifier {
   Future<void> _saveOptions() async {
     final id = model?.id;
     if (id == null) return;
+    final serialKey = _optionsSerialKey;
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('vopts_$id', opts.encode());
+      final encoded = opts.encode();
+      if (serialKey != null) await prefs.setString(serialKey, encoded);
+      // Modellwert bleibt Vorlage für neu angeschlossene Geräte.
+      await prefs.setString('vopts_$id', encoded);
     } catch (e) {
       debugPrint('Optionen speichern fehlgeschlagen: $e');
     }

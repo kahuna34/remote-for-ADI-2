@@ -132,6 +132,8 @@ class _AnalyzerPanelState extends State<AnalyzerPanel>
       !_controlsOpen &&
       widget.deviceController?.state == ConnState.connected &&
       widget.deviceController?.analyzerSelfTestActive == false &&
+      // Testton kommt per USB vom Smartphone; über den Host nicht möglich.
+      widget.deviceController?.viaHost != true &&
       _controller.canCalibrate;
 
   Future<void> _offerCalibration() async {
@@ -1316,7 +1318,11 @@ class _CompactLevels extends StatelessWidget {
       for (var ch = 0; ch < 2; ch++)
         Row(
           children: [
-            Text(ch == 0 ? 'L' : 'R', style: ts(14, height: 1.2)),
+            // Feste Breite, damit L- und R-Balken bündig beginnen.
+            SizedBox(
+              width: 14,
+              child: Text(ch == 0 ? 'L' : 'R', style: ts(14, height: 1.2)),
+            ),
             const SizedBox(width: 6),
             Expanded(
               child: AnalyzerLevelBar(

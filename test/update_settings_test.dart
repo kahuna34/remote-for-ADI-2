@@ -31,6 +31,10 @@ void main() {
       scrollable: _vertical,
     );
     expect(find.text('Check for updates automatically'), findsOneWidget);
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('update-check-switch')),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('update-check-switch')));
     await tester.pumpAndSettle();
     expect(AppSettings.instance.updateCheck, false);

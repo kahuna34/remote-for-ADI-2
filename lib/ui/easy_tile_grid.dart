@@ -44,10 +44,12 @@ class EasyColorPicker extends StatelessWidget {
     required this.value,
     required this.onChanged,
     this.inherit = false,
+    this.graphiteLabel,
   });
   final EasyTileColor? value;
   final ValueChanged<EasyTileColor?> onChanged;
   final bool inherit;
+  final String? graphiteLabel;
 
   @override
   Widget build(BuildContext context) => Wrap(
@@ -63,9 +65,13 @@ class EasyColorPicker extends StatelessWidget {
         ),
       for (final color in EasyTileColor.values)
         Tooltip(
-          message: easyTileColorName(color),
+          message: color == EasyTileColor.graphite
+              ? graphiteLabel ?? easyTileColorName(color)
+              : easyTileColorName(color),
           child: Semantics(
-            label: easyTileColorName(color),
+            label: color == EasyTileColor.graphite
+                ? graphiteLabel ?? easyTileColorName(color)
+                : easyTileColorName(color),
             selected: value == color,
             button: true,
             child: InkWell(

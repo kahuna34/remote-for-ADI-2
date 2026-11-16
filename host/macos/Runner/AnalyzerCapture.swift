@@ -67,9 +67,15 @@ final class AnalyzerCapture: NSObject, FlutterStreamHandler {
 
   private func watch(_ object: AudioObjectID, _ selector: AudioObjectPropertySelector) throws {
     var address = AdiAudio.address(selector)
+    // CoreAudio ruft diesen Block synchron auf dem Hauptthread auf und wartet
+    // darauf. Stoppen (Listener entfernen, AVAudioEngine freigeben) darf erst
+    // danach passieren, sonst warten CoreAudio und Hauptthread aufeinander
+    // (Host hing beim Wechsel des ADI-2, Menü reagierte nicht mehr).
     let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
-      guard let self = self, self.engine != nil else { return }
-      if !self.validInput() { self.fail("usbUnavailable") }
+      DispatchQueue.main.async { [weak self] in
+        guard let self = self, self.engine != nil else { return }
+        if !self.validInput() { self.fail("usbUnavailable") }
+      }
     }
     try AdiAudio.check(AudioObjectAddPropertyListenerBlock(object, &address, .main, listener))
     deviceListeners.append((object, address, listener))
@@ -159,12 +165,15 @@ final class AnalyzerCapture: NSObject, FlutterStreamHandler {
       configurationObserver = NotificationCenter.default.addObserver(
         forName: .AVAudioEngineConfigurationChange, object: audioEngine, queue: .main
       ) { [weak self] _ in
+        // Ebenfalls erst nach dem laufenden Aufruf reagieren.
+        DispatchQueue.main.async { [weak self] in
         guard let self = self, self.generation == token, self.engine != nil else { return }
         guard self.validInput() else { self.fail("usbUnavailable"); return }
         // Selecting the ADI-2 and its format also reports a change: the same
         // device and format may simply continue.
         if audioEngine.isRunning { return }
         do { try audioEngine.start() } catch { self.fail("captureFailed") }
+        }
       }
     } catch { fail("captureFailed") }
   }

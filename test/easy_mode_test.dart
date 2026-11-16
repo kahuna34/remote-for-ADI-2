@@ -1415,6 +1415,12 @@ void main() {
   testWidgets('Header selection hides player and status and moves outputs up', (
     tester,
   ) async {
+    SharedPreferences.setMockInitialValues({
+      'show_player': true,
+      'show_status': true,
+      'show_analyzer': false,
+    });
+    await settings.load();
     np.supported = true;
     np.access = true;
     np.info = const NowPlayingInfo(title: 'Testmusik', playing: true);
@@ -1429,6 +1435,9 @@ void main() {
       180,
       scrollable: find.byType(Scrollable).first,
     );
+    // Die neue Karte „Hauptansicht anpassen“ schiebt die Auswahl an den Rand.
+    await tester.ensureVisible(playerSwitch);
+    await tester.pumpAndSettle();
     await tester.tap(playerSwitch);
     await tester.pumpAndSettle();
     await tester.pageBack();
@@ -1443,6 +1452,8 @@ void main() {
       180,
       scrollable: find.byType(Scrollable).first,
     );
+    await tester.ensureVisible(statusSwitch);
+    await tester.pumpAndSettle();
     await tester.ensureVisible(statusSwitch);
     await tester.pumpAndSettle();
     await tester.tap(statusSwitch);
@@ -1767,6 +1778,7 @@ void main() {
   );
 
   testWidgets('Editor is reachable through app settings', (tester) async {
+    await settings.setEasyMode(true);
     await show(tester, AppSettingsPage(ctrl: ctrl));
     await tester.tap(find.byKey(const ValueKey('easy-open-editor')));
     await tester.pumpAndSettle();

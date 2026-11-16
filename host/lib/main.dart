@@ -150,7 +150,7 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
   List<String> _addresses = [];
   String? _address;
   Timer? _countdown;
-  Timer? _detectTimer;
+  Timer? _detectTimer, _stallTimer;
   String? _adi2;
   bool _detected = false;
   bool _detecting = false, _exiting = false;
@@ -175,12 +175,38 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
       (_) => unawaited(_detect()),
     );
     unawaited(_initialize());
+    // Überwachung: Kommt die Ereignisschleife mehr als 3 s zu spät dran
+    // (Menüklicks und Exit würden dann nicht reagieren), ins Log schreiben.
+    var lastTick = DateTime.now();
+    var stalled = false;
+    _stallTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      final now = DateTime.now();
+      final late = now.difference(lastTick) - const Duration(seconds: 1);
+      lastTick = now;
+      if (late > const Duration(seconds: 3)) {
+        stalled = true;
+        HostLog.write(
+          'Ereignisschleife blockiert: ${late.inMilliseconds} ms '
+          '(Clients ${server.connectedNames.length})',
+        );
+      } else if (stalled) {
+        stalled = false;
+        HostLog.write('Ereignisschleife wieder normal');
+      }
+    });
   }
 
   Future<void> _initialize() async {
     try {
+      // Mac: einfarbiges Vorlagenbild, macOS färbt es wie die anderen
+      // Menüleisten-Symbole (weiß bei dunkler, schwarz bei heller Leiste).
       await trayManager.setIcon(
-        Platform.isWindows ? 'assets/host.ico' : 'assets/host.png',
+        Platform.isWindows
+            ? 'assets/host.ico'
+            : Platform.isMacOS
+            ? 'assets/host_tray.png'
+            : 'assets/host.png',
+        isTemplate: Platform.isMacOS,
       );
       await trayManager.setToolTip('Remote for ADI-2 Host');
       _automatic = await _autostart.refreshEnabledPath();
@@ -368,8 +394,12 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
     _countdown = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
-    await windowManager.show();
-    await windowManager.focus();
+    try {
+      await windowManager.show();
+      await windowManager.focus();
+    } catch (error) {
+      HostLog.write('Fenster öffnen fehlgeschlagen: $error');
+    }
   }
 
   Future<void> _showError(String error) async {
@@ -430,10 +460,20 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
       case 'quit':
         _exiting = true;
         _detectTimer?.cancel();
-        await server.stop();
-        if (widget.broadcast.isReady) await widget.broadcast.stop();
-        await trayManager.destroy();
-        await windowManager.destroy();
+        _stallTimer?.cancel();
+        // Beenden darf nie hängen: hält ein Teil (Server, Analyzer, Player,
+        // Fenster) beim Aufräumen an, endet der Host trotzdem nach 3 s.
+        Timer(const Duration(seconds: 3), () => exit(0));
+        Future<void> step(Future<void> Function() f) async {
+          try {
+            await f().timeout(const Duration(seconds: 2));
+          } catch (_) {}
+        }
+
+        await step(server.stop);
+        if (widget.broadcast.isReady) await step(widget.broadcast.stop);
+        await step(trayManager.destroy);
+        await step(windowManager.destroy);
         exit(0);
     }
   }
@@ -443,6 +483,7 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
     _updates?.stop();
     _countdown?.cancel();
     _detectTimer?.cancel();
+    _stallTimer?.cancel();
     server.removeListener(_changed);
     trayManager.removeListener(this);
     windowManager.removeListener(this);

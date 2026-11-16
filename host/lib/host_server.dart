@@ -99,7 +99,10 @@ class HostServer extends ChangeNotifier {
   /// Eine Abfrage beantwortet das Gerät mit mehreren Nachrichten (Ausgänge
   /// zuerst, EQ und weitere Werte danach). Eine neue Anfrage vor dem Ende
   /// bricht die Antwort ab. Deshalb erst wieder fragen, wenn es kurz still war.
-  static const quietBeforePoll = Duration(milliseconds: 40);
+  /// Gemessen am ADI-2/4 (2026-11-16): bis zu 90 ms zwischen den Teilen
+  /// einer Antwort. Mit 40 ms wurde die Antwort vor Phones 1/2 und 3/4
+  /// abgebrochen; deren Werte kamen nur alle 10 s (in der Statuspause) an.
+  static const quietBeforePoll = Duration(milliseconds: 120);
 
   /// Lautstärke steht in den ersten Teilen der Antwort, EQ und Dim weiter
   /// hinten (komplette Antwort etwa 0,7 s). Deshalb im Wechsel: einige schnelle

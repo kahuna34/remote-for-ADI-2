@@ -379,6 +379,7 @@ void main() {
   testWidgets(
     'Settings previews update to the selected output for every slot',
     (tester) async {
+      await settings.setEasyMode(true);
       final ctrl = _Controller(Adi2Variant.dac);
       addTearDown(ctrl.dispose);
       for (var i = 0; i < 4; i++) {

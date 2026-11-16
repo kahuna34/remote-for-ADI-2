@@ -39,6 +39,21 @@ List<int> loopbackOccupants(Adi2Controller ctrl, int address, int pair) => [
           other,
 ];
 
+/// Erstes freies USB-Paar für einen Ausgang, dessen Loopback gerade
+/// eingeschaltet wird; 5/6 nur im Mehrkanalmodus. Ist alles belegt, bleibt es
+/// bei [fallback] (der bisherige Belegungshinweis greift dann).
+int firstFreeLoopbackPair(
+  Adi2Controller ctrl,
+  int address, {
+  required bool stereo,
+  int fallback = 0,
+}) {
+  for (var pair = 0; pair < (stereo ? 2 : 3); pair++) {
+    if (loopbackOccupants(ctrl, address, pair).isEmpty) return pair;
+  }
+  return fallback;
+}
+
 /// Separate set calls deliberately produce separate MIDI messages: release
 /// occupied pairs before assigning the new source. DAC has one shared value.
 void setLoopbackRoute(

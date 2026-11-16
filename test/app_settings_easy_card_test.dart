@@ -30,6 +30,8 @@ void main() {
     AppLang.instance.language = AppLanguage.de;
     SharedPreferences.setMockInitialValues({});
     await settings.load();
+    // Die Custom-Karte erscheint nur bei eingeschaltetem Custom-Modus.
+    settings.easyMode = true;
   });
 
   tearDown(() => AppLang.instance.language = previous);
@@ -52,6 +54,23 @@ void main() {
     );
     await tester.pumpAndSettle();
   }
+
+  testWidgets('Je nach Modus nur Hauptansicht- oder Custom-Karte', (
+    tester,
+  ) async {
+    settings.easyMode = false;
+    await show(tester);
+    expect(
+      find.byKey(const ValueKey('main-view-settings-card')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('easy-open-editor')), findsNothing);
+    settings.easyMode = true;
+    settings.notifyListeners();
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('main-view-settings-card')), findsNothing);
+    expect(find.byKey(const ValueKey('easy-open-editor')), findsOneWidget);
+  });
 
   testWidgets(
     'Card and editor follow current model and hide slots without one',
@@ -134,20 +153,34 @@ void main() {
           find.byKey(const ValueKey('easy-slot-active-0')),
           findsOneWidget,
         );
+        final titleY = tester.getTopLeft(title).dy;
         await tester.scrollUntilVisible(
           find.text(tr('Sprache')),
           100,
           scrollable: find.byType(Scrollable).first,
         );
         expect(
-          tester.getTopLeft(title).dy,
-          lessThan(tester.getTopLeft(find.text(tr('Sprache'))).dy),
+          titleY,
+          lessThan(
+            tester.getTopLeft(find.text(tr('Sprache'))).dy +
+                tester
+                    .state<ScrollableState>(find.byType(Scrollable).first)
+                    .position
+                    .pixels,
+          ),
         );
         expect(tester.takeException(), isNull);
         // Only the explicit full-width pencil button opens the editor.
+        // Liste baut außerhalb des Sichtbereichs nichts auf: erst hinscrollen.
+        await tester.scrollUntilVisible(
+          find.byKey(const ValueKey('easy-open-editor')),
+          -100,
+          scrollable: find.byType(Scrollable).first,
+        );
         await tester.ensureVisible(
           find.byKey(const ValueKey('easy-open-editor')),
         );
+        await tester.pumpAndSettle();
         final edit = find.byKey(const ValueKey('easy-open-editor'));
         expect(
           find.descendant(of: edit, matching: find.text(tr('Bearbeiten'))),
@@ -161,6 +194,8 @@ void main() {
         );
         expect(tester.getRect(edit).left, closeTo(firstSlot.left, 0.01));
         expect(tester.getRect(edit).right, closeTo(lastSlot.right, 0.01));
+        await tester.ensureVisible(edit);
+        await tester.pumpAndSettle();
         await tester.tap(edit);
         await tester.pumpAndSettle();
         expect(find.byType(EasyModeEditor), findsOneWidget);
@@ -266,7 +301,7 @@ void main() {
           easyTileBackground(i == 0 ? EasyTileColor.blue : EasyTileColor.amber),
         );
       }
-      await settings.setEasyMode(false);
+      // Custom-Modus bleibt an: nur dann ist die Karte sichtbar.
       await settings.setEasyLayout(Adi2Variant.dac, EasyLayout(tiles: []));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('easy-slot-active-0')), findsOneWidget);

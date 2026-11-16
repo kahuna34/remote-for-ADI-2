@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:adi2_remote/app_settings.dart';
+import 'package:adi2_remote/main_view_colors.dart';
 import 'package:adi2_remote/device/adi2_controller.dart';
 import 'package:adi2_remote/device/offline_defaults.dart';
 import 'package:adi2_remote/easy/easy_layout.dart';
@@ -159,6 +160,9 @@ void main() {
   testWidgets('Custom surfaces share main view shape, icon and status styles', (
     tester,
   ) async {
+    for (final id in MainViewControl.values) {
+      await AppSettings.instance.setMainViewColor(id, EasyTileColor.graphite);
+    }
     final ctrl = _Controller(Adi2Variant.dac);
     addTearDown(ctrl.dispose);
     AppLang.instance.language = AppLanguage.en;

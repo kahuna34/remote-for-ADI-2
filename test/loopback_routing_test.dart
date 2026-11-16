@@ -160,6 +160,16 @@ void main() {
           final target = find.descendant(of: row, matching: find.text('3/4'));
           await tester.ensureVisible(target);
           await tester.tap(target);
+          await tester.pumpAndSettle();
+          // Belegtes Paar: erst Rückfrage, ohne Bestätigung nichts gesendet.
+          expect(
+            find.byKey(const ValueKey('loopback-takeover-dialog')),
+            findsOneWidget,
+          );
+          expect(midi.messages, isEmpty);
+          await tester.tap(
+            find.byKey(const ValueKey('loopback-takeover-confirm')),
+          );
           await tester.pump();
           expect(
             midi.messages
