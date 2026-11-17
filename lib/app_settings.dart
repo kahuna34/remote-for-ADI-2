@@ -1,5 +1,7 @@
 // Einstellungen der App selbst (nicht des Geräts), gespeichert auf dem Handy.
 
+import 'eq/eq_library_feature.dart';
+
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -23,6 +25,18 @@ class AppSettings extends ChangeNotifier {
   /// Hauptansicht wechselt zum Ausgang, den das Gerät als aktiv meldet
   /// (z. B. beim Einstecken eines Kopfhörers). Wie im Original: Standard an.
   bool autoSwitchOutput = true;
+
+  bool _eqLibraryEnabled = false;
+
+  /// An nur, wenn die Bibliothek in diesem Build enthalten ist.
+  bool get eqLibraryEnabled => eqLibraryAvailable && _eqLibraryEnabled;
+  set eqLibraryEnabled(bool value) => _eqLibraryEnabled = value;
+
+  Future<void> setEqLibraryEnabled(bool value) {
+    _eqLibraryEnabled = value;
+    notifyListeners();
+    return _persistEasy((prefs) => prefs.setBool('eq_library_enabled', value));
+  }
 
   bool updateCheck = true;
   DateTime? lastUpdateCheck;
@@ -533,6 +547,7 @@ class AppSettings extends ChangeNotifier {
               )
               .firstOrNull ??
           TabletExtraContent.eq;
+      _eqLibraryEnabled = prefs.getBool('eq_library_enabled') ?? false;
       updateCheck = prefs.getBool('update_check') ?? true;
       lastUpdateCheck = DateTime.tryParse(
         prefs.getString('last_update_check') ?? '',

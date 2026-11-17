@@ -22,6 +22,7 @@ import '../app_settings.dart';
 import 'supported_models.dart';
 import 'backup.dart';
 import 'offline_defaults.dart';
+import 'offline_preparation.dart';
 import 'usb_cc_mode.dart';
 
 enum ConnState {
@@ -439,6 +440,11 @@ class Adi2Controller extends ChangeNotifier {
 
   Adi2Variant? _offlineVariant;
   Timer? _offlineSave;
+  final Map<int, OfflineSetupData> _offlineSetups = {};
+
+  bool isPresetPrepared(int n) =>
+      offline && (_eqPresets?.any((p) => p.number == n && !p.empty) ?? false);
+  bool isSetupPrepared(int n) => offline && _offlineSetups.containsKey(n);
   Timer? _readbackTimer;
   DateTime? _readbackSent;
   int _watchdogTicks = 0;
@@ -1006,6 +1012,8 @@ class Adi2Controller extends ChangeNotifier {
     names.clear();
     _presetSession++;
     _eqPresets = null;
+    _offlineSetups.clear();
+    _offlineSave?.cancel();
     _presetRead = null;
     _presetAccess = Future.value();
     _capture = null;
@@ -1547,10 +1555,40 @@ class Adi2Controller extends ChangeNotifier {
   /// dann erst kurz Manual wählen und danach das Preset.
   Future<void> loadEqPreset(int leftAddr, int select) async {
     if (hostReconnecting) return;
+    if (offline && select >= 2 && select <= 21) {
+      final preset = _eqPresets
+          ?.where((p) => p.number == select - 2 && !p.empty)
+          .firstOrNull;
+      if (preset == null) return;
+      final channel = leftAddr - 1;
+      _eqTarget.removeWhere(
+        (key, _) => key >> 8 == leftAddr || key >> 8 == leftAddr + 1,
+      );
+      final loadBt = value(leftAddr, EqIdx2.loadBtWithPreset) == 1;
+      set(
+        channel,
+        channel == Adi2Addr.input ? 8 : OutIdx.dualEq,
+        preset.dual ? 1 : 0,
+      );
+      setMany([
+        for (final e in preset.left.entries)
+          if (isPresetStoreIndex(e.key, left: true) && (e.key <= 19 || loadBt))
+            Adi2Param(leftAddr, e.key, e.value),
+        if (preset.dual)
+          for (final e in preset.right.entries)
+            if (isPresetStoreIndex(e.key, left: false))
+              Adi2Param(leftAddr + 1, e.key, e.value),
+        Adi2Param(leftAddr, EqIdx2.presetSelect, select),
+      ]);
+      _offlineSave?.cancel();
+      await _saveOffline();
+      return;
+    }
     final session = _connectionSession;
-    if (select >= 2 &&
-        !offline &&
-        value(leftAddr, EqIdx2.presetSelect) == select) {
+    // Aus „Temp“ (1) heraus lud der ADI-2 DAC ein Preset mit allen Gains auf
+    // 0 dB (gemessen 2026-11-16): auch dann erst Manual.
+    final current = value(leftAddr, EqIdx2.presetSelect);
+    if (select >= 2 && !offline && (current == select || current == 1)) {
       set(leftAddr, EqIdx2.presetSelect, 0);
       await Future<void>.delayed(const Duration(milliseconds: 200));
     }
@@ -1592,15 +1630,29 @@ class Adi2Controller extends ChangeNotifier {
     await _withPresetAccess(() async {
       final session = _presetSession;
       final id = model?.id;
-      if (id == null || offline) return;
+      if (id == null || !isConnected) throw StateError(tr('Nicht verbunden'));
+      RangeError.checkValueInInterval(n, 0, 19, 'n');
+      // Die angezeigte Kurve speichern: Gain-Anhebungen laufen gebremst
+      // (_eqTick), der Gerätewert kann also noch hinter dem Ziel liegen.
       final left = <int, int>{
         for (var i = 3; i <= 26; i++)
-          if (value(leftAddr, i) != null) i: value(leftAddr, i)!,
+          if (eqValue(leftAddr, i) != null) i: eqValue(leftAddr, i)!,
       };
       final right = <int, int>{
         for (var i = 3; i <= 19; i++)
-          if (value(rightAddr, i) != null) i: value(rightAddr, i)!,
+          if (eqValue(rightAddr, i) != null) i: eqValue(rightAddr, i)!,
       };
+      // Offene Schritte verwerfen: Sie würden sonst nach dem Laden des
+      // gespeicherten Presets dessen Kurve weiter verändern.
+      _eqTarget.removeWhere((k, _) {
+        final a = k >> 8;
+        return a == leftAddr || a == rightAddr;
+      });
+      if (offline) {
+        await _storeOfflinePreset(n, left, right, dual, name);
+        await loadEqPreset(leftAddr, n + 2);
+        return;
+      }
       await _sendStore(id, n, left, right, dual, name);
       names[n + 1] = nameBytes(name)
           .take(nameLength)
@@ -1608,11 +1660,19 @@ class Adi2Controller extends ChangeNotifier {
           .join()
           .trim();
       _cacheStoredPreset(n, left, right, dual);
-      // Gespeichertes Preset auswählen (2..21 = Preset 1..20).
       await Future.delayed(const Duration(milliseconds: 400));
       if (session != _presetSession) throw StateError(tr('Nicht verbunden'));
-      set(leftAddr, EqIdx2.presetSelect, n + 2);
       _send(buildRequestEqPreset(id, n));
+      await Future.delayed(const Duration(milliseconds: 400));
+      if (session != _presetSession) throw StateError(tr('Nicht verbunden'));
+      // Gespeichertes Preset auswählen (2..21 = Preset 1..20), immer über
+      // Manual: Aus „Temp“ (geändertes Preset) heraus lud der ADI-2 DAC
+      // dasselbe Preset mit allen Gains auf 0 dB, und war es schon gewählt,
+      // schaltete die Wahl auf Manual um (gemessen 2026-11-16).
+      set(leftAddr, EqIdx2.presetSelect, 0);
+      await Future.delayed(const Duration(milliseconds: 200));
+      if (session != _presetSession) throw StateError(tr('Nicht verbunden'));
+      set(leftAddr, EqIdx2.presetSelect, n + 2);
       await Future.delayed(const Duration(milliseconds: 250));
       if (session != _presetSession) throw StateError(tr('Nicht verbunden'));
       Future.delayed(const Duration(milliseconds: 500), requestAll);
@@ -1632,7 +1692,12 @@ class Adi2Controller extends ChangeNotifier {
     await _withPresetAccess(() async {
       final session = _presetSession;
       final id = model?.id;
-      if (id == null || offline) return;
+      if (id == null || !isConnected) throw StateError(tr('Nicht verbunden'));
+      RangeError.checkValueInInterval(n, 0, 19, 'n');
+      if (offline) {
+        await _storeOfflinePreset(n, left, right, dual, name);
+        return;
+      }
       await _sendStore(id, n, left, right, dual, name);
       names[n + 1] = nameBytes(name)
           .take(nameLength)
@@ -1704,10 +1769,142 @@ class Adi2Controller extends ChangeNotifier {
   // Offline-Modus: Einstellungen ohne Gerät festlegen, später übertragen
 
   static String _offlineKey(Adi2Variant v) => 'offline_${v.name}';
+  static String _offlinePresetsKey(Adi2Variant v) =>
+      'offline_presets_${v.name}';
+  static String _offlineSetupsKey(Adi2Variant v) => 'offline_setups_${v.name}';
+
+  String _shortName(String name) =>
+      String.fromCharCodes(nameBytes(name).take(nameLength)).trim();
+
+  /// Aktuelle Werte ohne Preset-Puffer. [withTargets]: noch laufende
+  /// EQ-Änderungen (Gain-Rampe) mit ihrem Zielwert einsetzen, also so, wie
+  /// die Anzeige sie zeigt.
+  Map<int, int> _liveValues({bool withTargets = false}) => {
+    for (final e in _values.entries)
+      if (e.key >> 8 != Adi2Addr.presetEqL && e.key >> 8 != Adi2Addr.presetEqR)
+        e.key: e.value,
+    if (withTargets)
+      for (final e in _eqTarget.entries)
+        if (e.key >> 8 != Adi2Addr.presetEqL &&
+            e.key >> 8 != Adi2Addr.presetEqR)
+          e.key: e.value,
+  };
+
+  Future<void> _storeOfflinePreset(
+    int n,
+    Map<int, int> left,
+    Map<int, int> right,
+    bool dual,
+    String name,
+  ) async {
+    final v = _offlineVariant!;
+    final session = _connectionSession;
+    final preset = EqPresetData(
+      number: n,
+      name: _shortName(name),
+      empty: false,
+      dual: dual,
+      left: Map.unmodifiable({
+        for (final e in left.entries)
+          if (isPresetStoreIndex(e.key, left: true)) e.key: e.value,
+      }),
+      right: Map.unmodifiable({
+        for (final e in right.entries)
+          if (isPresetStoreIndex(e.key, left: false)) e.key: e.value,
+      }),
+    );
+    final presets = [
+      for (final p in _eqPresets ?? <EqPresetData>[])
+        if (!p.empty && p.number != n) p,
+      preset,
+    ]..sort((a, b) => a.number.compareTo(b.number));
+    final prefs = await SharedPreferences.getInstance();
+    if (!await prefs.setString(
+      _offlinePresetsKey(v),
+      jsonEncode([for (final p in presets) p.toJson()]),
+    )) {
+      throw StateError(tr('Vorbereitung konnte nicht gespeichert werden.'));
+    }
+    if (session != _connectionSession) throw StateError(tr('Nicht verbunden'));
+    names[n + 1] = preset.name;
+    _cacheStoredPreset(n, preset.left, preset.right, dual);
+    // Also persist the current state when only prepared data was edited.
+    await _saveOffline();
+    notifyListeners();
+  }
+
+  Future<void> _persistOfflineSetups(Map<int, OfflineSetupData> setups) async {
+    final v = _offlineVariant!;
+    final session = _connectionSession;
+    final prefs = await SharedPreferences.getInstance();
+    if (!await prefs.setString(
+      _offlineSetupsKey(v),
+      jsonEncode([for (final s in setups.values) s.toJson()]),
+    )) {
+      throw StateError(tr('Vorbereitung konnte nicht gespeichert werden.'));
+    }
+    if (session != _connectionSession) throw StateError(tr('Nicht verbunden'));
+    _offlineSetups
+      ..clear()
+      ..addAll(setups);
+    for (final s in setups.values) {
+      names[0x20 + s.number] = s.name;
+    }
+    await _saveOffline();
+    notifyListeners();
+  }
+
+  Future<OfflinePreparation> readOfflinePreparation() async {
+    final v = variant;
+    if (v == null) return OfflinePreparation();
+    return _readOfflinePreparation(v);
+  }
+
+  Future<OfflinePreparation> _readOfflinePreparation(
+    Adi2Variant v, {
+    bool withSettings = true,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final settings = withSettings ? prefs.getString(_offlineKey(v)) : null;
+    final presets = prefs.getString(_offlinePresetsKey(v));
+    final setups = prefs.getString(_offlineSetupsKey(v));
+    return OfflinePreparation(
+      settings: settings == null
+          ? null
+          : {
+              for (final e
+                  in (jsonDecode(settings) as Map<String, dynamic>).entries)
+                int.parse(e.key): e.value as int,
+            },
+      presets:
+          presets == null
+                ? []
+                : [
+                        for (final j in jsonDecode(presets) as List)
+                          EqPresetData.fromJson(
+                            Map<String, dynamic>.from(j as Map),
+                          ),
+                      ]
+                      .where((p) => p.number >= 0 && p.number < 20 && !p.empty)
+                      .toList()
+            ..sort((a, b) => a.number.compareTo(b.number)),
+      setups:
+          setups == null
+                ? []
+                : [
+                    for (final j in jsonDecode(setups) as List)
+                      OfflineSetupData.fromJson(
+                        Map<String, dynamic>.from(j as Map),
+                      ),
+                  ].where((s) => s.number >= 1 && s.number <= 9).toList()
+            ..sort((a, b) => a.number.compareTo(b.number)),
+    );
+  }
 
   /// Offline arbeiten mit Modell [v]. Lädt den zuletzt gespeicherten
   /// Offline-Stand oder die Werkseinstellungen.
   Future<void> startOffline(Adi2Variant v, {String? label}) async {
+    if (offline) await _saveOffline();
     if (_viaHost) {
       _viaHost = false;
       host.disconnect();
@@ -1730,6 +1927,19 @@ class Adi2Controller extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('Offline-Stand laden fehlgeschlagen: $e');
+    }
+    final prepared = await _readOfflinePreparation(v, withSettings: false);
+    _eqPresets = List.unmodifiable([
+      for (var n = 0; n < 20; n++)
+        prepared.presets.where((p) => p.number == n).firstOrNull ??
+            EqPresetData(number: n, name: '', empty: true, dual: false),
+    ]);
+    for (final p in prepared.presets) {
+      names[p.number + 1] = p.name;
+    }
+    for (final s in prepared.setups) {
+      _offlineSetups[s.number] = s;
+      names[0x20 + s.number] = s.name;
     }
     error = null;
     state = ConnState.offline;
@@ -1756,6 +1966,20 @@ class Adi2Controller extends ChangeNotifier {
   Future<void> resetOffline() async {
     final v = _offlineVariant;
     if (v == null) return;
+    _offlineSave?.cancel();
+    stopAllVolumeRamps();
+    _eqTarget.clear();
+    final prefs = await SharedPreferences.getInstance();
+    if (!await prefs.remove(_offlinePresetsKey(v)) ||
+        !await prefs.remove(_offlineSetupsKey(v))) {
+      throw StateError(tr('Vorbereitung konnte nicht gespeichert werden.'));
+    }
+    _offlineSetups.clear();
+    names.clear();
+    _eqPresets = List.unmodifiable([
+      for (var n = 0; n < 20; n++)
+        EqPresetData(number: n, name: '', empty: true, dual: false),
+    ]);
     _values
       ..clear()
       ..addAll(offlineDefaults(v));
@@ -1810,14 +2034,160 @@ class Adi2Controller extends ChangeNotifier {
     });
   }
 
+  bool _canTransferValue(Map<int, int> vals, int key) {
+    final a = key >> 8, i = key & 0xff;
+    if (isTransferExcluded(a, i)) return false;
+    if (a <= Adi2Addr.ph34 + 2 && a % 3 == 2) {
+      final channel = a - 2;
+      final dualIndex = channel == Adi2Addr.input ? 8 : OutIdx.dualEq;
+      if ((vals[channel << 8 | dualIndex] ?? value(channel, dualIndex)) != 1) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Transfers only selected app-owned slots, in order: presets, setups, settings.
+  /// A setup is committed only after a fresh complete readback. Temporary live
+  /// settings are restored even when confirmation fails (if still connected).
+  Future<PreparedTransferResult> transferPrepared({
+    bool withSettings = true,
+    bool withPresets = true,
+    bool withSetups = true,
+    void Function(double)? progress,
+  }) async {
+    final session = _connectionSession;
+    final v = variant;
+    final id = model?.id;
+    void check() {
+      if (_disposed ||
+          id == null ||
+          v == null ||
+          session != _connectionSession ||
+          offline ||
+          !isConnected ||
+          hostReconnecting ||
+          variant != v ||
+          model?.id != id) {
+        throw StateError(tr('Nicht verbunden'));
+      }
+    }
+
+    check();
+    return _withPresetAccess(() async {
+      check();
+      final prepared = await readOfflinePreparation();
+      check();
+      final presets = withPresets ? prepared.presets : <EqPresetData>[];
+      final setups = withSetups ? prepared.setups : <OfflineSetupData>[];
+      final settings = withSettings ? prepared.settings : null;
+      final total = presets.length + setups.length + (settings == null ? 0 : 1);
+      var done = 0, presetCount = 0, setupCount = 0, settingsCount = 0;
+      void advance() => progress?.call(total == 0 ? 1 : ++done / total);
+      progress?.call(0);
+      for (final p in presets) {
+        check();
+        await _sendStore(id!, p.number, p.left, p.right, p.dual, p.name);
+        check();
+        names[p.number + 1] = p.name;
+        _cacheStoredPreset(p.number, p.left, p.right, p.dual);
+        presetCount++;
+        advance();
+      }
+      Map<int, int>? previous;
+      var settingsApplied = false;
+      try {
+        if (setups.isNotEmpty) {
+          stopAllVolumeRamps();
+          _eqTarget.clear();
+          if (!await refreshConfirmedValues()) {
+            throw StateError(
+              tr(
+                'Gerätestand konnte nicht bestätigt werden. Das aktuelle Setup wurde nicht gespeichert.',
+              ),
+            );
+          }
+          check();
+          previous = _liveValues();
+        }
+        for (final setup in setups) {
+          check();
+          _applyValues(setup.values, respectDual: true);
+          final required = [
+            for (final key in setup.values.keys)
+              if (_canTransferValue(setup.values, key)) key,
+          ];
+          final confirmed = await refreshConfirmedValues(
+            requiredKeys: required,
+          );
+          check();
+          // Nicht nur Antwort abwarten, sondern Werte vergleichen: Hat das
+          // Gerät einen Wert nicht übernommen, darf das Setup nicht
+          // gespeichert werden. Lautstärken dürfen leiser sein (nie lauter).
+          bool matches(int key) {
+            final want = setup.values[key];
+            final got = value(key >> 8, key & 0xFF);
+            if (want == null || got == null) return false;
+            if ((key & 0xFF) == OutIdx.volume &&
+                volumeAddresses.contains(key >> 8)) {
+              return got <= want;
+            }
+            return got == want;
+          }
+
+          if (!confirmed || !required.every(matches)) {
+            throw StateError(
+              tr(
+                'Gerätestand konnte nicht bestätigt werden. Das aktuelle Setup wurde nicht gespeichert.',
+              ),
+            );
+          }
+          await saveSetup(setup.number);
+          check();
+          await renameSetup(setup.number, setup.name);
+          check();
+          setupCount++;
+          advance();
+        }
+        if (settings != null) {
+          check();
+          settingsCount = _applyValues(settings, respectDual: true);
+          settingsApplied = true;
+          advance();
+        }
+      } finally {
+        // Never send restoration commands to a new or disconnected session.
+        if (previous != null &&
+            !settingsApplied &&
+            session == _connectionSession &&
+            isConnected &&
+            !offline &&
+            !hostReconnecting) {
+          _applyValues(previous, respectDual: true);
+        }
+      }
+      check();
+      progress?.call(1);
+      notifyListeners();
+      return PreparedTransferResult(
+        presets: presetCount,
+        setups: setupCount,
+        settings: settingsCount,
+      );
+    });
+  }
+
   /// Schreibt einen Satz Werte ins Gerät: nur Abweichungen, Lautstärken nur
   /// leiser, Ref-Level-Wechsel erst nach dem Senken. Gibt die Anzahl zurück.
-  int _applyValues(Map<int, int> vals) {
+  int _applyValues(Map<int, int> vals, {bool respectDual = false}) {
     if (hostReconnecting) return 0;
     final out = <Adi2Param>[];
     for (final e in vals.entries) {
       final a = e.key >> 8, i = e.key & 0xFF, val = e.value;
-      if (isTransferExcluded(a, i)) continue;
+      if (isTransferExcluded(a, i) ||
+          (respectDual && !_canTransferValue(vals, e.key))) {
+        continue;
+      }
       if (i == OutIdx.volume && volumeAddresses.contains(a)) {
         final cur = value(a, i);
         final lim = volGuard.limitFor(a);
@@ -1846,13 +2216,24 @@ class Adi2Controller extends ChangeNotifier {
         );
       }
     }
+    int priority(Adi2Param p) =>
+        volumeAddresses.contains(p.address) && p.index == OutIdx.refLevel
+        ? 0
+        : p.address % 3 == 0 && p.index == (p.address == 0 ? 8 : OutIdx.dualEq)
+        ? 1
+        : 2;
     out.sort(
-      (x, y) => (y.index == OutIdx.refLevel ? 1 : 0).compareTo(
-        x.index == OutIdx.refLevel ? 1 : 0,
-      ),
+      (x, y) => respectDual
+          ? priority(x).compareTo(priority(y))
+          : (y.index == OutIdx.refLevel ? 1 : 0).compareTo(
+              x.index == OutIdx.refLevel ? 1 : 0,
+            ),
     );
     setMany(out);
-    Future.delayed(const Duration(milliseconds: 500), requestAll);
+    final session = _connectionSession;
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (!_disposed && session == _connectionSession) requestAll();
+    });
     return out.length;
   }
 
@@ -2051,12 +2432,15 @@ class Adi2Controller extends ChangeNotifier {
   /// Mit [requiredKeys] muss jeder Schlüssel seit Abfragebeginn bestätigt sein.
   Future<bool> refreshConfirmedValues({List<int>? requiredKeys}) async {
     if (model == null || offline || state != ConnState.connected) return false;
+    final session = _connectionSession;
     final before = _paramsMessages;
     requestAll();
     var seen = before, quietTicks = 0;
     for (var waited = 0; waited < 2000; waited += 25) {
       await Future<void>.delayed(const Duration(milliseconds: 25));
-      if (state != ConnState.connected) return false;
+      if (state != ConnState.connected || session != _connectionSession) {
+        return false;
+      }
       if (_paramsMessages == before) continue;
       quietTicks = _paramsMessages == seen ? quietTicks + 1 : 0;
       seen = _paramsMessages;
@@ -2072,32 +2456,53 @@ class Adi2Controller extends ChangeNotifier {
     return false;
   }
 
-  void loadSetup(int n) {
-    if (hostReconnecting) return;
+  Future<void> loadSetup(int n) async {
+    if (hostReconnecting || n < 1 || n > 9) return;
+    if (offline) {
+      final setup = _offlineSetups[n];
+      if (setup == null) return;
+      stopAllVolumeRamps();
+      _eqTarget.clear();
+      _values
+        ..clear()
+        ..addAll(setup.values);
+      await _saveOffline();
+      notifyListeners();
+      return;
+    }
     final session = _connectionSession;
-    unawaited(
-      withDaFilterProbePaused(() async {
-        if (session != _connectionSession) return;
-        final id = model?.id;
-        if (id == null) return;
-        _send(buildLoadSetup(id, n));
-        await Future<void>.delayed(const Duration(milliseconds: 400));
-        requestAll();
-      }),
-    );
+    await withDaFilterProbePaused(() async {
+      if (session != _connectionSession) return;
+      final id = model?.id;
+      if (id == null) return;
+      _send(buildLoadSetup(id, n));
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      if (session == _connectionSession) requestAll();
+    });
   }
 
-  void saveSetup(int n) {
-    if (hostReconnecting) return;
+  Future<void> saveSetup(int n) async {
+    if (hostReconnecting || n < 1 || n > 9) return;
+    if (offline) {
+      await _withPresetAccess(
+        () => _persistOfflineSetups({
+          ..._offlineSetups,
+          n: OfflineSetupData(
+            number: n,
+            name: names[0x20 + n] ?? '',
+            values: _liveValues(withTargets: true),
+          ),
+        }),
+      );
+      return;
+    }
     final session = _connectionSession;
-    unawaited(
-      withDaFilterProbePaused(() async {
-        if (session != _connectionSession) return;
-        final id = model?.id;
-        if (id != null) _send(buildSaveSetup(id, n));
-        await Future<void>.delayed(const Duration(milliseconds: 400));
-      }),
-    );
+    await withDaFilterProbePaused(() async {
+      if (session != _connectionSession) return;
+      final id = model?.id;
+      if (id != null) _send(buildSaveSetup(id, n));
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+    });
   }
 
   void loadFactory() {
@@ -2115,21 +2520,34 @@ class Adi2Controller extends ChangeNotifier {
     );
   }
 
-  void renameSetup(int n, String name) {
-    if (hostReconnecting) return;
+  Future<void> renameSetup(int n, String name) async {
+    if (hostReconnecting || n < 1 || n > 9) return;
+    if (offline) {
+      await _withPresetAccess(() async {
+        final setup = _offlineSetups[n];
+        // A name alone must not mark an empty slot as prepared.
+        if (setup == null) return;
+        await _persistOfflineSetups({
+          ..._offlineSetups,
+          n: OfflineSetupData(
+            number: n,
+            name: _shortName(name),
+            values: setup.values,
+          ),
+        });
+      });
+      return;
+    }
     final session = _connectionSession;
-    unawaited(
-      withDaFilterProbePaused(() async {
-        if (session != _connectionSession) return;
-        final id = model?.id;
-        if (id == null || offline || n < 1 || n > 9) return;
-        _send(buildSendName(id, 0x20 + n, name));
-        names[0x20 + n] = String.fromCharCodes(nameBytes(name).take(nameLength))
-            .trim();
-        notifyListeners();
-        await Future<void>.delayed(const Duration(milliseconds: 400));
-      }),
-    );
+    await withDaFilterProbePaused(() async {
+      if (session != _connectionSession) return;
+      final id = model?.id;
+      if (id == null) return;
+      _send(buildSendName(id, 0x20 + n, name));
+      names[0x20 + n] = _shortName(name);
+      notifyListeners();
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+    });
   }
 
   void toggleOutputs() => set(Adi2Addr.device, DevIdx.doToggleOutputs, 0);

@@ -1,7 +1,11 @@
+import 'dart:async';
 import 'dart:io';
+
+import 'package:adi2_remote/app_settings.dart';
 
 import 'package:adi2_remote/device/adi2_controller.dart';
 import 'package:adi2_remote/device/backup.dart';
+import 'package:adi2_remote/device/offline_preparation.dart';
 import 'package:adi2_remote/eq/eq_editor_buffer.dart';
 import 'package:adi2_remote/eq/eq_library.dart';
 import 'package:adi2_remote/eq/eq_math.dart';
@@ -17,7 +21,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:adi2_remote/eq/eq_library_feature.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 Finder getCurveSwitch() => find.descendant(
   of: find
@@ -74,23 +80,45 @@ class _Controller extends Adi2Controller {
   int offlineChecks = 0;
   int transfers = 0;
   int transferred = 3;
+  OfflinePreparation? preparation;
+  (bool, bool, bool)? transferSelection;
+  Completer<PreparedTransferResult>? pendingTransfer;
   int resets = 0;
   int backups = 0;
 
   @override
-  void loadSetup(int n) => loadedSetups.add(n);
-  @override
-  void saveSetup(int n) => savedSetups.add(n);
-  @override
-  Future<bool> hasOfflineData() async {
-    offlineChecks++;
-    return offlineData;
+  Future<void> loadSetup(int n) async {
+    loadedSetups.add(n);
   }
 
   @override
-  Future<int> transferOffline() async {
+  Future<void> saveSetup(int n) async {
+    savedSetups.add(n);
+  }
+
+  @override
+  Future<OfflinePreparation> readOfflinePreparation() async {
+    offlineChecks++;
+    return !offlineData
+        ? OfflinePreparation()
+        : preparation ?? OfflinePreparation(settings: {1: 0});
+  }
+
+  @override
+  Future<PreparedTransferResult> transferPrepared({
+    bool withSettings = true,
+    bool withPresets = true,
+    bool withSetups = true,
+    void Function(double)? progress,
+  }) async {
     transfers++;
-    return transferred;
+    transferSelection = (withSettings, withPresets, withSetups);
+    if (pendingTransfer != null) {
+      progress?.call(0.5);
+      return pendingTransfer!.future;
+    }
+    progress?.call(1);
+    return PreparedTransferResult(settings: transferred);
   }
 
   @override
@@ -251,6 +279,22 @@ void main() {
     await tap(tester, find.text(entry));
   }
 
+  testWidgets('Bibliothek nur bei aktivierter Einstellung im Setups-Editor', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    await tester.runAsync(
+      () => AppSettings.instance.setEqLibraryEnabled(false),
+    );
+    addTearDown(() => AppSettings.instance.eqLibraryEnabled = false);
+    await showPage(tester);
+    expect(find.text('Bibliothek'), findsNothing);
+    await tester.runAsync(() => AppSettings.instance.setEqLibraryEnabled(true));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text('Bibliothek'), findsOneWidget);
+  }, skip: !eqLibraryAvailable);
+
   testWidgets(
     'Slots laden nur in den Editor und werden einmal automatisch gelesen',
     (tester) async {
@@ -311,7 +355,8 @@ void main() {
     await showPage(tester);
     await tap(tester, find.byKey(const ValueKey('eq-listen')));
     await tap(tester, find.widgetWithText(OutlinedButton, 'Eingang'));
-    expect(controller.eqWrites.last.$1, 2);
+    // Ohne Dual EQ geht nur der linke Kanal raus.
+    expect(controller.eqWrites.last.$1, 1);
     await tap(
       tester,
       find.descendant(
@@ -430,7 +475,7 @@ void main() {
   });
 
   testWidgets(
-    'Offline sind Editor und Bibliothek verfügbar, Geräteaktionen verborgen',
+    'Offline sind Editor, App-Speichern, Setups und Bibliothek verfügbar',
     (tester) async {
       controller.isOffline = true;
       await tester.runAsync(
@@ -442,7 +487,8 @@ void main() {
       expect(controller.reads, 0);
       expect(find.text('Ins Gerät speichern'), findsNothing);
       expect(find.text('Neu einlesen'), findsNothing);
-      expect(find.text('Geräte-Setups 1–9'), findsNothing);
+      expect(find.text('Geräte-Setups 1–9'), findsOneWidget);
+      expect(find.text('In App speichern'), findsOneWidget);
       await fileMenu(tester, 'Aus App-Bibliothek laden');
       await tap(tester, find.text('Offline EQ'));
       expect(find.text('+1,0 dB'), findsOneWidget);
@@ -520,7 +566,9 @@ void main() {
   void expectBuffer(EqEditorBuffer buffer, int target) {
     expect(controller.eqWrites, [
       for (final e in buffer.left.entries) (target + 1, e.key, e.value),
-      for (final e in buffer.right.entries) (target + 2, e.key, e.value),
+      // Rechts nur mit Dual EQ (ohne übernimmt der ADI-2 rechte Werte links).
+      if (buffer.dual)
+        for (final e in buffer.right.entries) (target + 2, e.key, e.value),
     ]);
   }
 
@@ -981,15 +1029,113 @@ void main() {
       await tap(tester, find.text('Offline-Einstellungen übertragen'));
       await tap(tester, find.widgetWithText(FilledButton, 'Übertragen'));
       expect(controller.transfers, 1);
-      expect(find.text('3 Einstellungen übertragen.'), findsOneWidget);
+      expect(
+        find.text('0 Presets, 0 Setups, 3 Einstellungen übertragen.'),
+        findsOneWidget,
+      );
       controller.transferred = 0;
       await tap(tester, find.text('Offline-Einstellungen übertragen'));
       await tap(tester, find.widgetWithText(FilledButton, 'Übertragen'));
       expect(controller.transfers, 2);
       expect(
-        find.text('Gerät entspricht bereits dem Offline-Stand.'),
+        find.text('0 Presets, 0 Setups, 0 Einstellungen übertragen.'),
         findsOneWidget,
       );
+    },
+  );
+
+  testWidgets(
+    'Transfer zeigt vorbereitete Nummern/Namen, wählt standardmäßig alles und sperrt während Fortschritt',
+    (tester) async {
+      controller.preparation = OfflinePreparation(
+        settings: {1: 0},
+        presets: [
+          EqPresetData(number: 6, name: 'Seven', empty: false, dual: false),
+        ],
+        setups: [OfflineSetupData(number: 3, name: 'Three', values: {})],
+      );
+      controller.pendingTransfer = Completer<PreparedTransferResult>();
+      await showPage(tester);
+      await tap(tester, find.text('Offline-Einstellungen übertragen'));
+      expect(find.byType(CheckboxListTile), findsNWidgets(3));
+      expect(
+        tester
+            .widgetList<CheckboxListTile>(find.byType(CheckboxListTile))
+            .every((c) => c.value == true),
+        isTrue,
+      );
+      expect(find.text('7: Seven'), findsOneWidget);
+      expect(find.text('3: Three'), findsOneWidget);
+      await tap(tester, find.widgetWithText(FilledButton, 'Übertragen'));
+      expect(controller.transferSelection, (true, true, true));
+      expect(find.text('Übertragung: 50 %'), findsOneWidget);
+      final listen = find.byKey(const ValueKey('eq-listen'));
+      final blocker = find.ancestor(
+        of: listen,
+        matching: find.byType(AbsorbPointer),
+      );
+      expect(
+        tester.widgetList<AbsorbPointer>(blocker).any((a) => a.absorbing),
+        isTrue,
+      );
+      expect(
+        tester
+            .widget<TextButton>(
+              find.widgetWithText(TextButton, 'Ins Gerät speichern').first,
+            )
+            .onPressed,
+        isNull,
+      );
+      controller.pendingTransfer!.complete(
+        const PreparedTransferResult(presets: 1, setups: 1, settings: 2),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.text('1 Presets, 1 Setups, 2 Einstellungen übertragen.'),
+        findsOneWidget,
+      );
+      expect(
+        tester.widgetList<AbsorbPointer>(blocker).every((a) => !a.absorbing),
+        isTrue,
+      );
+    },
+  );
+
+  testWidgets(
+    'Transfer übernimmt abgewählte Bereiche und deaktiviert Übertragen ohne Auswahl',
+    (tester) async {
+      controller.preparation = OfflinePreparation(
+        settings: {1: 0},
+        presets: [
+          EqPresetData(number: 0, name: 'One', empty: false, dual: false),
+        ],
+        setups: [OfflineSetupData(number: 1, name: 'One', values: {})],
+      );
+      await showPage(tester);
+      await tap(tester, find.text('Offline-Einstellungen übertragen'));
+      await tap(tester, find.widgetWithText(CheckboxListTile, 'Einstellungen'));
+      await tap(
+        tester,
+        find.widgetWithText(CheckboxListTile, 'Vorbereitete EQ-Presets'),
+      );
+      await tap(
+        tester,
+        find.widgetWithText(CheckboxListTile, 'Vorbereitete Setups'),
+      );
+      expect(
+        tester
+            .widget<FilledButton>(
+              find.widgetWithText(FilledButton, 'Übertragen'),
+            )
+            .onPressed,
+        isNull,
+      );
+      await tap(
+        tester,
+        find.widgetWithText(CheckboxListTile, 'Vorbereitete Setups'),
+      );
+      await tap(tester, find.widgetWithText(FilledButton, 'Übertragen'));
+      expect(controller.transferSelection, (false, false, true));
     },
   );
 

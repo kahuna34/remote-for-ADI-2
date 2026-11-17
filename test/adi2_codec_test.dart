@@ -120,11 +120,15 @@ void main() {
       if (p is Adi2ParamsMessage) params.addAll(p.params);
     }
     expect(params.any((p) => p.index == 20 || p.index == 27), isFalse);
+    // Ohne Dual: rechts eine Kopie der linken Bänder (nicht die übergebenen
+    // rechten Werte), sonst lädt der ADI-2 Gains/Typen von rechts als 0/Peak.
+    final right = params.where((p) => p.address == Adi2Addr.presetEqR);
     expect(
-      params.any((p) => p.address == Adi2Addr.presetEqR),
-      isFalse,
-      reason: 'rechts nur bei Dual',
+      right,
+      containsAll(const [Adi2Param(14, 3, 1), Adi2Param(14, 10, 12)]),
     );
+    expect(right.any((p) => p.value == 4), isFalse);
+    expect(right.any((p) => p.index > 19), isFalse);
     // Reihenfolge: zuletzt die Kennung, davor der Name
     final last = parseSysex(msgs.last) as Adi2ParamsMessage;
     expect(last.params.single, const Adi2Param(13, 2, 19 << 4));

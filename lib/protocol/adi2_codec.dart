@@ -219,14 +219,23 @@ List<Uint8List> buildStoreEqPreset(
   bool dual,
   String? name,
 ) {
+  // Ohne Dual EQ trotzdem rechts speichern, und zwar die linken Bänder:
+  // Beim Laden übernimmt der ADI-2 Gains und Typen des rechten Kanals auch
+  // links. Blieb rechts leer, kam das Preset mit 0 dB und Peak an (gemessen
+  // am ADI-2 Pro über den Host, 2026-11-17).
+  final rightData = dual
+      ? right
+      : {
+          for (final e in left.entries)
+            if (e.key <= 19) e.key: e.value,
+        };
   final ps = <Adi2Param>[
     for (final e in left.entries)
       if (isPresetStoreIndex(e.key, left: true))
         Adi2Param(Adi2Addr.presetEqL, e.key, e.value),
-    if (dual)
-      for (final e in right.entries)
-        if (isPresetStoreIndex(e.key, left: false))
-          Adi2Param(Adi2Addr.presetEqR, e.key, e.value),
+    for (final e in rightData.entries)
+      if (isPresetStoreIndex(e.key, left: false))
+        Adi2Param(Adi2Addr.presetEqR, e.key, e.value),
   ];
   return [
     ...buildSetParams(deviceId, ps),

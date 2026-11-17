@@ -6,6 +6,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../app_settings.dart';
+import '../eq/eq_library.dart';
+import '../eq/eq_editor_buffer.dart';
+import '../eq/eq_editor_apply.dart';
+import 'eq_preset_library_page.dart';
 import '../l10n/l10n.dart';
 import '../device/adi2_controller.dart';
 import '../eq/eq_math.dart';
@@ -59,7 +63,7 @@ class _EqPageState extends State<EqPage> {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: c,
+      listenable: Listenable.merge([c, AppSettings.instance]),
       builder: (context, _) {
         if (c.variant == null) {
           return Scaffold(
@@ -225,7 +229,9 @@ class _EqPageState extends State<EqPage> {
     23 => tr('Rumpelfilter'),
     _ => trf('Preset {n}: {name}', {
       'n': sel - 1,
-      'name': c.presetName(sel - 2),
+      'name': c.isPresetPrepared(sel - 2)
+          ? trf('{name} (vorbereitet)', {'name': c.presetName(sel - 2)})
+          : c.presetName(sel - 2),
     }),
   };
 
@@ -240,6 +246,11 @@ class _EqPageState extends State<EqPage> {
         builder: (ctx, sc) => ListView(
           controller: sc,
           children: [
+            if (AppSettings.instance.eqLibraryEnabled)
+              ListTile(
+                title: Text(tr('Bibliothek …')),
+                onTap: () => Navigator.pop(ctx, -1),
+              ),
             // Immer dieselben Zeilen: Erschiene „Temp“ nur zeitweise, rutschten
             // die Presets darunter und ein Tipp träfe das falsche.
             for (var i = 0; i <= max; i++)
@@ -255,13 +266,50 @@ class _EqPageState extends State<EqPage> {
         ),
       ),
     );
-    if (picked != null) unawaited(c.loadEqPreset(_left, picked));
+    if (!mounted || picked == null) return;
+    if (picked == -1) {
+      final preset = await Navigator.push<AppEqPreset>(
+        context,
+        MaterialPageRoute(builder: (_) => const EqPresetLibraryPage()),
+      );
+      if (preset == null || !mounted) return;
+      final editor = EqEditorBuffer()..loadAppPreset(preset);
+      applyEqEditor(c, widget.channelAddr, editor, enableBassTreble: true);
+      setState(() => _right = false);
+    } else {
+      unawaited(c.loadEqPreset(_left, picked));
+    }
+  }
+
+  /// Vorschlag, wenn kein Preset gewählt ist (Manual oder Temp, z. B. nach
+  /// dem Laden aus der Bibliothek): erster freier Platz, damit nicht
+  /// versehentlich Preset 1 überschrieben wird. Ohne bekannte Belegung der
+  /// erste Platz ohne Namen, sonst Preset 1.
+  int _suggestedSlot() {
+    if (c.offline) {
+      for (var n = 0; n < 20; n++) {
+        if (!c.isPresetPrepared(n)) return n;
+      }
+      return 0;
+    }
+    final presets = c.eqPresets;
+    if (presets != null && presets.isNotEmpty) {
+      for (final p in presets) {
+        if (p.empty) return p.number;
+      }
+      if (presets.length == 20) return 0;
+    }
+    for (var n = 0; n < 20; n++) {
+      final name = c.names[n + 1];
+      if (name == null || name.trim().isEmpty) return n;
+    }
+    return 0;
   }
 
   Future<void> _storePreset(int sel) async {
-    var slot = (sel >= 2 && sel <= 21) ? sel - 2 : 0;
+    var slot = (sel >= 2 && sel <= 21) ? sel - 2 : _suggestedSlot();
     final nameCtl = TextEditingController(text: c.presetName(slot));
-    final ok = await showDialog<bool>(
+    final route = DialogRoute<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setD) => AlertDialog(
@@ -297,7 +345,9 @@ class _EqPageState extends State<EqPage> {
                 decoration: InputDecoration(labelText: tr('Name')),
               ),
               Text(
-                tr('Das Preset im Gerät wird überschrieben.'),
+                c.offline
+                    ? tr('Das Preset in der App wird überschrieben.')
+                    : tr('Das Preset im Gerät wird überschrieben.'),
                 style: ts(13, color: Palette.muted),
               ),
             ],
@@ -315,15 +365,31 @@ class _EqPageState extends State<EqPage> {
         ),
       ),
     );
-    if (ok == true) {
-      await c.storeEqPreset(_left, _rightAddr, slot, nameCtl.text, _dual);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(trf('Gespeichert als Preset {n}', {'n': slot + 1})),
+    final ok = await Navigator.of(context, rootNavigator: true).push(route);
+    final name = nameCtl.text;
+    // Keep the controller alive until the closing route releases its fields.
+    unawaited(route.completed.then((_) => nameCtl.dispose()));
+    if (ok != true || !mounted) return;
+    final wasOffline = c.offline;
+    try {
+      await c.storeEqPreset(_left, _rightAddr, slot, name, _dual);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            wasOffline
+                ? trf('In der App gespeichert als Preset {n}', {'n': slot + 1})
+                : trf('Gespeichert als Preset {n}', {'n': slot + 1}),
           ),
-        );
-      }
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tr('Vorgang konnte nicht abgeschlossen werden.')),
+        ),
+      );
     }
   }
 }

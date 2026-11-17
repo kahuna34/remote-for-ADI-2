@@ -33,13 +33,19 @@ class _Controller extends Adi2Controller {
   }
 
   @override
-  void loadSetup(int n) => loaded.add(n);
+  Future<void> loadSetup(int n) async {
+    loaded.add(n);
+  }
+
   @override
-  void saveSetup(int n) => saved.add(n);
+  Future<void> saveSetup(int n) async {
+    saved.add(n);
+  }
+
   @override
   void loadFactory() => factories++;
   @override
-  void renameSetup(int n, String name) {
+  Future<void> renameSetup(int n, String name) async {
     renamed = (n, name);
     names[0x20 + n] = name;
     notifyListeners();

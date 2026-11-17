@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../device/adi2_controller.dart';
+import '../app_settings.dart';
+import '../eq/eq_editor_apply.dart';
+import 'eq_preset_library_page.dart';
 import '../device/backup.dart';
 import '../eq/eq_editor_buffer.dart';
 import '../eq/eq_library.dart';
@@ -25,6 +28,13 @@ class SetupsPage extends StatefulWidget {
 }
 
 class _SetupsPageState extends State<SetupsPage> {
+  // Schmale Knöpfe: Laden/Speichern passen auch bei großer Schrift neben
+  // den Setup-Namen.
+  static final _compactButton = TextButton.styleFrom(
+    padding: const EdgeInsets.symmetric(horizontal: 8),
+    minimumSize: const Size(48, 40),
+  );
+
   final _editor = EqEditorBuffer();
   EqEditorBuffer? _clipboard;
   final Map<int, String> _slotNames = {};
@@ -32,17 +42,18 @@ class _SetupsPageState extends State<SetupsPage> {
   int? _selectedTarget;
   bool _busy = false;
   bool _listen = false;
+  bool _enableLibraryBt = false;
   bool _right = false;
   bool _includeBassTreble = true;
   int _band = 0;
   int _slot = 0;
   double? _readProgress;
+  double? _transferProgress;
 
   Adi2Controller get c => widget.ctrl;
   int get _target => _selectedTarget ?? c.selectedOutput ?? Adi2Addr.line;
   int get _eqAddress =>
       _editor.dual && _right ? Adi2Addr.presetEqR : Adi2Addr.presetEqL;
-  int _dualIdx(int target) => target == 0 ? 8 : OutIdx.dualEq;
 
   @override
   void initState() {
@@ -76,16 +87,7 @@ class _SetupsPageState extends State<SetupsPage> {
 
   void _sendEditor() {
     if (!_listen) return;
-    final target = _target;
-    for (final entry in _editor.left.entries) {
-      c.setEq(target + 1, entry.key, entry.value);
-    }
-    for (final entry in _editor.right.entries) {
-      c.setEq(target + 2, entry.key, entry.value);
-    }
-    if (c.valueOr(target, _dualIdx(target), 0) != (_editor.dual ? 1 : 0)) {
-      c.set(target, _dualIdx(target), _editor.dual ? 1 : 0);
-    }
+    applyEqEditor(c, _target, _editor, enableBassTreble: _enableLibraryBt);
   }
 
   void _write(int address, int index, int raw) {
@@ -101,6 +103,7 @@ class _SetupsPageState extends State<SetupsPage> {
 
   void _loadAppPreset(AppEqPreset preset) {
     setState(() {
+      _enableLibraryBt = preset.left[20] == 1;
       _editor.loadAppPreset(preset);
       _right = false;
     });
@@ -109,7 +112,10 @@ class _SetupsPageState extends State<SetupsPage> {
   }
 
   EqPresetData? _preset(int slot) =>
-      c.eqPresets?.where((p) => p.number == slot).firstOrNull;
+      c.eqPresets?.where((p) => p.number == slot).firstOrNull ??
+      (c.offline
+          ? EqPresetData(number: slot, name: '', empty: true, dual: false)
+          : null);
   String _slotName(int slot) =>
       _slotNames[slot] ??
       (_preset(slot)?.name.isNotEmpty == true
@@ -120,6 +126,7 @@ class _SetupsPageState extends State<SetupsPage> {
     final preset = _preset(slot);
     setState(() {
       _slot = slot;
+      _enableLibraryBt = false;
       if (preset != null) {
         _editor.loadDevicePreset(preset);
         _editor.name = _slotNames[slot] ?? _editor.name;
@@ -180,7 +187,9 @@ class _SetupsPageState extends State<SetupsPage> {
                 ),
                 if (store)
                   Text(
-                    tr('Das Preset im Gerät wird überschrieben.'),
+                    c.offline
+                        ? tr('Das Preset in der App wird überschrieben.')
+                        : tr('Das Preset im Gerät wird überschrieben.'),
                     style: ts(13, color: Palette.muted),
                   ),
               ],
@@ -227,7 +236,8 @@ class _SetupsPageState extends State<SetupsPage> {
       device: true,
       store: true,
     );
-    if (name == null || c.offline) return;
+    if (name == null) return;
+    final wasOffline = c.offline;
     await c.storeEqPresetData(
       slot,
       _editor.left,
@@ -240,7 +250,11 @@ class _SetupsPageState extends State<SetupsPage> {
       _slotNames[slot] = c.names[slot + 1] ?? name;
       _editor.name = _slotNames[slot]!;
     });
-    _msg(trf('Gespeichert als Preset {n}', {'n': slot + 1}));
+    _msg(
+      wasOffline
+          ? trf('In der App gespeichert als Preset {n}', {'n': slot + 1})
+          : trf('Gespeichert als Preset {n}', {'n': slot + 1}),
+    );
   }
 
   Future<void> _clear() async {
@@ -336,6 +350,17 @@ class _SetupsPageState extends State<SetupsPage> {
     }
   }
 
+  Future<void> _oratoryLibrary() async {
+    final preset = await Navigator.push<AppEqPreset>(
+      context,
+      MaterialPageRoute(builder: (_) => const EqPresetLibraryPage()),
+    );
+    final items = await EqLibrary.load();
+    if (!mounted) return;
+    setState(() => _items = items);
+    if (preset != null) _loadAppPreset(preset);
+  }
+
   Future<void> _library() async {
     await showModalBottomSheet<void>(
       context: context,
@@ -347,6 +372,14 @@ class _SetupsPageState extends State<SetupsPage> {
             child: Column(
               children: [
                 Text(tr('App-Bibliothek'), style: ts(18, weight: 600)),
+                if (AppSettings.instance.eqLibraryEnabled)
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(sheetContext);
+                      _oratoryLibrary();
+                    },
+                    child: Text(tr('Bibliothek')),
+                  ),
                 TextButton.icon(
                   icon: const Icon(Icons.file_open_outlined),
                   label: Text(tr('Importieren')),
@@ -431,10 +464,23 @@ class _SetupsPageState extends State<SetupsPage> {
   Future<void> _saveSetup(int n) async {
     final ok = await _confirm(
       trf('{name} überschreiben?', {'name': _setupName(n)}),
-      tr('Die aktuellen Einstellungen werden im Gerät gespeichert.'),
+      c.offline
+          ? tr(
+              'Die aktuellen Einstellungen werden als Setup in der App gespeichert.',
+            )
+          : tr('Die aktuellen Einstellungen werden im Gerät gespeichert.'),
       tr('Speichern'),
     );
-    if (ok && !c.offline) c.saveSetup(n);
+    if (ok) await c.saveSetup(n);
+  }
+
+  Future<void> _renameSetup(int n) async {
+    final name = await _nameDialog(
+      tr('Umbenennen'),
+      _setupName(n),
+      device: true,
+    );
+    if (name != null) await c.renameSetup(n, name);
   }
 
   Future<void> _transferInfo() => showModalBottomSheet<void>(
@@ -460,13 +506,13 @@ class _SetupsPageState extends State<SetupsPage> {
                 'Was es ist: Im Offline-Modus (Startbildschirm → Ohne Gerät arbeiten → Modell wählen) festgelegte Einstellungen werden je Modell in der App gespeichert.',
               ),
               tr(
-                'Was übertragen wird: Der gespeicherte Offline-Stand (Ausgänge, EQ, Gerät …) wird ins angeschlossene Gerät gleichen Modells übertragen. Nur Abweichungen werden gesendet; auch unveränderte Offline-Ausgangswerte können dabei Geräteeinstellungen ersetzen.',
+                'Was übertragen wird: Einstellungen, vorbereitete EQ-Presets und Setups können einzeln angekreuzt werden. Nur angekreuzte Daten werden ins Gerät gleichen Modells übertragen. Presets und Setups überschreiben die gleichen Nummern im Gerät.',
               ),
               tr(
-                'Sicherheit: Lautstärken werden nur übernommen, wenn sie leiser sind als jetzt am Gerät. Die Lautstärkegrenzen der App gelten weiterhin.',
+                'Sicherheit: Lautstärken, auch in vorbereiteten Setups, werden nie lauter als am Gerät übertragen. Die Lautstärkegrenzen der App gelten weiterhin.',
               ),
               tr(
-                'Was unverändert bleibt: Gespeicherte Setups 1–9 und EQ-Presets im Gerät sowie die Presetwahl. Anzeigewerte (Sample-Rate) und Aktionen (Ausgänge umschalten) werden nicht übertragen.',
+                'Was unverändert bleibt: Nicht angekreuzte Presets und Setups sowie nicht vorbereitete Nummern. Presetwahl, Anzeigewerte (Sample-Rate) und Aktionen (Ausgänge umschalten) werden nicht übertragen.',
               ),
               tr(
                 'Tipp: Vorher ein Backup sichern (Setups → Weiteres → Backup sichern / laden).',
@@ -489,29 +535,121 @@ class _SetupsPageState extends State<SetupsPage> {
   );
 
   Future<void> _transfer() async {
-    if (!await c.hasOfflineData()) {
+    final variant = c.variant;
+    final prepared = await c.readOfflinePreparation();
+    if (prepared.isEmpty) {
       _msg(tr('Für dieses Modell gibt es keinen Offline-Stand.'));
       return;
     }
     if (!mounted) return;
-    final settingsText = tr(
-      'Alle offline festgelegten Einstellungen werden ins Gerät geschrieben. Lautstärken werden nur übernommen, wenn sie leiser sind als jetzt am Gerät. Gespeicherte Setups und EQ-Presets im Gerät bleiben unverändert.',
+    var settings = prepared.settings != null;
+    var presets = prepared.presets.isNotEmpty;
+    var setups = prepared.setups.isNotEmpty;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, update) => AlertDialog(
+          title: Text(tr('Offline-Einstellungen übertragen?')),
+          content: SizedBox(
+            width: 440,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    tr(
+                      'Nur angekreuzte Daten werden übertragen. Vorbereitete Presets und Setups überschreiben die gleichen Nummern im Gerät. Lautstärken, auch in Setups, werden nie lauter als am Gerät übertragen.',
+                    ),
+                  ),
+                  if (prepared.settings != null)
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(tr('Einstellungen')),
+                      value: settings,
+                      onChanged: (v) => update(() => settings = v!),
+                    ),
+                  if (prepared.presets.isNotEmpty)
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(tr('Vorbereitete EQ-Presets')),
+                      subtitle: Text(
+                        prepared.presets
+                            .map(
+                              (p) =>
+                                  '${p.number + 1}: ${p.name.isEmpty ? trf('Preset {n}', {'n': p.number + 1}) : p.name}',
+                            )
+                            .join('\n'),
+                      ),
+                      value: presets,
+                      onChanged: (v) => update(() => presets = v!),
+                    ),
+                  if (prepared.setups.isNotEmpty)
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(tr('Vorbereitete Setups')),
+                      subtitle: Text(
+                        prepared.setups
+                            .map(
+                              (s) =>
+                                  '${s.number}: ${s.name.isEmpty ? trf('Setup {n}', {'n': s.number}) : s.name}',
+                            )
+                            .join('\n'),
+                      ),
+                      value: setups,
+                      onChanged: (v) => update(() => setups = v!),
+                    ),
+                  Text(
+                    tr(
+                      'Ein höherer Ref Level kann den Ausgang lauter machen, auch wenn die Lautstärke nicht steigt. Ausgänge vorher leiser stellen oder eine Obergrenze aktivieren.',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(tr('Abbrechen')),
+            ),
+            FilledButton(
+              onPressed: settings || presets || setups
+                  ? () => Navigator.pop(ctx, true)
+                  : null,
+              child: Text(tr('Übertragen')),
+            ),
+          ],
+        ),
+      ),
     );
-    final refLevelWarning = tr(
-      'Ein höherer Ref Level kann den Ausgang lauter machen, auch wenn die Lautstärke nicht steigt. Ausgänge vorher leiser stellen oder eine Obergrenze aktivieren.',
-    );
-    final ok = await _confirm(
-      tr('Offline-Einstellungen übertragen?'),
-      '$settingsText\n\n$refLevelWarning',
-      tr('Übertragen'),
-    );
-    if (!ok || c.offline) return;
-    final n = await c.transferOffline();
-    _msg(
-      n == 0
-          ? tr('Gerät entspricht bereits dem Offline-Stand.')
-          : trf('{n} Einstellungen übertragen.', {'n': n}),
-    );
+    if (ok != true || c.offline || !mounted) return;
+    if (c.variant != variant) throw StateError(tr('Nicht verbunden'));
+    setState(() => _transferProgress = 0);
+    try {
+      final result = await c.transferPrepared(
+        withSettings: settings,
+        withPresets: presets,
+        withSetups: setups,
+        progress: (value) {
+          if (mounted) setState(() => _transferProgress = value);
+        },
+      );
+      _msg(
+        trf(
+          '{presets} Presets, {setups} Setups, {settings} Einstellungen übertragen.',
+          {
+            'presets': result.presets,
+            'setups': result.setups,
+            'settings': result.settings,
+          },
+        ),
+      );
+    } on StateError catch (e) {
+      _msg(e.message);
+    } finally {
+      if (mounted) setState(() => _transferProgress = null);
+    }
   }
 
   Widget _section(String title, List<Widget> children, {Widget? actions}) =>
@@ -637,6 +775,15 @@ class _SetupsPageState extends State<SetupsPage> {
           ),
         ),
         const SizedBox(height: 8),
+        if (AppSettings.instance.eqLibraryEnabled)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: _busy ? null : _oratoryLibrary,
+              icon: const Icon(Icons.library_music_outlined),
+              label: Text(tr('Bibliothek')),
+            ),
+          ),
         EqDualControls(
           dual: _editor.dual,
           right: _right,
@@ -787,6 +934,16 @@ class _SetupsPageState extends State<SetupsPage> {
                                   : Palette.text,
                             ),
                           ),
+                          if (c.isPresetPrepared(slot))
+                            Text(
+                              tr('Vorbereitet'),
+                              style: ts(11, color: Palette.amber),
+                            ),
+                          if (_preset(slot)?.empty == true)
+                            Text(
+                              tr('Leer'),
+                              style: ts(11, color: Palette.muted),
+                            ),
                           if (_preset(slot) == null)
                             Text(
                               tr('Nicht eingelesen'),
@@ -809,12 +966,14 @@ class _SetupsPageState extends State<SetupsPage> {
       spacing: 8,
       runSpacing: 4,
       children: [
-        if (!c.offline) ...[
-          TextButton.icon(
-            onPressed: _busy ? null : () => _run(_store),
-            icon: const Icon(Icons.save_outlined, size: 18),
-            label: Text(tr('Ins Gerät speichern')),
+        TextButton.icon(
+          onPressed: _busy ? null : () => _run(_store),
+          icon: const Icon(Icons.save_outlined, size: 18),
+          label: Text(
+            c.offline ? tr('In App speichern') : tr('Ins Gerät speichern'),
           ),
+        ),
+        if (!c.offline) ...[
           TextButton.icon(
             onPressed: _busy ? null : () => _run(_reload),
             icon: const Icon(Icons.refresh, size: 18),
@@ -847,7 +1006,7 @@ class _SetupsPageState extends State<SetupsPage> {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: c,
+    listenable: Listenable.merge([c, AppSettings.instance]),
     builder: (context, _) {
       final variant = c.variant;
       if (variant == null) return const SizedBox.shrink();
@@ -855,78 +1014,121 @@ class _SetupsPageState extends State<SetupsPage> {
         for (final output in outputsFor(variant)) (output.address, output.name),
         if (variant.hasInput) (0, tr('Eingang')),
       ];
-      return AdaptivePageList(
-        splitAt: 1,
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+      return Column(
         children: [
-          _editorPanel(targets),
-          _presetsPanel(),
-          if (!c.offline)
-            _section(tr('Geräte-Setups 1–9'), [
-              for (var n = 1; n <= 9; n++)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 0),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _setupName(n),
-                          overflow: TextOverflow.ellipsis,
-                          style: ts(15, weight: 500),
+          if (_transferProgress != null) ...[
+            LinearProgressIndicator(value: _transferProgress),
+            Text(
+              trf('Übertragung: {percent} %', {
+                'percent': (_transferProgress! * 100).round(),
+              }),
+            ),
+          ],
+          Expanded(
+            child: AbsorbPointer(
+              absorbing: _busy,
+              child: AdaptivePageList(
+                splitAt: 1,
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                children: [
+                  _editorPanel(targets),
+                  _presetsPanel(),
+                  _section(tr('Geräte-Setups 1–9'), [
+                    for (var n = 1; n <= 9; n++)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 0),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Tooltip(
+                                message: tr('Umbenennen'),
+                                child: InkWell(
+                                  onTap:
+                                      _busy ||
+                                          (c.offline && !c.isSetupPrepared(n))
+                                      ? null
+                                      : () => _run(() => _renameSetup(n)),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        _setupName(n),
+                                        overflow: TextOverflow.ellipsis,
+                                        style: ts(15, weight: 500),
+                                      ),
+                                      if (c.isSetupPrepared(n))
+                                        Text(
+                                          tr('Vorbereitet'),
+                                          style: ts(11, color: Palette.amber),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                TextButton(
+                                  style: _compactButton,
+                                  onPressed:
+                                      _busy ||
+                                          (c.offline && !c.isSetupPrepared(n))
+                                      ? null
+                                      : () => _run(() => c.loadSetup(n)),
+                                  child: Text(tr('Laden')),
+                                ),
+                                TextButton(
+                                  style: _compactButton,
+                                  onPressed: _busy
+                                      ? null
+                                      : () => _run(() => _saveSetup(n)),
+                                  child: Text(tr('Speichern')),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          TextButton(
-                            onPressed: _busy ? null : () => c.loadSetup(n),
-                            child: Text(tr('Laden')),
-                          ),
-                          TextButton(
-                            onPressed: _busy
-                                ? null
-                                : () => _run(() => _saveSetup(n)),
-                            child: Text(tr('Speichern')),
-                          ),
-                        ],
+                  ]),
+                  _section(tr('Weiteres'), [
+                    if (c.offline)
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(tr('Offline-Stand auf Werkseinstellung')),
+                        onTap: _busy ? null : () => _run(c.resetOffline),
+                      )
+                    else ...[
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(tr('Backup sichern / laden')),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: _busy
+                            ? null
+                            : () => Navigator.push(
+                                context,
+                                MaterialPageRoute<void>(
+                                  builder: (_) => BackupPage(ctrl: c),
+                                ),
+                              ),
+                      ),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(tr('Offline-Einstellungen übertragen')),
+                        trailing: IconButton(
+                          tooltip: tr('Info'),
+                          icon: const Icon(Icons.info_outline),
+                          onPressed: _busy ? null : _transferInfo,
+                        ),
+                        onTap: _busy ? null : () => _run(_transfer),
                       ),
                     ],
-                  ),
-                ),
-            ]),
-          _section(tr('Weiteres'), [
-            if (c.offline)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(tr('Offline-Stand auf Werkseinstellung')),
-                onTap: _busy ? null : () => _run(c.resetOffline),
-              )
-            else ...[
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(tr('Backup sichern / laden')),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: _busy
-                    ? null
-                    : () => Navigator.push(
-                        context,
-                        MaterialPageRoute<void>(
-                          builder: (_) => BackupPage(ctrl: c),
-                        ),
-                      ),
+                  ]),
+                ],
               ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(tr('Offline-Einstellungen übertragen')),
-                trailing: IconButton(
-                  tooltip: tr('Info'),
-                  icon: const Icon(Icons.info_outline),
-                  onPressed: _transferInfo,
-                ),
-                onTap: _busy ? null : () => _run(_transfer),
-              ),
-            ],
-          ]),
+            ),
+          ),
         ],
       );
     },

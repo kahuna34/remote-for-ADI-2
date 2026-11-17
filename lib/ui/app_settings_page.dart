@@ -1,6 +1,9 @@
+import '../eq/eq_library_feature.dart';
+
 import 'package:flutter/material.dart';
 
 import '../app_info.dart';
+import 'eq_preset_library_page.dart';
 import '../dev/analyzer_selftest_page.dart';
 import '../app_settings.dart';
 import '../protocol/adi2_params.dart';
@@ -28,7 +31,7 @@ class AppSettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: AppLang.instance,
+      listenable: Listenable.merge([AppLang.instance, AppSettings.instance]),
       builder: (context, _) => Scaffold(
         appBar: AppBar(title: Text(tr('App-Einstellungen'))),
         body: SafeArea(
@@ -88,6 +91,17 @@ class AppSettingsPage extends StatelessWidget {
                           value: AppSettings.instance.headerContent,
                           onChanged: AppSettings.instance.setHeaderContent,
                         ),
+                        if (eqLibraryAvailable)
+                          SwitchListTile(
+                            title: Text(tr('EQ-Bibliothek (oratory1990)')),
+                            subtitle: Text(
+                              tr(
+                                'Vorbereitete EQ-Presets für viele Kopfhörer von oratory1990, angepasst an die 5 Bänder + Bass/Treble des ADI-2. Quelle: oratory1990.',
+                              ),
+                            ),
+                            value: AppSettings.instance.eqLibraryEnabled,
+                            onChanged: AppSettings.instance.setEqLibraryEnabled,
+                          ),
                         const AnalyzerBandSetting(),
                         const AnalyzerColorSetting(),
                         const AnalyzerRangeSetting(),
@@ -183,6 +197,8 @@ class AppSettingsPage extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 16),
+                    if (AppSettings.instance.eqLibraryEnabled)
+                      Text(eqLibraryCredit()),
                     Text(
                       tr('Entwickelt von Markus Rass'),
                       style: ts(14, weight: 600),

@@ -1,4 +1,10 @@
 import 'package:adi2_remote/device/adi2_controller.dart';
+import 'package:adi2_remote/app_settings.dart';
+import 'package:adi2_remote/eq/eq_editor_buffer.dart';
+import 'package:adi2_remote/eq/eq_preset_library.dart';
+
+import 'dart:io';
+
 import 'package:adi2_remote/eq/eq_model.dart';
 import 'package:adi2_remote/l10n/l10n.dart';
 import 'package:adi2_remote/protocol/adi2_codec.dart';
@@ -7,6 +13,7 @@ import 'package:adi2_remote/ui/eq_page.dart';
 import 'package:adi2_remote/ui/home_page.dart';
 import 'package:adi2_remote/ui/theme.dart';
 import 'package:flutter/material.dart';
+import 'package:adi2_remote/eq/eq_library_feature.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _Controller extends Adi2Controller {
@@ -165,6 +172,76 @@ void main() {
         expect(tester.takeException(), isNull);
       });
     }
+  }
+
+  for (final (model, fitted) in [
+    ('Timeless', false),
+    ('TMA-2 HD', false),
+    ('TMA-2 HD', true),
+  ]) {
+    testWidgets(
+      'Optionale Bibliothek lädt $model, angepasst=$fitted, auf gewählten Ausgang',
+      (tester) async {
+        await tester.runAsync(EqPresetLibrary.load);
+        AppSettings.instance.eqLibraryEnabled = false;
+        addTearDown(() => AppSettings.instance.eqLibraryEnabled = false);
+        await showPage(tester, channel: Adi2Addr.ph34);
+        await tester.tap(find.text('Manuell (nicht gespeichert)'));
+        await tester.pumpAndSettle();
+        expect(find.text('Bibliothek …'), findsNothing);
+        await tester.tapAt(const Offset(10, 10));
+        await tester.pumpAndSettle();
+        AppSettings.instance.eqLibraryEnabled = true;
+        await tester.tap(find.text('Manuell (nicht gespeichert)'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Bibliothek …'));
+        await tester.pump();
+        await tester.runAsync(() async {
+          await EqPresetLibrary.load();
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        });
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextField), model);
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(ListTile, model));
+        await tester.pumpAndSettle();
+        if (fitted) {
+          await tester.tap(find.text('Angepasst'));
+          await tester.pumpAndSettle();
+        }
+        await tester.scrollUntilVisible(
+          find.widgetWithText(FilledButton, 'Laden'),
+          200,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.tap(find.widgetWithText(FilledButton, 'Laden'));
+        await tester.pumpAndSettle();
+        final entry = EqPresetLibrary.parse(
+          File('assets/eq_library/oratory1990.json').readAsStringSync(),
+        ).firstWhere((entry) => entry.model == model);
+        final buffer = EqEditorBuffer()
+          ..loadAppPreset(entry.toAppPreset(fitted: fitted));
+        expect(
+          controller.writes,
+          containsAll([
+            for (final e in buffer.left.entries)
+              (Adi2Addr.ph34 + 1, e.key, e.value),
+            (Adi2Addr.ph34 + 1, 20, 1),
+          ]),
+        );
+        expect(
+          controller.writes.every(
+            (write) => [
+              Adi2Addr.ph34,
+              Adi2Addr.ph34 + 1,
+              Adi2Addr.ph34 + 2,
+            ].contains(write.$1),
+          ),
+          isTrue,
+        );
+      },
+      skip: !eqLibraryAvailable,
+    );
   }
 
   Finder dualSwitch() => find.descendant(
@@ -344,4 +421,62 @@ void main() {
       expect(find.byType(AlertDialog), findsNothing);
     });
   }
+
+  testWidgets(
+    'Offline: Speichern öffnet App-Dialog; Fehlschlag zeigt keinen Erfolg',
+    (tester) async {
+      controller.state = ConnState.offline;
+      await showPage(tester, channel: Adi2Addr.line, width: 600);
+      tester.view.physicalSize = const Size(600, 1400);
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.widgetWithText(FilledButton, tr('Als Preset speichern')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(
+        find.text(tr('Das Preset in der App wird überschrieben.')),
+        findsOneWidget,
+      );
+      // This fake intentionally has no model/storage: the controller throws.
+      await tester.tap(find.widgetWithText(FilledButton, tr('Speichern')));
+      await tester.pumpAndSettle();
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 300)),
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(
+        find.text(tr('Vorgang konnte nicht abgeschlossen werden.')),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('In der App gespeichert als Preset'),
+        findsNothing,
+      );
+      expect(find.textContaining('Gespeichert als Preset'), findsNothing);
+    },
+  );
+  testWidgets('Speichern aus Temp schlägt den ersten freien Platz vor', (
+    tester,
+  ) async {
+    controller.values[(Adi2Addr.lineEqL, EqIdx2.presetSelect)] = 1;
+    controller.names[1] = 'HD600';
+    controller.names[2] = 'K712';
+    controller.names[3] = 'K371';
+    await showPage(tester, channel: Adi2Addr.line, width: 600);
+    tester.view.physicalSize = const Size(600, 1400);
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.widgetWithText(FilledButton, tr('Als Preset speichern')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(
+      tester
+          .widget<DropdownButton<int>>(find.byType(DropdownButton<int>))
+          .value,
+      3,
+    );
+    expect(find.text('Preset 4: Preset 4'), findsOneWidget);
+  });
 }

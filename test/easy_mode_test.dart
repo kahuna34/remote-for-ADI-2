@@ -65,7 +65,10 @@ class _Controller extends Adi2Controller {
   }
 
   @override
-  void loadSetup(int n) => setups.add(n);
+  Future<void> loadSetup(int n) async {
+    setups.add(n);
+  }
+
   @override
   void toggleOutputs() => toggles++;
   @override

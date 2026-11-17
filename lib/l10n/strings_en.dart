@@ -2,6 +2,63 @@
 // Platzhalter wie {n} müssen in beiden Sprachen gleich heißen.
 
 const Map<String, String> stringsEn = {
+  'Vorbereitung konnte nicht gespeichert werden.':
+      'Could not save preparation.',
+  'Gerätestand konnte nicht bestätigt werden. Das aktuelle Setup wurde nicht gespeichert.':
+      'Could not confirm device settings. The current setup was not saved.',
+  '{name} (vorbereitet)': '{name} (prepared)',
+  'Das Preset in der App wird überschrieben.':
+      'The preset in the app will be overwritten.',
+  'In der App gespeichert als Preset {n}': 'Saved in the app as preset {n}',
+  'Die aktuellen Einstellungen werden als Setup in der App gespeichert.':
+      'The current settings will be saved as a setup in the app.',
+  'Was übertragen wird: Einstellungen, vorbereitete EQ-Presets und Setups können einzeln angekreuzt werden. Nur angekreuzte Daten werden ins Gerät gleichen Modells übertragen. Presets und Setups überschreiben die gleichen Nummern im Gerät.': 'What is transferred: Settings, prepared EQ presets and setups can be selected separately. Only selected data is transferred to a device of the same model. Presets and setups overwrite the same slot numbers on the device.',
+  'Sicherheit: Lautstärken, auch in vorbereiteten Setups, werden nie lauter als am Gerät übertragen. Die Lautstärkegrenzen der App gelten weiterhin.': 'Safety: Volumes, including those in prepared setups, are never transferred louder than on the device. The app’s volume limits still apply.',
+  'Was unverändert bleibt: Nicht angekreuzte Presets und Setups sowie nicht vorbereitete Nummern. Presetwahl, Anzeigewerte (Sample-Rate) und Aktionen (Ausgänge umschalten) werden nicht übertragen.': 'What stays unchanged: Unselected presets and setups, and slots that have not been prepared. Preset selection, display values (sample rate) and actions (toggle outputs) are not transferred.',
+  'Nur angekreuzte Daten werden übertragen. Vorbereitete Presets und Setups überschreiben die gleichen Nummern im Gerät. Lautstärken, auch in Setups, werden nie lauter als am Gerät übertragen.': 'Only selected data is transferred. Prepared presets and setups overwrite the same slot numbers on the device. Volumes, including those in setups, are never transferred louder than on the device.',
+  'Vorbereitete EQ-Presets': 'Prepared EQ presets',
+  'Vorbereitete Setups': 'Prepared setups',
+  '{presets} Presets, {setups} Setups, {settings} Einstellungen übertragen.':
+      'Transferred {presets} presets, {setups} setups, {settings} settings.',
+  'Vorbereitet': 'Prepared',
+  'Leer': 'Empty',
+  'In App speichern': 'Save in app',
+  'Übertragung: {percent} %': 'Transfer: {percent} %',
+
+  ' (angepasst)': ' (adjusted)',
+  'oratory1990': 'oratory1990',
+  'Angepasst': 'Adjusted',
+  'Mit „Angepasst“ markierte Presets sind automatisch aus oratory1990s Korrekturen berechnet.': 'Presets marked “Adjusted” are calculated automatically from oratory1990’s corrections.',
+  'Automatisch aus oratory1990s 10-Band-Korrektur an die ADI-2-Grenzen angepasst. Nicht von oratory1990 geprüft. Abweichung vom Original: {deviation} dB.': 'Automatically adjusted from oratory1990’s 10-band correction to the ADI-2 limits. Not reviewed by oratory1990. Deviation from original: {deviation} dB.',
+  '2 Fassungen': '2 versions',
+  'an Gerätegrenzen gesetzt': 'set to device limits',
+  'neu an das 10-Band-Original angepasst': 'refitted to the 10-band original',
+  'Abweichung vom Original: {preset} dB / {fit} dB':
+      'Deviation from original: {preset} dB / {fit} dB',
+  'Gegenprobe Messung: Original {original} · oratory1990 {preset} · angepasst {fit} dB': 'Measurement cross-check: Original {original} · oratory1990 {preset} · adjusted {fit} dB',
+  'Vergleich der Fassungen': 'Comparing versions',
+  'Original = oratory1990s Korrektur mit bis zu 10 Bändern. Die ADI-2-Fassung von oratory1990 nutzt hier Werte außerhalb der Gerätegrenzen; diese werden begrenzt oder entfallen. Die angepasste Fassung ist automatisch berechnet und nicht von oratory1990 geprüft. Die Gegenprobe vergleicht Messdaten mit dem Harman-Target. Kleiner = näher; der Hörtest entscheidet.': 'Original = oratory1990’s correction with up to 10 bands. The ADI-2 version by oratory1990 uses values outside device limits here; these are limited or omitted. The adjusted version is calculated automatically and has not been reviewed by oratory1990. The cross-check compares measured data against the Harman target. Lower = closer; listening decides.',
+  'Typ': 'Type',
+  'Band': 'Band',
+  'Bibliothek …': 'Library …',
+  'Bibliothek': 'Library',
+  'Zu meinen Presets': 'Add to my presets',
+  'Lautstärke beim Vergleichen angleichen': 'Match volume when comparing',
+  'Hinweise': 'Notes',
+  'EQ-Preset': 'EQ preset',
+  'Bereits in meinen Presets.': 'Already in my presets.',
+  'Zu meinen Presets hinzugefügt.': 'Added to my presets.',
+  '{band}: {param} {from} → {to} (Gerätegrenze)':
+      '{band}: {param} {from} → {to} (device limit)',
+  'Zusätzlicher High-Shelf bei {freq} nicht übertragbar':
+      'Additional high shelf at {freq} could not be transferred',
+  'Keine passenden Presets.': 'No matching presets.',
+  'Bibliothek konnte nicht geladen werden.': 'Could not load library.',
+  'Marke, Modell, Variante suchen': 'Search brand, model, variant',
+  'EQ-Bibliothek': 'EQ library',
+  'EQ-Presets: oratory1990 (reddit.com/r/oratory1990), für den RME ADI-2 aufbereitet.': 'EQ presets: oratory1990 (reddit.com/r/oratory1990), adapted for the RME ADI-2.',
+  'Vorbereitete EQ-Presets für viele Kopfhörer von oratory1990, angepasst an die 5 Bänder + Bass/Treble des ADI-2. Quelle: oratory1990.': 'Prepared headphone EQ presets by oratory1990, adapted to the 5 bands + Bass/Treble of the ADI-2. Source: oratory1990.',
+  'EQ-Bibliothek (oratory1990)': 'EQ library (oratory1990)',
   'Alle zurücksetzen': 'Reset all',
   'Hauptansicht anpassen': 'Customize main view',
   'Farben der Knöpfe in der Hauptansicht wählen':
@@ -548,7 +605,10 @@ const Map<String, String> stringsEn = {
   'Das Preset im Gerät wird überschrieben.':
       'The preset on the device will be overwritten.',
   'Speichern': 'Save',
+  'Einstellungen': 'Settings',
   'Gespeichert als Preset {n}': 'Saved as preset {n}',
+  'Offline nicht möglich: EQ-Presets werden im Gerät gespeichert.':
+      'Not available offline: EQ presets are stored in the device.',
   'Band {band}, {typ}': 'Band {band}, {typ}',
   'Typ ändern': 'Change type',
   'Freq': 'Freq',
