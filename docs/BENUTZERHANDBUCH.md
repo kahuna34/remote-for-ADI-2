@@ -1,6 +1,6 @@
 # Remote for ADI-2 — Benutzerhandbuch
 
-Version **1.2.1 (6)** · [Projektübersicht](README.de.md) · [English](USER_GUIDE.md)
+Version **1.2.2 (7)** · [Projektübersicht](README.de.md) · [English](USER_GUIDE.md)
 
 Dieses Handbuch beschreibt die aktuelle App. Die verfügbaren Regler hängen vom gewählten Modell und den vom Gerät gemeldeten Werten ab. Die Screenshots zeigen Android-Geräte mit englischer Oberfläche. Getestet ist die App mit allen unterstützten ADI-2-Modellen auf Android-Smartphone und Android-Tablet sowie mit dem ADI-2 DAC am Mac, auch über den Host. Die Player-Anbindung unterstützt derzeit nur Android.
 
@@ -61,7 +61,9 @@ Hier bereiten Sie Einstellungen vor, wenn gerade kein Gerät angeschlossen ist.
 
 Auf dem Verbindungsbildschirm unter **Offline einstellen** ein Modell wählen. Die rote Kennzeichnung **OFFLINE** zeigt, dass Änderungen lokal bleiben. Die App speichert Offline-Einstellungen nach Modellvariante. ADI-2 Pro und ADI-2 Pro EX teilen den Offline-Speicher. ADI-2/4 Pro SE und ADI-2/4 Pro EX haben getrennte Offline-Stände. **Beenden** verlässt den Offline-Modus.
 
-Nach dem Anschließen desselben Modells **Setups → Weiteres → Offline-Einstellungen übertragen** öffnen. Vor dem Übertragen die Information und Rückfrage lesen. Übernommen wird der gespeicherte Offline-Stand, einschließlich Offline-Ausgangswerten, die von aktuellen Geräteeinstellungen abweichen. Nur Unterschiede werden gesendet. Lautstärken werden nur übernommen, wenn sie leiser als die aktuellen Gerätewerte sind; die App-Grenzen gelten auch mit dem neuen Ref Level. Ein höherer Ref Level kann den Ausgang lauter machen, auch wenn die Lautstärke nicht steigt. Ausgänge vorher leiser stellen oder eine Obergrenze aktivieren. Gespeicherte Geräte-Setups 1–9, gespeicherte EQ-Presets und die Presetwahl werden nicht übertragen. Anzeigewerte und Aktionen sind ausgeschlossen. Vorher ein Backup anlegen. **Offline-Stand auf Werkseinstellung** setzt den lokalen Offline-Stand zurück.
+Nach dem Anschließen desselben Modells **Setups → Weiteres → Offline-Einstellungen übertragen** öffnen. Vor dem Übertragen die Information und Rückfrage lesen. Übernommen wird der gespeicherte Offline-Stand, einschließlich Offline-Ausgangswerten, die von aktuellen Geräteeinstellungen abweichen. Nur Unterschiede werden gesendet. Lautstärken werden nur übernommen, wenn sie leiser als die aktuellen Gerätewerte sind; die App-Grenzen gelten auch mit dem neuen Ref Level. Ein höherer Ref Level kann den Ausgang lauter machen, auch wenn die Lautstärke nicht steigt. Ausgänge vorher leiser stellen oder eine Obergrenze aktivieren. Die Presetwahl, Anzeigewerte und Aktionen werden nicht übertragen. Vorher ein Backup anlegen. **Offline-Stand auf Werkseinstellung** setzt den lokalen Offline-Stand samt vorbereiteten Presets und Setups zurück.
+
+**EQ-Presets und Setups offline vorbereiten:** Offline lassen sich auch EQ-Presets 1–20 und Geräte-Setups 1–9 anlegen. **Als Preset speichern** (EQ-Seite oder Setups-Editor, dort **In App speichern**) legt das Preset in der App ab; vorgeschlagen wird der erste noch freie Platz. Unter **Geräte-Setups 1–9** speichert **Speichern** den aktuellen Offline-Stand als Setup, ein Tipp auf den Namen benennt es um, **Laden** übernimmt es wieder. Vorbereitete Plätze sind mit **(vorbereitet)** markiert. Beim Übertragen wählt der Dialog aus, was ins Gerät soll: **Einstellungen**, **vorbereitete EQ-Presets** und **vorbereitete Setups** (vorhandene Bereiche sind angekreuzt, mit Nummer und Name). Presets und Setups überschreiben die gleichen Nummern im Gerät. Ein Setup wird erst gespeichert, nachdem das Gerät alle Werte bestätigt hat; Lautstärken werden auch hier nie lauter übertragen. Danach stellt die App den vorherigen Gerätestand bzw. den Offline-Stand wieder her.
 
 ## Steuerung über einen Computer (Host)
 
@@ -565,7 +567,7 @@ Dieses Kapitel hilft Ihnen, für eine Klangkurve, eine Gerätekonfiguration oder
 | EQ-Presets 1–20 | EQ-Kurven in den Geräteslots. | Eine Klangkorrektur ohne vollständigen Setup-Wechsel laden. |
 | App-Bibliothek | Benannte EQ-Presets im App-Speicher, einzeln teilbar. | EQ-Entwürfe sammeln und zwischen Installationen als Datei austauschen. |
 | Backup | Aktuelle Geräteparameter, die 20 EQ-Presets und gelesene Setup-Namen als Datei im App-Speicher. | Einen Geräte-Arbeitsstand außerhalb des Geräts sichern. Die Inhalte der neun Setup-Slots werden nicht ausgelesen. |
-| Offline-Stand | Lokal vorbereitete aktuelle Parameter je Modell. | Ohne Hardware arbeiten und später auf dasselbe Modell übertragen. |
+| Offline-Stand | Lokal vorbereitete aktuelle Parameter, EQ-Presets und Setups je Modell. | Ohne Hardware arbeiten und später auf dasselbe Modell übertragen. |
 | Eigene Ansicht, Slots 1–4 | Kacheln, Farben, Ausgangsseiten und Zusatzanzeige je Modell in der App. | Bedienoberflächen wechseln; kein Speicher für Geräteeinstellungen. |
 
 ADI-2 Pro und ADI-2 Pro EX teilen Offline- und Layout-Speicher. ADI-2/4 Pro SE und ADI-2/4 Pro EX haben dafür getrennte Speicher, teilen aber ihre Lautstärkeoptionen. Diese Optionen umfassen Grenzen, Recall, Kopplung und Anstiegsgeschwindigkeit und sind nach Geräte-Modell-ID gespeichert. Der DAC hat eigene Speicher.

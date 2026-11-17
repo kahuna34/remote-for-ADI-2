@@ -1,6 +1,6 @@
 # Remote for ADI-2 — User guide
 
-Version **1.2.1 (6)** · [Project overview](../README.md) · [Deutsch](BENUTZERHANDBUCH.md)
+Version **1.2.2 (7)** · [Project overview](../README.md) · [Deutsch](BENUTZERHANDBUCH.md)
 
 This guide describes the current app. Controls depend on the selected model and values reported by the device. Screenshots show Android devices and the English interface. The app has been tested with all supported ADI-2 models on an Android smartphone and an Android tablet, and with the ADI-2 DAC on a Mac, also through the host. The Player integration currently supports Android only.
 
@@ -61,7 +61,9 @@ Use this mode to prepare settings while no device is connected.
 
 On the connection screen, choose a model under **Configure offline**. The red **OFFLINE** badge indicates that changes are local. The app stores offline settings by model variant. ADI-2 Pro and ADI-2 Pro EX share offline storage. ADI-2/4 Pro SE and ADI-2/4 Pro EX have separate offline states. **Exit** leaves offline mode.
 
-After connecting the same model, open **Setups → More → Transfer offline settings**. Read the information and confirmation before transferring. This applies the saved offline state, including offline defaults that differ from current device values. Only differences are sent. Volume is applied only when lower than the current device volume, and app limits also apply with the new Ref Level. A higher Ref Level can make the output louder even if the volume value does not rise. Lower the outputs beforehand or enable a volume limit. Stored device setups 1–9, stored EQ presets and preset selection are not transferred; read-only values and actions are excluded. Create a backup first. **Reset offline settings to defaults** resets the local offline state.
+After connecting the same model, open **Setups → More → Transfer offline settings**. Read the information and confirmation before transferring. This applies the saved offline state, including offline defaults that differ from current device values. Only differences are sent. Volume is applied only when lower than the current device volume, and app limits also apply with the new Ref Level. A higher Ref Level can make the output louder even if the volume value does not rise. Lower the outputs beforehand or enable a volume limit. Preset selection, read-only values and actions are not transferred. Create a backup first. **Reset offline settings to defaults** resets the local offline state including prepared presets and setups.
+
+**Preparing EQ presets and setups offline:** Offline you can also prepare EQ presets 1–20 and device setups 1–9. **Save as preset** (EQ page, or **Save in app** in the setups editor) stores the preset in the app; the first free slot is suggested. Under **Device setups 1–9**, **Save** stores the current offline state as a setup, tapping the name renames it, and **Load** applies it again. Prepared slots are marked **(prepared)**. When transferring, the dialog lets you choose what goes to the device: **Settings**, **Prepared EQ presets** and **Prepared setups** (available sections are ticked and listed with number and name). Presets and setups overwrite the same numbers on the device. A setup is only stored after the device has confirmed all values; volumes are never transferred louder here either. Afterwards the app restores the previous device state or applies the offline settings.
 
 ## Control through a computer (host)
 
@@ -565,7 +567,7 @@ Use this chapter to choose the right storage method for an EQ curve, a device co
 | EQ presets 1–20 | EQ curves in device slots. | Load sound correction without recalling a complete setup. |
 | App library | Named EQ presets in app storage, individually shareable. | Collect EQ drafts and exchange them between installations as files. |
 | Backup | Current device parameters, the 20 EQ presets and read setup names as a file in app storage. | Save a working device state outside the device. The nine setup slots' contents are not read. |
-| Offline settings | Locally prepared current parameters for each model. | Work without hardware, then transfer to the same model. |
+| Offline settings | Locally prepared current parameters, EQ presets and setups for each model. | Work without hardware, then transfer to the same model. |
 | Custom Mode, slots 1–4 | Tiles, colors, output pages and extra display for each model in the app. | Switch control panels; these do not store device settings. |
 
 ADI-2 Pro and ADI-2 Pro EX share offline and layout storage. ADI-2/4 Pro SE and ADI-2/4 Pro EX have separate offline and layout storage but share volume options. These options include limits, Recall, links and rise rate and are stored by device model ID. DAC has separate storage.
