@@ -189,7 +189,12 @@ class _BackupPageState extends State<BackupPage> {
                 contentPadding: EdgeInsets.zero,
                 value: presets,
                 onChanged: (v) => setD(() => presets = v ?? false),
-                title: Text(tr('Auch die 20 EQ-Presets überschreiben')),
+                title: Text(tr('Auch die EQ-Presets aus dem Backup schreiben')),
+                subtitle: Text(
+                  tr(
+                    'Belegte Presets im Backup überschreiben die gleichen Plätze. Plätze, die im Backup leer sind, bleiben im Gerät unverändert; der ADI-2 kann sie per MIDI nicht leeren.',
+                  ),
+                ),
               ),
             ],
           ),

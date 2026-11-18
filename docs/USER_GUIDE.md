@@ -1,6 +1,6 @@
 # Remote for ADI-2 — User guide
 
-Version **1.2.2 (7)** · [Project overview](../README.md) · [Deutsch](BENUTZERHANDBUCH.md)
+Version **1.2.3 (8)** · [Project overview](../README.md) · [Deutsch](BENUTZERHANDBUCH.md)
 
 This guide describes the current app. Controls depend on the selected model and values reported by the device. Screenshots show Android devices and the English interface. The app has been tested with all supported ADI-2 models on an Android smartphone and an Android tablet, and with the ADI-2 DAC on a Mac, also through the host. The Player integration currently supports Android only.
 
@@ -540,7 +540,7 @@ The editor and clipboard exist only while this page is open. Switching the main 
 4. Enable **Listen on …** to send the editor EQ to the selected target. While listening, edits, loading another preset or changing target apply the editor to that target. Turning listening off stops further editor writes; it does not restore the previous EQ.
 5. Use **Store to device** to overwrite the selected device EQ slot. The **File** menu offers **Save to app library**, **Load from app library**, **Import** and **Share**. Library entries can be loaded, renamed, shared and deleted. These app presets are separate from device slots.
 
-**Device setups 1–9** provides **Load** and **Save** for complete device configurations. Save asks before overwriting. These device setups are distinct from EQ presets and the four Custom Mode layout slots. **More** opens backup and offline transfer; offline mode offers the local default reset instead of connected-device operations.
+**Device setups 1–9** provides **Load** and **Save** for complete device configurations. Save asks before overwriting. Tap a name (pencil icon) to rename a setup. Through the host, **Load** and **Factory settings** are blocked, as is transferring prepared setups: a setup can raise volume or Ref Level without the host being able to check it first. Connect the ADI-2 via USB or load on the device instead. These device setups are distinct from EQ presets and the four Custom Mode layout slots. **More** opens backup and offline transfer; offline mode offers the local default reset instead of connected-device operations.
 
 ### Example: preparing a preset carefully
 
@@ -576,7 +576,7 @@ ADI-2 Pro and ADI-2 Pro EX share offline and layout storage. ADI-2/4 Pro SE and 
 
 Under **Device**, in the lower **Setup** section, select a slot, then **Load** or **Save**. Hold a slot to rename it. Saving overwrites that device slot after confirmation. **Factory** resets current device settings after confirmation. **Load Volume with Setup** can make loading a setup change volume; review it before recalling setups. With **Load Volume with Setup** enabled, **Device → Setup → Load** and **Load** in a Custom setup tile’s long-press menu warn before loading. **Load** on the **Setups** page and a short tap on a direct setup tile recall the setup without this confirmation.
 
-Open **Save / load backup** from Device or **Setups → More**. **Back up now** reads device settings and the 20 EQ presets into an app backup. Saved backups can be shared, imported, restored or deleted from the app. Export a copy using **Share** if you need it outside app storage. Restore requires a connected matching model. Its confirmation optionally enables **Also overwrite the 20 EQ presets**. Restored volumes are applied only if lower than current values. App limits also apply with the new Ref Level. A higher Ref Level can make the output louder even if the volume value does not rise. Lower the outputs beforehand or enable a volume limit. A backup of device settings is separate from Custom Mode layouts and app preferences; it is not an archive of the device's nine stored setup slots.
+Open **Save / load backup** from Device or **Setups → More**. **Back up now** reads device settings and the 20 EQ presets into an app backup. Saved backups can be shared, imported, restored or deleted from the app. Export a copy using **Share** if you need it outside app storage. Restore requires a connected matching model. Its confirmation optionally enables **Also write the EQ presets from the backup**: presets stored in the backup overwrite the same slots; slots that are empty in the backup stay unchanged on the device, because the ADI-2 cannot clear presets over MIDI. Restored volumes are applied only if lower than current values. If the device itself raises a volume while switching (e.g. Auto Ref Level, Dual Phones), the app lowers it again right away. When Dual Phones is switched on, Phones 1/2 stays muted until its level is set to at most the target value. App limits also apply with the new Ref Level. A higher Ref Level can make the output louder even if the volume value does not rise. Lower the outputs beforehand or enable a volume limit. A backup of device settings is separate from Custom Mode layouts and app preferences; it is not an archive of the device's nine stored setup slots.
 
 ### Restoring a backup or transferring offline settings
 

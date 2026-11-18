@@ -544,7 +544,7 @@ class _SetupsPageState extends State<SetupsPage> {
     if (!mounted) return;
     var settings = prepared.settings != null;
     var presets = prepared.presets.isNotEmpty;
-    var setups = prepared.setups.isNotEmpty;
+    var setups = prepared.setups.isNotEmpty && !c.viaHost;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -589,15 +589,21 @@ class _SetupsPageState extends State<SetupsPage> {
                       contentPadding: EdgeInsets.zero,
                       title: Text(tr('Vorbereitete Setups')),
                       subtitle: Text(
-                        prepared.setups
-                            .map(
-                              (s) =>
-                                  '${s.number}: ${s.name.isEmpty ? trf('Setup {n}', {'n': s.number}) : s.name}',
-                            )
-                            .join('\n'),
+                        [
+                          ...prepared.setups.map(
+                            (s) =>
+                                '${s.number}: ${s.name.isEmpty ? trf('Setup {n}', {'n': s.number}) : s.name}',
+                          ),
+                          if (c.viaHost)
+                            tr(
+                              'Über den Host nicht möglich: Ein Setup kann Ref Level und Lautstärke enthalten, die der Host aus Sicherheitsgründen nicht übernimmt. Zum Übertragen per USB verbinden.',
+                            ),
+                        ].join('\n'),
                       ),
                       value: setups,
-                      onChanged: (v) => update(() => setups = v!),
+                      onChanged: c.viaHost
+                          ? null
+                          : (v) => update(() => setups = v!),
                     ),
                   Text(
                     tr(
@@ -1034,6 +1040,16 @@ class _SetupsPageState extends State<SetupsPage> {
                   _editorPanel(targets),
                   _presetsPanel(),
                   _section(tr('Geräte-Setups 1–9'), [
+                    if (c.viaHost && !c.offline)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Text(
+                          tr(
+                            'Über den Host gesperrt: Ein Setup oder die Werkseinstellung kann die Lautstärke unbemerkt anheben. Zum Laden per USB verbinden oder am Gerät laden.',
+                          ),
+                          style: ts(12, color: Palette.muted),
+                        ),
+                      ),
                     for (var n = 1; n <= 9; n++)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 0),
@@ -1052,10 +1068,26 @@ class _SetupsPageState extends State<SetupsPage> {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Text(
-                                        _setupName(n),
-                                        overflow: TextOverflow.ellipsis,
-                                        style: ts(15, weight: 500),
+                                      Row(
+                                        children: [
+                                          Flexible(
+                                            child: Text(
+                                              _setupName(n),
+                                              overflow: TextOverflow.ellipsis,
+                                              style: ts(15, weight: 500),
+                                            ),
+                                          ),
+                                          if (!c.offline ||
+                                              c.isSetupPrepared(n))
+                                            const Padding(
+                                              padding: EdgeInsets.only(left: 6),
+                                              child: Icon(
+                                                Icons.edit_outlined,
+                                                size: 16,
+                                                color: Palette.muted,
+                                              ),
+                                            ),
+                                        ],
                                       ),
                                       if (c.isSetupPrepared(n))
                                         Text(
@@ -1074,6 +1106,7 @@ class _SetupsPageState extends State<SetupsPage> {
                                   style: _compactButton,
                                   onPressed:
                                       _busy ||
+                                          c.viaHost ||
                                           (c.offline && !c.isSetupPrepared(n))
                                       ? null
                                       : () => _run(() => c.loadSetup(n)),
@@ -1097,7 +1130,19 @@ class _SetupsPageState extends State<SetupsPage> {
                       ListTile(
                         contentPadding: EdgeInsets.zero,
                         title: Text(tr('Offline-Stand auf Werkseinstellung')),
-                        onTap: _busy ? null : () => _run(c.resetOffline),
+                        onTap: _busy
+                            ? null
+                            : () async {
+                                if (await _confirm(
+                                  tr('Offline-Stand zurücksetzen?'),
+                                  tr(
+                                    'Alle Offline-Einstellungen sowie vorbereitete EQ-Presets und Setups dieses Modells werden gelöscht.',
+                                  ),
+                                  tr('Zurücksetzen'),
+                                )) {
+                                  await _run(c.resetOffline);
+                                }
+                              },
                       )
                     else ...[
                       ListTile(

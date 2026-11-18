@@ -67,6 +67,10 @@ class _Picker extends FilePickerPlatform {
 
 class _Controller extends Adi2Controller {
   bool isOffline = false;
+  bool hostMode = false;
+
+  @override
+  bool get viaHost => hostMode;
   final values = <(int, int), int>{};
   final writes = <(int, int, int)>[];
   final eqWrites = <(int, int, int)>[];
@@ -1211,6 +1215,10 @@ void main() {
       expect(find.text('Backup sichern / laden'), findsNothing);
       expect(find.text('Offline-Einstellungen übertragen'), findsNothing);
       await tap(tester, find.text('Offline-Stand auf Werkseinstellung'));
+      // Erst nach Bestätigung zurücksetzen.
+      expect(controller.resets, 0);
+      expect(find.text('Offline-Stand zurücksetzen?'), findsOneWidget);
+      await tap(tester, find.widgetWithText(FilledButton, 'Zurücksetzen'));
       expect(controller.resets, 1);
     },
   );
@@ -1435,4 +1443,60 @@ void main() {
       },
     );
   }
+  testWidgets(
+    'Über den Host: Setups laden gesperrt mit Hinweis, Speichern möglich',
+    (tester) async {
+      controller.hostMode = true;
+      await showPage(tester);
+      final title = find.text('Geräte-Setups 1–9');
+      await tester.ensureVisible(title);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Über den Host gesperrt'), findsOneWidget);
+      final load = tester.widgetList<TextButton>(
+        find.widgetWithText(TextButton, 'Laden'),
+      );
+      expect(load, isNotEmpty);
+      expect(load.every((b) => b.onPressed == null), isTrue);
+      final save = tester.widgetList<TextButton>(
+        find.widgetWithText(TextButton, 'Speichern'),
+      );
+      expect(save.any((b) => b.onPressed != null), isTrue);
+      expect(find.byIcon(Icons.edit_outlined), findsWidgets);
+    },
+  );
+  testWidgets(
+    'Über den Host: vorbereitete Setups nicht übertragbar, Rest schon',
+    (tester) async {
+      controller.hostMode = true;
+      controller.preparation = OfflinePreparation(
+        settings: {1: 0},
+        presets: [
+          EqPresetData(number: 6, name: 'Seven', empty: false, dual: false),
+        ],
+        setups: [OfflineSetupData(number: 3, name: 'Three', values: {})],
+      );
+      controller.pendingTransfer = Completer<PreparedTransferResult>();
+      await showPage(tester);
+      await tap(tester, find.text('Offline-Einstellungen übertragen'));
+      final boxes = tester
+          .widgetList<CheckboxListTile>(find.byType(CheckboxListTile))
+          .toList();
+      expect(boxes, hasLength(3));
+      final setupBox = tester.widget<CheckboxListTile>(
+        find.widgetWithText(CheckboxListTile, 'Vorbereitete Setups'),
+      );
+      expect(setupBox.value, isFalse);
+      expect(setupBox.onChanged, isNull);
+      expect(
+        find.textContaining('Über den Host nicht möglich'),
+        findsOneWidget,
+      );
+      await tap(tester, find.widgetWithText(FilledButton, 'Übertragen'));
+      expect(controller.transferSelection, (true, true, false));
+      controller.pendingTransfer!.complete(
+        const PreparedTransferResult(presets: 1, setups: 0, settings: 1),
+      );
+      await tester.pumpAndSettle();
+    },
+  );
 }

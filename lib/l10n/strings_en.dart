@@ -606,6 +606,10 @@ const Map<String, String> stringsEn = {
       'The preset on the device will be overwritten.',
   'Speichern': 'Save',
   'Einstellungen': 'Settings',
+  'Offline-Stand zurücksetzen?': 'Reset offline settings?',
+  'Alle Offline-Einstellungen sowie vorbereitete EQ-Presets und Setups dieses Modells werden gelöscht.': 'All offline settings and prepared EQ presets and setups for this model will be deleted.',
+  'Über den Host nicht möglich: Ein Setup kann Ref Level und Lautstärke enthalten, die der Host aus Sicherheitsgründen nicht übernimmt. Zum Übertragen per USB verbinden.': 'Not possible through the host: a setup can contain Ref Level and volume values that the host does not apply for safety reasons. Connect via USB to transfer.',
+  'Über den Host gesperrt: Ein Setup oder die Werkseinstellung kann die Lautstärke unbemerkt anheben. Zum Laden per USB verbinden oder am Gerät laden.': 'Blocked through the host: a setup or the factory settings could raise the volume unnoticed. To load, connect via USB or load on the device.',
   'Gespeichert als Preset {n}': 'Saved as preset {n}',
   'Offline nicht möglich: EQ-Presets werden im Gerät gespeichert.':
       'Not available offline: EQ presets are stored in the device.',
@@ -780,7 +784,9 @@ const Map<String, String> stringsEn = {
       'This backup is from an {modell}; an {geraet} is connected.',
   'Backup wiederherstellen?': 'Restore backup?',
   'Alle Einstellungen vom {datum} werden ins Gerät geschrieben. Lautstärken werden nur übernommen, wenn sie leiser sind als jetzt.': 'All settings from {datum} will be written to the device. Volume levels are only applied if lower than the current levels.',
-  'Auch die 20 EQ-Presets überschreiben': 'Also overwrite the 20 EQ presets',
+  'Auch die EQ-Presets aus dem Backup schreiben':
+      'Also write the EQ presets from the backup',
+  'Belegte Presets im Backup überschreiben die gleichen Plätze. Plätze, die im Backup leer sind, bleiben im Gerät unverändert; der ADI-2 kann sie per MIDI nicht leeren.': 'Presets stored in the backup overwrite the same slots. Slots that are empty in the backup stay unchanged on the device; the ADI-2 cannot clear them over MIDI.',
   'Wiederherstellen': 'Restore',
   'Gerät entsprach bereits dem Backup.': 'Device already matched the backup.',
   'Wiederhergestellt: {n} Einstellungen.': 'Restored: {n} settings.',

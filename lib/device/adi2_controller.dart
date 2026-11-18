@@ -1158,6 +1158,21 @@ class Adi2Controller extends ChangeNotifier {
       setVolume(address, value); // nie ohne Schutz
       return;
     }
+    // Dual Phones einschalten: Phones 1/2 bleibt danach stumm, bis der
+    // Nutzer die Stummschaltung selbst aufhebt (Pegel des Geräts unbekannt).
+    if (address == Adi2Addr.device &&
+        index == 8 &&
+        value == 1 &&
+        !offline &&
+        variant != null &&
+        !variant!.isDac &&
+        valueOr(Adi2Addr.device, 8, 0) == 0) {
+      _applyValues(const {
+        Adi2Addr.device << 8 | 8: 1,
+        Adi2Addr.ph12 << 8 | OutIdx.mute: 1,
+      });
+      return;
+    }
     if (index == OutIdx.refLevel && volumeAddresses.contains(address)) {
       // Erst Grenze für den neuen Ref-Level setzen und eine zu hohe
       // Lautstärke sofort senken – danach erst umschalten.
@@ -2028,9 +2043,11 @@ class Adi2Controller extends ChangeNotifier {
       final saved = prefs.getString(_offlineKey(v));
       if (session != _connectionSession || saved == null) return 0;
       final j = jsonDecode(saved) as Map<String, dynamic>;
-      return _applyValues({
+      final n = _applyValues({
         for (final e in j.entries) int.parse(e.key): e.value as int,
       });
+      await _awaitPhonesActivation();
+      return n;
     });
   }
 
@@ -2079,7 +2096,11 @@ class Adi2Controller extends ChangeNotifier {
       final prepared = await readOfflinePreparation();
       check();
       final presets = withPresets ? prepared.presets : <EqPresetData>[];
-      final setups = withSetups ? prepared.setups : <OfflineSetupData>[];
+      // Über den Host nicht: Er übernimmt Ref-Level-Erhöhungen ohne
+      // Ausgleich nicht, das Setup ließe sich nicht originalgetreu speichern.
+      final setups = withSetups && !viaHost
+          ? prepared.setups
+          : <OfflineSetupData>[];
       final settings = withSettings ? prepared.settings : null;
       final total = presets.length + setups.length + (settings == null ? 0 : 1);
       var done = 0, presetCount = 0, setupCount = 0, settingsCount = 0;
@@ -2112,10 +2133,20 @@ class Adi2Controller extends ChangeNotifier {
         }
         for (final setup in setups) {
           check();
+          final beforeApply = {
+            for (final key in setup.values.keys)
+              key: value(key >> 8, key & 0xFF),
+          };
           _applyValues(setup.values, respectDual: true);
+          await _awaitPhonesActivation();
+          // Nur Werte verlangen, die das Gerät auch meldet: Je nach Modell
+          // und Betriebsart gibt es manche Parameter nicht (z. B. Phones 1/2
+          // ohne eigene Werte, Bass/Treble am Eingang).
           final required = [
             for (final key in setup.values.keys)
-              if (_canTransferValue(setup.values, key)) key,
+              if (_canTransferValue(setup.values, key) &&
+                  _confirmedMessages.containsKey(key))
+                key,
           ];
           final confirmed = await refreshConfirmedValues(
             requiredKeys: required,
@@ -2128,6 +2159,19 @@ class Adi2Controller extends ChangeNotifier {
             final want = setup.values[key];
             final got = value(key >> 8, key & 0xFF);
             if (want == null || got == null) return false;
+            // Mit Auto Ref Level wählt das Gerät den Ref Level selbst.
+            if ((key & 0xFF) == OutIdx.refLevel &&
+                volumeAddresses.contains(key >> 8) &&
+                value(key >> 8, OutIdx.autoRef) == 1) {
+              return true;
+            }
+            final level =
+                volumeAddresses.contains(key >> 8) &&
+                ((key & 0xFF) == OutIdx.volume ||
+                    (key & 0xFF) == OutIdx.refLevel);
+            // Lautstärke/Ref Level, die das Gerät unverändert lässt (z. B.
+            // Ausgang ohne eigene Werte), sind kein Übertragungsfehler.
+            if (level && got != want && got == beforeApply[key]) return true;
             if ((key & 0xFF) == OutIdx.volume &&
                 volumeAddresses.contains(key >> 8)) {
               return got <= want;
@@ -2152,6 +2196,7 @@ class Adi2Controller extends ChangeNotifier {
         if (settings != null) {
           check();
           settingsCount = _applyValues(settings, respectDual: true);
+          await _awaitPhonesActivation();
           settingsApplied = true;
           advance();
         }
@@ -2229,12 +2274,124 @@ class Adi2Controller extends ChangeNotifier {
               x.index == OutIdx.refLevel ? 1 : 0,
             ),
     );
+    // Dual Phones einschalten weckt Phones 1/2 mit dem Pegel, den das Gerät
+    // dafür gespeichert hat (gemessen am ADI-2 Pro: −2 dB), ohne dass die App
+    // ihn vorher kennt. Deshalb im selben Befehl davor und danach stumm, dann
+    // Pegel zurücklesen und höchstens auf den Zielwert stellen.
+    const dualKey = Adi2Addr.device << 8 | 8;
+    final activatePh12 =
+        variant != null &&
+        !variant!.isDac &&
+        out.any((p) => p.key == dualKey && p.value == 1) &&
+        valueOr(Adi2Addr.device, 8, 0) == 0;
+    if (activatePh12) {
+      out.removeWhere(
+        (p) =>
+            p.key == dualKey ||
+            (p.address == Adi2Addr.ph12 &&
+                (p.index == OutIdx.volume || p.index == OutIdx.mute)),
+      );
+      out.addAll(const [
+        Adi2Param(Adi2Addr.ph12, OutIdx.mute, 1),
+        Adi2Param(Adi2Addr.device, 8, 1),
+        Adi2Param(Adi2Addr.ph12, OutIdx.mute, 1),
+      ]);
+    }
+    // Höchstwert je Ausgang nach dem Schreiben: gesendete Lautstärke, sonst
+    // die bisherige. Das Gerät kann beim Umschalten von Ref Level, Auto Ref
+    // Level oder Betriebsart selbst eine andere Lautstärke einstellen
+    // (gemessen am ADI-2 Pro: Auto Ref aus → +15 dB).
+    final allowed = <int, int>{
+      for (final a in volumeAddresses)
+        if (!(activatePh12 && a == Adi2Addr.ph12) &&
+            value(a, OutIdx.volume) != null)
+          a: value(a, OutIdx.volume)!,
+    };
+    for (final p in out) {
+      if (p.index == OutIdx.volume && allowed.containsKey(p.address)) {
+        allowed[p.address] = p.value;
+      }
+    }
     setMany(out);
     final session = _connectionSession;
+    final ph12 = activatePh12
+        ? _finishPh12Activation(
+            session,
+            vals[Adi2Addr.ph12 << 8 | OutIdx.volume],
+            vals[Adi2Addr.ph12 << 8 | OutIdx.mute] ?? 0,
+            vals[Adi2Addr.ph12 << 8 | OutIdx.refLevel],
+          )
+        : null;
+    _phonesActivation = ph12;
+    // Läuft im Hintergrund weiter, auch wenn der Aufrufer schon fertig ist.
+    unawaited(() async {
+      if (ph12 != null) await ph12;
+      await _guardVolumes(session, allowed);
+    }());
     Future.delayed(const Duration(milliseconds: 500), () {
       if (!_disposed && session == _connectionSession) requestAll();
     });
     return out.length;
+  }
+
+  /// Läuft nach einer Dual-Phones-Aktivierung durch [_applyValues]; null,
+  /// wenn nichts aussteht.
+  Future<void>? _phonesActivation;
+
+  /// Phones 1/2 ist frisch aktiv und stumm: Pegel lesen, höchstens auf
+  /// [targetVolume] (und die Grenze) stellen, erst dann Stummschaltung wie im
+  /// Ziel. Ohne Bestätigung bleibt der Ausgang stumm.
+  Future<void> _finishPh12Activation(
+    int session,
+    int? targetVolume,
+    int targetMute,
+    int? targetRef,
+  ) async {
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    if (_disposed || session != _connectionSession) return;
+    const volKey = Adi2Addr.ph12 << 8 | OutIdx.volume;
+    final ok = await refreshConfirmedValues(requiredKeys: const [volKey]);
+    if (!ok || _disposed || session != _connectionSession) return;
+    final cur = value(Adi2Addr.ph12, OutIdx.volume);
+    if (cur == null) return;
+    // Ref Level nur senken (niedrigerer Rohwert = niedrigerer Pegel).
+    final curRef = value(Adi2Addr.ph12, OutIdx.refLevel);
+    final lowerRef = targetRef != null && curRef != null && targetRef < curRef;
+    if (lowerRef) _values[Adi2Addr.ph12 << 8 | OutIdx.refLevel] = targetRef;
+    var next = cur;
+    if (targetVolume != null && targetVolume < next) next = targetVolume;
+    next = next.clamp(volMinRaw, volGuard.limitFor(Adi2Addr.ph12));
+    setMany([
+      if (lowerRef) Adi2Param(Adi2Addr.ph12, OutIdx.refLevel, targetRef),
+      if (next != cur) Adi2Param(Adi2Addr.ph12, OutIdx.volume, next),
+      if (targetMute == 0) const Adi2Param(Adi2Addr.ph12, OutIdx.mute, 0),
+    ]);
+  }
+
+  /// Nach gesammeltem Schreiben: Lautstärken zurücklesen und jeden Ausgang,
+  /// der lauter als [allowed] ist, sofort wieder darauf senken.
+  Future<void> _guardVolumes(int session, Map<int, int> allowed) async {
+    if (allowed.isEmpty) return;
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    if (_disposed || session != _connectionSession) return;
+    await refreshConfirmedValues(
+      requiredKeys: [for (final a in allowed.keys) a << 8 | OutIdx.volume],
+    );
+    if (_disposed || session != _connectionSession) return;
+    final fix = <Adi2Param>[
+      for (final e in allowed.entries)
+        if ((value(e.key, OutIdx.volume) ?? e.value) > e.value)
+          Adi2Param(e.key, OutIdx.volume, e.value),
+    ];
+    if (fix.isNotEmpty) setMany(fix);
+  }
+
+  /// Wartet auf eine laufende Dual-Phones-Aktivierung.
+  Future<void> _awaitPhonesActivation() async {
+    final pending = _phonesActivation;
+    if (pending == null) return;
+    await pending;
+    if (identical(_phonesActivation, pending)) _phonesActivation = null;
   }
 
   // -------------------------------------------------------------------------
@@ -2398,6 +2555,7 @@ class Adi2Controller extends ChangeNotifier {
       final id = model?.id;
       if (id == null || offline) return 0;
       final n = _applyValues(b.values);
+      await _awaitPhonesActivation();
       if (withPresets) {
         for (final p in b.presets) {
           if (p.empty) continue;

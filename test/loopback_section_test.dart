@@ -323,6 +323,8 @@ void main() {
         expect(await ctrl.restoreBackup(backup), 1);
         await tester.pump(const Duration(milliseconds: 600));
         expect(ctrl.value(Adi2Addr.line, OutIdx.loopback), 9);
+        // Nachkontrolle der Lautstärken läuft im Hintergrund zu Ende.
+        await tester.pump(const Duration(seconds: 3));
         expect(tester.takeException(), isNull);
       } finally {
         ctrl.dispose();

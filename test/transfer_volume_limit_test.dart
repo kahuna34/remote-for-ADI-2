@@ -92,7 +92,8 @@ void main() {
           expect(midi.writes.last.index, OutIdx.volume);
           expect(midi.writes.last.value, limit ? -240 : -150);
           expect(ref, lessThan(midi.writes.length - 1));
-          await tester.pump(const Duration(seconds: 1));
+          // Nachkontrolle der Lautstärken läuft im Hintergrund zu Ende.
+          await tester.pump(const Duration(seconds: 3));
           c.dispose();
           midi.device.dispose();
           await midi.packets.close();

@@ -2,15 +2,15 @@
 
 [Deutsch](docs/README.de.md)
 
-Remote for ADI-2 is a free Flutter app for controlling compatible ADI-2 audio interfaces directly over USB MIDI from a smartphone or tablet. It provides output and device controls, an EQ editor, setups, backups, a configurable control panel and a USB audio analyzer. Version **1.2.2 (7)**. © 2026 Markus Rass.
+Remote for ADI-2 is a free Flutter app for controlling compatible ADI-2 audio interfaces directly over USB MIDI from a smartphone or tablet. It provides output and device controls, an EQ editor, setups, backups, a configurable control panel and a USB audio analyzer. Version **1.2.3 (8)**. © 2026 Markus Rass.
 
 ## Download
 
 | What | File | For |
 | --- | --- | --- |
-| **App** | [Remote-for-ADI-2-Android-1.2.2.apk](https://github.com/kahuna34/remote-for-ADI-2/releases/download/v1.2.2/Remote-for-ADI-2-Android-1.2.2.apk) | Android smartphone or tablet |
-| **Host for Mac** | [Remote-for-ADI-2-Host-macOS-1.2.1.zip](https://github.com/kahuna34/remote-for-ADI-2/releases/download/v1.2.2/Remote-for-ADI-2-Host-macOS-1.2.1.zip) | Mac with the ADI-2 connected by USB |
-| **Host for Windows** | [Remote-for-ADI-2-Host-Windows-Setup-1.2.1.exe](https://github.com/kahuna34/remote-for-ADI-2/releases/download/v1.2.2/Remote-for-ADI-2-Host-Windows-Setup-1.2.1.exe) | Windows PC (64-bit) with the ADI-2 connected by USB |
+| **App** | [Remote-for-ADI-2-Android-1.2.3.apk](https://github.com/kahuna34/remote-for-ADI-2/releases/download/v1.2.3/Remote-for-ADI-2-Android-1.2.3.apk) | Android smartphone or tablet |
+| **Host for Mac** | [Remote-for-ADI-2-Host-macOS-1.2.1.zip](https://github.com/kahuna34/remote-for-ADI-2/releases/download/v1.2.3/Remote-for-ADI-2-Host-macOS-1.2.1.zip) | Mac with the ADI-2 connected by USB |
+| **Host for Windows** | [Remote-for-ADI-2-Host-Windows-Setup-1.2.1.exe](https://github.com/kahuna34/remote-for-ADI-2/releases/download/v1.2.3/Remote-for-ADI-2-Host-Windows-Setup-1.2.1.exe) | Windows PC (64-bit) with the ADI-2 connected by USB |
 
 All files of the current version are also on the [releases page](https://github.com/kahuna34/remote-for-ADI-2/releases/latest). The host is only needed to control the ADI-2 over Wi-Fi through a computer; for a direct USB connection the app is enough.
 

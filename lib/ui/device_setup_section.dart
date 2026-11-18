@@ -213,14 +213,27 @@ class _DeviceSetupSectionState extends State<DeviceSetupSection> {
                 spacing: 8,
                 runSpacing: 4,
                 children: [
-                  TextButton(onPressed: _load, child: Text(tr('Laden'))),
+                  TextButton(
+                    onPressed: c.viaHost ? null : _load,
+                    child: Text(tr('Laden')),
+                  ),
                   TextButton(onPressed: _save, child: Text(tr('Speichern'))),
                   TextButton(
-                    onPressed: _factory,
+                    onPressed: c.viaHost ? null : _factory,
                     child: Text(tr('Werkseinstellung')),
                   ),
                 ],
               ),
+              if (c.viaHost)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    tr(
+                      'Über den Host gesperrt: Ein Setup oder die Werkseinstellung kann die Lautstärke unbemerkt anheben. Zum Laden per USB verbinden oder am Gerät laden.',
+                    ),
+                    style: ts(12, color: Palette.muted),
+                  ),
+                ),
             ],
           ],
         ),
