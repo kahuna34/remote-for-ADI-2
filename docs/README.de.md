@@ -10,7 +10,7 @@ Remote for ADI-2 ist eine kostenlose Flutter-App zur direkten Steuerung kompatib
 | --- | --- | --- |
 | **App** | [Remote-for-ADI-2-Android-1.2.4.apk](https://github.com/kahuna34/remote-for-ADI-2/releases/download/v1.2.4/Remote-for-ADI-2-Android-1.2.4.apk) | Android-Smartphone oder -Tablet |
 | **Host für Mac** | [Remote-for-ADI-2-Host-macOS-1.2.3.zip](https://github.com/kahuna34/remote-for-ADI-2/releases/download/v1.2.4/Remote-for-ADI-2-Host-macOS-1.2.3.zip) | Mac, an dem der ADI-2 per USB hängt |
-| **Host für Windows** | [Remote-for-ADI-2-Host-Windows-Setup-1.2.1.exe](https://github.com/kahuna34/remote-for-ADI-2/releases/download/v1.2.4/Remote-for-ADI-2-Host-Windows-Setup-1.2.1.exe) | Windows-PC (64 Bit), an dem der ADI-2 per USB hängt |
+| **Host für Windows** | [Remote-for-ADI-2-Host-Windows-Setup-1.2.3.exe](https://github.com/kahuna34/remote-for-ADI-2/releases/download/v1.2.4/Remote-for-ADI-2-Host-Windows-Setup-1.2.3.exe) | Windows-PC (64 Bit), an dem der ADI-2 per USB hängt |
 
 Alle Dateien der aktuellen Version stehen auch auf der [Release-Seite](https://github.com/kahuna34/remote-for-ADI-2/releases/latest). Den Host braucht man nur, um den ADI-2 per WLAN über einen Computer zu steuern; für die direkte USB-Verbindung genügt die App.
 
@@ -22,7 +22,7 @@ App und Host melden neue Versionen; die Prüfung ist abschaltbar und fragt nur b
 
 **Host am Mac installieren:** Die Datei entpacken und **Remote for ADI-2 Host** in den Ordner Programme ziehen. Das Programm ist nicht von Apple signiert: Beim ersten Start blockiert macOS es. Dann **Systemeinstellungen → Datenschutz & Sicherheit** öffnen und **Dennoch öffnen** wählen. Danach erscheint das Symbol in der Menüleiste.
 
-**Host unter Windows installieren:** **Remote-for-ADI-2-Host-Windows-Setup-1.2.1.exe** ausführen. Das Setup installiert ohne Administratorrechte für das eigene Benutzerkonto, legt **Remote for ADI-2 Host** im Startmenü an und schaltet **Mit Windows starten** ein; deinstalliert wird unter **Einstellungen → Apps → Installierte Apps**. Warnt SmartScreen, **Weitere Informationen → Trotzdem ausführen** wählen. Das Symbol erscheint im Infobereich der Taskleiste, eventuell hinter dem Pfeil (^).
+**Host unter Windows installieren:** **Remote-for-ADI-2-Host-Windows-Setup-1.2.3.exe** ausführen. Das Setup installiert ohne Administratorrechte für das eigene Benutzerkonto, legt **Remote for ADI-2 Host** im Startmenü an und schaltet **Mit Windows starten** ein; deinstalliert wird unter **Einstellungen → Apps → Installierte Apps**. Warnt SmartScreen, **Weitere Informationen → Trotzdem ausführen** wählen. Das Symbol erscheint im Infobereich der Taskleiste, eventuell hinter dem Pfeil (^).
 
 Bei der Windows-Firewall-Abfrage **Private Netzwerke** zulassen. Falls bisher nur „Öffentlich“ freigegeben ist: **Windows-Sicherheit → Firewall- & Netzwerkschutz → App durch Firewall zulassen** öffnen und bei **Remote for ADI-2 Host** **Privat** anhaken.
 
