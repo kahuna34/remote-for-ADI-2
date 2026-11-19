@@ -364,7 +364,11 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
 
   Future<void> _menu() {
     if (_exiting) return Future.value();
+    // Jede Aktualisierung hängt an der vorigen. Bleibt ein Aufruf im
+    // Menüleisten-Plugin hängen, darf er nicht alle späteren blockieren
+    // (Menü zeigte dann dauerhaft „kein ADI-2“ und keine Clients).
     _menuWork = _menuWork
+        .timeout(const Duration(seconds: 3), onTimeout: () {})
         .catchError((Object _) {})
         .then(
           (_) => trayManager.setContextMenu(
@@ -420,9 +424,20 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
   }
 
   @override
-  void onTrayIconMouseDown() => unawaited(trayManager.popUpContextMenu());
+  void onTrayIconMouseDown() => unawaited(_popUpMenu());
   @override
-  void onTrayIconRightMouseDown() => unawaited(trayManager.popUpContextMenu());
+  void onTrayIconRightMouseDown() => unawaited(_popUpMenu());
+
+  /// Vor dem Öffnen den aktuellen Stand (Gerät, Clients) eintragen.
+  Future<void> _popUpMenu() async {
+    try {
+      await _menu().timeout(const Duration(milliseconds: 500));
+    } catch (_) {
+      // Lieber das bisherige Menü zeigen als gar keins.
+    }
+    await trayManager.popUpContextMenu();
+  }
+
   @override
   void onTrayMenuItemClick(MenuItem item) async {
     switch (item.key) {
