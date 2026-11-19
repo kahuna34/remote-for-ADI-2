@@ -63,6 +63,8 @@ class EqLibraryEntry {
   final EqLibraryDeviation? deviation;
   final EqLibraryMeasured? measured;
 
+  String get favoriteKey => '$brand|$model|$variant|$target';
+
   bool matches(String query) => '$brand $model $variant'.toLowerCase().contains(
     query.trim().toLowerCase(),
   );

@@ -715,7 +715,7 @@ void main() {
         }
       },
     );
-    testWidgets('$platform calibration dialog offers tone on Android and Mac', (
+    testWidgets('$platform calibration dialog offers tone on every platform', (
       tester,
     ) async {
       debugDefaultTargetPlatformOverride = platform;
@@ -746,10 +746,7 @@ void main() {
         );
         await settle(tester);
         final toggle = find.byKey(const ValueKey('calibration-test-tone'));
-        expect(
-          toggle,
-          platform == TargetPlatform.iOS ? findsNothing : findsOneWidget,
-        );
+        expect(toggle, findsOneWidget);
         if (platform == TargetPlatform.macOS) {
           muteCalibrationOutputs(d);
           d.set(Adi2Addr.line, OutIdx.daFilter, 0);

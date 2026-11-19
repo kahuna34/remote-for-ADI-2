@@ -16,6 +16,12 @@ final class AnalyzerCapture: NSObject, FlutterStreamHandler {
   private var configurationObserver: NSObjectProtocol?
   private var terminationObserver: NSObjectProtocol?
   private var deviceListeners: [(AudioObjectID, AudioObjectPropertyAddress, AudioObjectPropertyListenerBlock)] = []
+  /// Eigene Warteschlange für CoreAudio-Meldungen. CoreAudio ruft Listener
+  /// synchron auf ihrer Queue auf und hält dabei Gerätesperren. Lief das auf
+  /// .main, während der Hauptthread gerade die AVAudioEngine freigab (wartet
+  /// auf dieselbe Gerätesperre), hingen beide für immer (Host „hängt“, wenn
+  /// der ADI-2 USB wechselt, z. B. ans iPhone).
+  private let listenerQueue = DispatchQueue(label: "adi2.host.analyzer.listeners")
 
   init(messenger: FlutterBinaryMessenger) {
     method = FlutterMethodChannel(name: "adi2/analyzer", binaryMessenger: messenger)
@@ -67,17 +73,16 @@ final class AnalyzerCapture: NSObject, FlutterStreamHandler {
 
   private func watch(_ object: AudioObjectID, _ selector: AudioObjectPropertySelector) throws {
     var address = AdiAudio.address(selector)
-    // CoreAudio ruft diesen Block synchron auf dem Hauptthread auf und wartet
-    // darauf. Stoppen (Listener entfernen, AVAudioEngine freigeben) darf erst
-    // danach passieren, sonst warten CoreAudio und Hauptthread aufeinander
-    // (Host hing beim Wechsel des ADI-2, Menü reagierte nicht mehr).
+    // CoreAudio ruft diesen Block synchron auf listenerQueue auf und wartet
+    // darauf. Er springt nur asynchron auf den Hauptthread; Stoppen (Listener
+    // entfernen, AVAudioEngine freigeben) passiert erst dort.
     let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
       DispatchQueue.main.async { [weak self] in
         guard let self = self, self.engine != nil else { return }
         if !self.validInput() { self.fail("usbUnavailable") }
       }
     }
-    try AdiAudio.check(AudioObjectAddPropertyListenerBlock(object, &address, .main, listener))
+    try AdiAudio.check(AudioObjectAddPropertyListenerBlock(object, &address, listenerQueue, listener))
     deviceListeners.append((object, address, listener))
   }
 
@@ -183,7 +188,7 @@ final class AnalyzerCapture: NSObject, FlutterStreamHandler {
     if let observer = configurationObserver { NotificationCenter.default.removeObserver(observer) }
     configurationObserver = nil
     for (object, var address, listener) in deviceListeners {
-      AudioObjectRemovePropertyListenerBlock(object, &address, .main, listener)
+      AudioObjectRemovePropertyListenerBlock(object, &address, listenerQueue, listener)
     }
     deviceListeners.removeAll()
     if let engine = engine {

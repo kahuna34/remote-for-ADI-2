@@ -691,19 +691,19 @@ Future<void> showAnalyzerSettings(
               ),
               const AnalyzerColorSetting(),
               const AnalyzerRangeSetting(),
-              // Kalibrierung braucht den Testton per USB vom Smartphone;
-              // über den Host gibt es sie nicht, also auch nicht im Menü.
-              if (!controller.viaHost && ctrl?.viaHost != true)
-                AnalyzerCalibrationSetting(
-                  controller: controller,
-                  deviceController: ctrl,
-                ),
             ],
             AnalyzerLoopbackControls(ctrl: ctrl, routing: routing),
             const Padding(
               padding: EdgeInsets.all(16),
               child: AnalyzerComparisonInfo(),
             ),
+            // Selten gebraucht: ganz unten. Braucht den Testton per USB vom
+            // Smartphone; über den Host gibt es sie nicht, also auch nicht hier.
+            if (!loopbackOnly && !controller.viaHost && ctrl?.viaHost != true)
+              AnalyzerCalibrationSetting(
+                controller: controller,
+                deviceController: ctrl,
+              ),
           ],
         ),
       ),
@@ -1115,6 +1115,7 @@ class _AnalyzerCalibrationSettingState
         widget.deviceController?.viaHost != true &&
         !kIsWeb &&
         (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS ||
             defaultTargetPlatform == TargetPlatform.macOS) &&
         widget.deviceController != null;
     final accepted =
@@ -1195,6 +1196,22 @@ class _AnalyzerCalibrationSettingState
                               child: Text(
                                 '• $blocker',
                                 key: const ValueKey('calibration-tone-blocker'),
+                              ),
+                            ),
+                          // iPhone: Die Medienlautstärke lässt sich am USB-
+                          // Ausgang nur in der App zuverlässig auf 100 % setzen.
+                          if (defaultTargetPlatform == TargetPlatform.iOS &&
+                              c.mediaVolumeBelowMaximum)
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: OutlinedButton.icon(
+                                key: const ValueKey('calibration-media-max'),
+                                icon: const Icon(Icons.volume_up),
+                                label: Text(
+                                  tr('Medienlautstärke auf 100 % stellen'),
+                                ),
+                                onPressed: () =>
+                                    unawaited(c.setMediaVolumeMax()),
                               ),
                             ),
                           if (device != null &&

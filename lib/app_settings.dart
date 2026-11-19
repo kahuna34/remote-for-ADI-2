@@ -22,9 +22,42 @@ class AppSettings extends ChangeNotifier {
   AppSettings._();
   static final AppSettings instance = AppSettings._();
 
+  static const safetyNoticeVersion = 1;
+  int safetyNoticeAccepted = 0;
+  final Set<String> _eqFavorites = {};
+  Set<String> get eqFavorites => Set.unmodifiable(_eqFavorites);
+
+  Future<void> loadSafetyNotice() async {
+    final prefs = await SharedPreferences.getInstance();
+    safetyNoticeAccepted = prefs.getInt('safety_notice_version') ?? 0;
+  }
+
+  Future<void> acceptSafetyNotice() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!await prefs.setInt('safety_notice_version', safetyNoticeVersion)) {
+      throw StateError('Safety notice acceptance could not be saved');
+    }
+    safetyNoticeAccepted = safetyNoticeVersion;
+    notifyListeners();
+  }
+
+  Future<void> toggleEqFavorite(String key) {
+    if (!_eqFavorites.remove(key)) _eqFavorites.add(key);
+    final stored = _eqFavorites.toList()..sort();
+    notifyListeners();
+    return _persistEasy((prefs) => prefs.setStringList('eq_favorites', stored));
+  }
+
   /// Hauptansicht wechselt zum Ausgang, den das Gerät als aktiv meldet
   /// (z. B. beim Einstecken eines Kopfhörers). Wie im Original: Standard an.
   bool autoSwitchOutput = true;
+  bool volumeKeys = true;
+
+  Future<void> setVolumeKeys(bool value) {
+    volumeKeys = value;
+    notifyListeners();
+    return _persistEasy((prefs) => prefs.setBool('volume_keys', value));
+  }
 
   bool _eqLibraryEnabled = false;
 
@@ -547,6 +580,10 @@ class AppSettings extends ChangeNotifier {
               )
               .firstOrNull ??
           TabletExtraContent.eq;
+      safetyNoticeAccepted = prefs.getInt('safety_notice_version') ?? 0;
+      _eqFavorites
+        ..clear()
+        ..addAll(prefs.getStringList('eq_favorites') ?? []);
       _eqLibraryEnabled = prefs.getBool('eq_library_enabled') ?? false;
       updateCheck = prefs.getBool('update_check') ?? true;
       lastUpdateCheck = DateTime.tryParse(
@@ -636,6 +673,7 @@ class AppSettings extends ChangeNotifier {
       showPlayer = prefs.getBool('show_player') ?? true;
       showStatus = prefs.getBool('show_status') ?? true;
       autoSwitchOutput = prefs.getBool('auto_switch_output') ?? true;
+      volumeKeys = prefs.getBool('volume_keys') ?? true;
       statusInDbu = prefs.getBool('status_in_dbu') ?? false;
       autoFullscreenEq = prefs.getBool('auto_fullscreen_eq') ?? true;
     } catch (_) {}

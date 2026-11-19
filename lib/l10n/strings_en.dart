@@ -2,6 +2,21 @@
 // Platzhalter wie {n} müssen in beiden Sprachen gleich heißen.
 
 const Map<String, String> stringsEn = {
+  'Wichtiger Hinweis zur Lautstärke': 'Important notice about volume',
+  'Diese App verändert Einstellungen deines ADI-2, auch die Lautstärke. Bedienfehler, Übertragungs- oder Softwarefehler sowie unerwartetes Verhalten von Gerät, Verbindung oder Host können zu plötzlich hoher Lautstärke führen. Zu hohe Lautstärke kann das Gehör dauerhaft schädigen und Kopfhörer, Lautsprecher, Verstärker oder andere Geräte beschädigen.\n\n• Beginne immer mit niedriger Lautstärke und nutze den Lautstärkeschutz mit einer passenden Obergrenze.\n• Setze Kopfhörer erst auf, wenn die Verbindung steht und die Lautstärke geprüft ist.\n• Prüfe wichtige Änderungen direkt am Gerät.\n\nDie App ist kostenlose Software und wird ohne Gewährleistung bereitgestellt (GPL-3.0). Die Nutzung erfolgt auf eigene Verantwortung. Soweit gesetzlich zulässig, ist die Haftung des Entwicklers für Schäden aus der Nutzung der App ausgeschlossen, insbesondere für Hör- und andere Gesundheitsschäden, Schäden an Geräten sowie Datenverlust. Unberührt bleibt die Haftung für Vorsatz und grobe Fahrlässigkeit sowie jede Haftung, die gesetzlich nicht ausgeschlossen werden kann, etwa für Schäden aus der Verletzung des Lebens, des Körpers oder der Gesundheit.': 'This app changes settings of your ADI-2, including the volume. Operating errors, transmission or software errors and unexpected behaviour of the device, the connection or the host can cause suddenly high volume. Excessive volume can permanently damage your hearing and damage headphones, speakers, amplifiers or other equipment.\n\n• Always start at a low volume and use volume protection with a suitable limit.\n• Put on headphones only after the connection is established and the volume has been checked.\n• Check important changes directly on the device.\n\nThe app is free software and is provided without any warranty (GPL-3.0). You use it at your own risk. To the extent permitted by law, the developer accepts no liability for damage resulting from the use of the app, in particular hearing or other health damage, damage to equipment, or loss of data. This does not affect liability for intent and gross negligence or any liability that cannot be excluded by law, such as for injury to life, body or health.',
+  'Verstanden und akzeptiert': 'Understood and accepted',
+  'Sicherheit und Haftung': 'Safety and liability',
+  'Zu Favoriten hinzufügen': 'Add to favourites',
+  'Aus Favoriten entfernen': 'Remove from favourites',
+  'Favoriten': 'Favourites',
+
+  'Lautstärketasten steuern den ADI-2': 'Volume buttons control the ADI-2',
+  'Nur solange die App im Vordergrund ist.':
+      'Only while the app is in the foreground.',
+  'Gain zurücksetzen?': 'Reset gain?',
+  'Gain von {band} auf 0 dB setzen? (jetzt {gain} dB)':
+      'Set gain of {band} to 0 dB? (currently {gain} dB)',
+  'Apple Music freigeben': 'Allow Apple Music access',
   'Vorbereitung konnte nicht gespeichert werden.':
       'Could not save preparation.',
   'Gerätestand konnte nicht bestätigt werden. Das aktuelle Setup wurde nicht gespeichert.':
@@ -260,6 +275,7 @@ const Map<String, String> stringsEn = {
   '∞': '∞',
   'Analyzer-Einstellungen': 'Analyzer settings',
   'Wie Gerät': 'Follow device',
+  'Medienlautstärke auf 100 % stellen': 'Set media volume to 100 %',
   'Analyzer-Farbe': 'Analyzer color',
   'Balken': 'Bars',
   'Bandauflösung': 'Band resolution',
@@ -1058,6 +1074,7 @@ const Map<String, String> stringsEn = {
   'App-Infos': 'App info',
   'Einrichtung': 'Setup',
   'ADI-2 anschließen': 'Connect your ADI-2',
+  'Verbinde den ADI-2 per USB-C-Kabel oder Lightning-Kamera-Adapter. Aktiviere MIDI Control → ON: DAC: SETUP → Options → Remap Keys / Diag; Pro und ADI-2/4 Pro: SETUP → Options → Device Mode / DSD.': 'Connect the ADI-2 using a USB-C cable or the Lightning camera adapter. Enable MIDI Control → ON: DAC: SETUP → Options → Remap Keys / Diag; Pro and ADI-2/4 Pro: SETUP → Options → Device Mode / DSD.',
   'Verbinde den ADI-2 per USB-OTG-Kabel. Aktiviere MIDI Control → ON: DAC: SETUP → Options → Remap Keys / Diag; Pro und ADI-2/4 Pro: SETUP → Options → Device Mode / DSD.': 'Connect the ADI-2 using a USB OTG cable. Enable MIDI Control → ON: DAC: SETUP → Options → Remap Keys / Diag; Pro and ADI-2/4 Pro: SETUP → Options → Device Mode / DSD.',
   'Du kannst das Gerät auch später anschließen.':
       'You can also connect your device later.',

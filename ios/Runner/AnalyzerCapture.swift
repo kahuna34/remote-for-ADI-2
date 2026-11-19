@@ -1,5 +1,7 @@
 import AVFoundation
 import Flutter
+import MediaPlayer
+import UIKit
 
 /// iOS groundwork: USB-only input, mixed session, no file or speaker monitoring.
 /// Sends continuous PCM blocks to the shared Dart DSP; Android analyzes natively.
@@ -16,6 +18,9 @@ final class AnalyzerCapture: NSObject, FlutterStreamHandler {
   private let method: FlutterMethodChannel
   private let events: FlutterEventChannel
   private var observers: [NSObjectProtocol] = []
+  var usesSession: Bool { previousCategory != nil }
+  var beforeSessionStart: (() -> Void)?
+  var afterSessionStop: (() -> Void)?
 
   init(messenger: FlutterBinaryMessenger) {
     method = FlutterMethodChannel(name: "adi2/analyzer", binaryMessenger: messenger)
@@ -30,6 +35,14 @@ final class AnalyzerCapture: NSObject, FlutterStreamHandler {
         self.session.requestRecordPermission { allowed in DispatchQueue.main.async { result(allowed) } }
       case "start": self.start(); result(nil)
       case "stop": self.stop(); result(nil)
+      case "startCalibrationTone":
+        if let error = self.startCalibrationTone() {
+          result(FlutterError(code: error, message: "Calibration tone unavailable", details: nil))
+        } else { result(nil) }
+      case "stopCalibrationTone": self.stopCalibrationTone(); result(nil)
+      case "setMediaVolumeMax":
+        if self.setMediaVolumeMax() { result(nil) }
+        else { result(FlutterError(code: "noSlider", message: nil, details: nil)) }
       default: result(FlutterMethodNotImplemented)
       }
     }
@@ -39,13 +52,118 @@ final class AnalyzerCapture: NSObject, FlutterStreamHandler {
     })
     observers.append(center.addObserver(forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main) { [weak self] _ in
       guard let self = self, self.engine != nil else { return }
-      if !self.validRoute() { self.stop(); self.sink?(["status": "usbUnavailable"]) }
+      if !self.validRoute() { self.stop(); self.sink?(["status": "usbUnavailable"]); return }
+      self.updateFixedOutputVolume()
     })
   }
   private func isAdi(_ input: AVAudioSessionPortDescription) -> Bool {
     input.portType == .usbAudio && (input.portName.localizedCaseInsensitiveContains("ADI-2") || input.portName.localizedCaseInsensitiveContains("RME"))
   }
   private func validRoute() -> Bool { session.currentRoute.inputs.contains(where: isAdi) }
+
+  /// Gleiche Bausteine wie Android/Host: Hersteller, Gerätemodell, USB-Name.
+  /// Die Kalibrierung gilt damit nur für dieses Telefon mit diesem ADI-2-Modell.
+  private func calibrationIdentity(_ usbName: String) -> [String: Any] {
+    var info = utsname()
+    uname(&info)
+    let model = withUnsafeBytes(of: &info.machine) { raw in
+      String(decoding: raw.prefix(while: { $0 != 0 }), as: UTF8.self)
+    }
+    return ["hostManufacturer": "Apple", "hostModel": model.isEmpty ? "iPhone" : model, "usbName": usbName]
+  }
+
+  private var tonePlayer: AVAudioPlayerNode?
+
+  /// true, wenn der aktuelle Ausgang keine Systemlautstärke hat (MPVolumeView
+  /// zeigt dann nur den Gerätenamen, keinen Regler). Am ADI-2 per USB gibt
+  /// iOS das Signal dort mit voller Aussteuerung aus.
+  private var fixedOutputVolume = false
+
+  private func updateFixedOutputVolume() {
+    guard let window = UIApplication.shared.connectedScenes
+      .compactMap({ $0 as? UIWindowScene }).flatMap({ $0.windows })
+      .first(where: { $0.isKeyWindow }) else { return }
+    let view = MPVolumeView(frame: CGRect(x: -1000, y: -1000, width: 160, height: 40))
+    view.alpha = 0.01
+    window.addSubview(view)
+    view.layoutIfNeeded()
+    fixedOutputVolume = findSlider(view) == nil
+    view.removeFromSuperview()
+  }
+
+  private func findSlider(_ v: UIView) -> UISlider? {
+    if let s = v as? UISlider { return s }
+    for sub in v.subviews { if let s = findSlider(sub) { return s } }
+    return nil
+  }
+
+  /// Systemlautstärke über den (unsichtbaren) Regler von MPVolumeView auf 100 %.
+  /// Nur auf ausdrücklichen Knopfdruck in der Kalibrierung.
+  private func setMediaVolumeMax() -> Bool {
+    guard let window = UIApplication.shared.connectedScenes
+      .compactMap({ $0 as? UIWindowScene }).flatMap({ $0.windows })
+      .first(where: { $0.isKeyWindow }) else { return false }
+    let view = MPVolumeView(frame: CGRect(x: -1000, y: -1000, width: 160, height: 40))
+    view.alpha = 0.01
+    window.addSubview(view)
+    view.layoutIfNeeded()
+    guard let slider = findSlider(view) else { view.removeFromSuperview(); return false }
+    slider.setValue(1, animated: false)
+    slider.sendActions(for: .valueChanged)
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1) { view.removeFromSuperview() }
+    return true
+  }
+
+  /// 1 kHz bei 0 dBFS wie unter Android: 0,25 s Stille, weiche Flanken, endet
+  /// nach 3,6 s von selbst, auch wenn Dart nicht mehr antwortet. Nur bei
+  /// laufender Aufnahme und nur über den USB-Ausgang des ADI-2.
+  private func startCalibrationTone() -> String? {
+    stopCalibrationTone()
+    guard engine != nil else { return "busy" }
+    guard session.currentRoute.outputs.contains(where: isAdi) else { return "noUsbOutput" }
+    let rate = 48000.0
+    guard let format = AVAudioFormat(standardFormatWithSampleRate: rate, channels: 2) else { return "toneFailed" }
+    let total = Int(rate * 3.6), lead = Int(rate / 4), fade = Int(rate / 50)
+    guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(total)),
+      let data = buffer.floatChannelData else { return "toneFailed" }
+    buffer.frameLength = AVAudioFrameCount(total)
+    for frame in 0..<total {
+      var sample: Float = 0
+      if frame >= lead {
+        let gain = min(1.0, Double(frame - lead) / Double(fade), Double(total - 1 - frame) / Double(fade))
+        sample = Float(gain * sin(2.0 * Double.pi * Double(frame - lead) / 48.0))
+      }
+      data[0][frame] = sample; data[1][frame] = sample
+    }
+    // Eigene Engine nur für den Ton: Ein Knoten, der an die laufende
+    // Aufnahme-Engine gehängt wird, stoppt diese, und play() bricht ab.
+    let toneEngine = AVAudioEngine()
+    let player = AVAudioPlayerNode()
+    toneEngine.attach(player)
+    toneEngine.connect(player, to: toneEngine.mainMixerNode, format: format)
+    toneEngine.mainMixerNode.outputVolume = 1
+    do {
+      toneEngine.prepare()
+      try toneEngine.start()
+    } catch { return "toneFailed" }
+    guard toneEngine.isRunning else { return "toneFailed" }
+    tonePlayer = player
+    self.toneEngine = toneEngine
+    player.scheduleBuffer(buffer, at: nil, options: []) { [weak self] in
+      DispatchQueue.main.async { if self?.tonePlayer === player { self?.stopCalibrationTone() } }
+    }
+    player.play()
+    return nil
+  }
+
+  private var toneEngine: AVAudioEngine?
+
+  func stopCalibrationTone() {
+    tonePlayer?.stop()
+    tonePlayer = nil
+    toneEngine?.stop()
+    toneEngine = nil
+  }
 
   func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
     sink = events; return nil
@@ -56,6 +174,7 @@ final class AnalyzerCapture: NSObject, FlutterStreamHandler {
   private func start() {
     stop()
     guard session.recordPermission == .granted else { sink?(["status": "permissionDenied"]); return }
+    beforeSessionStart?()
     previousCategory = session.category; previousMode = session.mode
     previousOptions = session.categoryOptions; previousInput = session.preferredInput
     previousRate = session.preferredSampleRate
@@ -69,6 +188,7 @@ final class AnalyzerCapture: NSObject, FlutterStreamHandler {
         stop(); sink?(["status": "usbUnavailable"]); return
       }
       try session.setPreferredInput(usb)
+      updateFixedOutputVolume()
       let audioEngine = AVAudioEngine()
       let input = audioEngine.inputNode
       let format = input.outputFormat(forBus: 0)
@@ -118,7 +238,12 @@ final class AnalyzerCapture: NSObject, FlutterStreamHandler {
           guard let self = self, self.generation == token else { return }
           guard self.validRoute() else { self.stop(); self.sink?(["status": "usbUnavailable"]); return }
           if failed { self.stop(); self.sink?(["status": "captureFailed"]); return }
-          self.sink?(["pcm": pcm, "sampleRate": Int(format.sampleRate), "device": name])
+          self.sink?(["pcm": pcm, "sampleRate": Int(format.sampleRate), "device": name,
+                      "calibrationIdentity": self.calibrationIdentity(name),
+                      // Systemlautstärke in Prozent; am ADI-2 per USB meist fest 100.
+                      "mediaStreamVolume": self.fixedOutputVolume
+                        ? 100 : Int((self.session.outputVolume * 100).rounded()),
+                      "mediaStreamMax": 100])
         }
       }
       engine = audioEngine
@@ -127,6 +252,7 @@ final class AnalyzerCapture: NSObject, FlutterStreamHandler {
     } catch { stop(); sink?(["status": "captureFailed"]) }
   }
   func stop() {
+    stopCalibrationTone()
     generation += 1
     if let engine = engine { engine.inputNode.removeTap(onBus: 0); engine.stop() }
     engine = nil
@@ -137,6 +263,7 @@ final class AnalyzerCapture: NSObject, FlutterStreamHandler {
       try? session.setCategory(category, mode: mode, options: options)
     }
     previousCategory = nil; previousMode = nil; previousOptions = nil; previousInput = nil; previousRate = nil
+    afterSessionStop?()
   }
   deinit {
     stop()

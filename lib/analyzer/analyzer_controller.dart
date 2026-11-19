@@ -465,6 +465,13 @@ class AnalyzerController extends ChangeNotifier {
   }
 
   final _activeOwners = <Object>{};
+
+  /// Nachlauf, nachdem die letzte Anzeige verschwunden ist.
+  static Duration visibilityGrace({required bool viaHost}) =>
+      viaHost ? const Duration(milliseconds: 500) : localVisibilityGrace;
+
+  /// Für lokale Aufnahme; Tests setzen sie global auf den kurzen Wert.
+  static Duration localVisibilityGrace = const Duration(seconds: 60);
   Timer? _visibilityStop;
 
   /// Für Anzeigen, die sich einen Controller teilen: Aufgenommen wird, solange
@@ -478,8 +485,21 @@ class AnalyzerController extends ChangeNotifier {
       _activeOwners.remove(owner);
     }
     if (_activeOwners.isNotEmpty) return setActive(true);
+    // Verlässt die App den Vordergrund, sofort stoppen: Das System hält die
+    // Aufnahme dort ohnehin an; ein Nachlauf ließe sie beim Zurückkehren als
+    // „läuft“ hängen (Kalibrierung dann nicht verfügbar).
+    final life = SchedulerBinding.instance.lifecycleState;
+    final leaving =
+        life != null &&
+        life != AppLifecycleState.resumed &&
+        !(life == AppLifecycleState.inactive &&
+            defaultTargetPlatform == TargetPlatform.macOS);
+    if (leaving) return setActive(false);
     if (_desired) {
-      _visibilityStop ??= Timer(const Duration(milliseconds: 500), () {
+      // Lokale Aufnahme stellt die Audio-Sitzung um; jedes Starten und
+      // Stoppen unterbricht kurz eine laufende Wiedergabe. Beim Wischen
+      // zwischen Kopfbereichen läuft sie deshalb noch eine Minute weiter.
+      _visibilityStop ??= Timer(visibilityGrace(viaHost: _host != null), () {
         _visibilityStop = null;
         if (!_disposed && _activeOwners.isEmpty) unawaited(setActive(false));
       });
@@ -581,6 +601,17 @@ class AnalyzerController extends ChangeNotifier {
     await _stop();
     status = AnalyzerStatus.usbUnavailable;
     _notify();
+  }
+
+  /// iPhone: setzt die Medienlautstärke für die Kalibrierung auf 100 %.
+  Future<void> setMediaVolumeMax() async {
+    try {
+      await _method.invokeMethod<void>('setMediaVolumeMax');
+    } on PlatformException {
+      // Ohne Regler bleibt der Hinweis stehen; der Nutzer stellt selbst ein.
+    } on MissingPluginException {
+      // Andere Plattformen.
+    }
   }
 
   Future<void> requestPermission() async {

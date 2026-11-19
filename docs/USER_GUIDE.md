@@ -1,6 +1,6 @@
 # Remote for ADI-2 — User guide
 
-Version **1.2.3 (8)** · [Project overview](../README.md) · [Deutsch](BENUTZERHANDBUCH.md)
+Version **1.2.4 (9)** · [Project overview](../README.md) · [Deutsch](BENUTZERHANDBUCH.md)
 
 This guide describes the current app. Controls depend on the selected model and values reported by the device. Screenshots show Android devices and the English interface. The app has been tested with all supported ADI-2 models on an Android smartphone and an Android tablet, and with the ADI-2 DAC on a Mac, also through the host. The Player integration currently supports Android only.
 
@@ -32,6 +32,8 @@ This guide describes the current app. Controls depend on the selected model and 
 Use this chapter to connect the ADI-2, select the correct output and prepare for your first adjustments.
 
 ### First launch
+
+Before anything else, a **notice about volume** appears: the app changes ADI-2 settings including the volume, and errors can cause suddenly high volume. It contains tips for safe use and the liability notice and must be confirmed once, also by existing users after the update. Read it again any time under **App settings → Safety and liability**.
 
 After the startup animation, the setup wizard appears once, including on the first launch after this update. It guides you through USB OTG or **Connect via host**, optional Android player access and automatic update checks. Detected connections and granted access are confirmed with a checkmark. **Next** advances; **Skip** ends setup at any time. It does not change device values or volume protection. Camera and recording permissions are needed only for QR scanning and the analyzer respectively.
 
@@ -144,6 +146,8 @@ Drag along the volume ring. Movement is relative, so touching a new point does n
 
 The **− 0,5 dB** and **+ 0,5 dB** buttons change volume in steps; holding repeats. Decreases are immediate. Increases run through a ramp. Releasing the ring or a held volume control stops an unfinished rise; **Volume rise paused** offers **Stop here** or **Keep raising**. Switching outputs or backgrounding the app also stops volume ramps. The standard view uses a decimal comma on these buttons, while Custom Mode tiles show **−0.5 dB** and **+0.5 dB**.
 
+**Phone volume buttons:** While the app is in the foreground and connected to an ADI-2, the phone's volume up/down buttons change the selected output by 0.5 dB per press, over USB and through the host. Increases use the ramp and limit like the buttons; a locked volume stays unchanged. In the background the buttons control the phone again. Turn this off under **App settings → Volume buttons control the ADI-2**.
+
 Use **Bal** to move balance left or right. Holding the balance value in the standard view resets it to centre (**C**). **Bass** and **Treble** adjust tone gain; hold their labels for the detailed tone settings. The reference-level control opens the available **Ref Level** / **Auto Ref Level** choices. The filter control selects the **DA Filter**. When changing reference level, the confirmation can offer volume compensation to keep the output level similar.
 
 ### Output buttons
@@ -218,6 +222,8 @@ The ramp gives you time to react to a volume increase. **Adaptive** slows down m
 Use this area to choose the additional information shown above the output controls.
 
 In **App settings → Display below the header**, choose **Player**, **Status**, **Analyzer** or **none**. This area belongs to Outputs. Custom Mode uses the header choice saved in its own layout page.
+
+On a phone you can also **swipe** this area left or right between **Status**, **Player** and **Analyzer**. The content follows your finger; it switches after about a third of the width or a quick flick, otherwise it springs back. Three dots show the current page. The choice is saved like the setting, in Custom Mode per page.
 
 **Player** uses the computer player when connected through a host, showing title, artist, app and artwork with previous/next and play/pause controls. Without a host, or without host player support, it uses the active Android media session; older hosts show **Update host**. The permissions below, Stop and opening the player app apply to the smartphone source. Grant notification access using the offered settings link. It can show media information and artwork, send previous/next, play/pause and stop commands, and open the player by tapping its information. Availability depends on the media app. It does not contain a music library. If no usable player content exists, the configured status fallback may appear or the bar collapses. Other smartphone platforms do not currently provide the local player integration; a current host can supply the computer player on those platforms too.
 
@@ -519,6 +525,8 @@ On the live EQ page, edits go directly to the selected device channel; they do n
 
 After confirmation, **Clear** resets both sides' band values, including Bass/Treble, to defaults with 0 dB gain. Saved presets are retained; EQ enable, Bass/Treble enable and preset selection remain unchanged. The **EQ preset editor** under Setups initially works in its own buffer instead.
 
+**Double-tap** a point in the EQ graph to reset that band's gain to 0 dB after confirmation. This works while the EQ is on and for bands with gain; frequency and Q are kept. Dragging starts only after a small finger movement, so a tap does not move the point.
+
 Example: Select band 2 as **Peak**, 500 Hz, −2 dB and Q 1.0 for a broad cut. Listen quietly and compare using the EQ switch. To keep the curve, choose **Save as preset**, a device slot and a name, review the overwrite and confirm. Boosts can reduce digital headroom; reduce gain if clipping occurs.
 
 ## Setups and EQ preset editor
@@ -748,7 +756,7 @@ Use **post FX** for comparison with the device: the signal is after EQ/effects a
 - **Analyzer color** offers **Follow device**, **Green**, **Cyan**, **Amber**, **Mono**, **Red** and **Orange**.
 - **Peak / RMS · dBFS** shows left/right captured audio levels with the saved calibration offset. A full-scale sine has 0 dBFS peak and about −3 dBFS RMS. Clipping is shown separately. Spectrum bands reference a full-scale sine at the band centre to 0 dB. Filter responses and ballistics can differ from the device; its lowest band also includes DC.
 
-Open **Analyzer settings** for these options and calibration. In fullscreen, **Spectrum only** hides the control bar and **Show controls** restores it. The fullscreen illustrations below are landscape. Opening fullscreen manually switches to landscape on tablets too; leaving restores the previous orientation policy. Band resolution uses buttons in the top toolbar. **Ballistics** and **Loopback source** are compact dropdowns to the left of the top-right icons; long labels are shortened on narrow screens. At the top of Analyzer settings, **Tool → Spectrum** selects the tool. Directly below, **Lines / Bars** buttons select its display, followed by band resolution. Fullscreen provides **Spectrum**, **Lines / Bars**, **Peak hold** and **Reset** in a toolbar that wraps when needed; Reset is enabled only with Peak hold on. Analyzer settings also uses wrapping selection buttons for Ballistics, Band resolution, Analyzer color, Level range, Output (Pro / 2/4 only) and Loopback source; color buttons include swatches.
+Open **Analyzer settings** for these options; calibration, rarely needed, is at the very bottom. In fullscreen, **Spectrum only** hides the control bar and **Show controls** restores it. The fullscreen illustrations below are landscape. Opening fullscreen manually switches to landscape on tablets too; leaving restores the previous orientation policy. Band resolution uses buttons in the top toolbar. **Ballistics** and **Loopback source** are compact dropdowns to the left of the top-right icons; long labels are shortened on narrow screens. At the top of Analyzer settings, **Tool → Spectrum** selects the tool. Directly below, **Lines / Bars** buttons select its display, followed by band resolution. Fullscreen provides **Spectrum**, **Lines / Bars**, **Peak hold** and **Reset** in a toolbar that wraps when needed; Reset is enabled only with Peak hold on. Analyzer settings also uses wrapping selection buttons for Ballistics, Band resolution, Analyzer color, Level range, Output (Pro / 2/4 only) and Loopback source; color buttons include swatches.
 
 The screenshots below show an earlier control arrangement. The selection buttons and fullscreen header controls described above apply to the current version.
 

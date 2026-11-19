@@ -68,6 +68,66 @@ void main() {
     }
   });
 
+  test('finds versioned asset names and prefers the Windows setup', () async {
+    final data = jsonEncode({
+      'tag_name': 'v1.2.3',
+      'html_url':
+          'https://github.com/kahuna34/remote-for-ADI-2/releases/tag/v1.2.3',
+      'assets': [
+        for (final name in [
+          'Remote-for-ADI-2-Android-1.2.3.apk',
+          'Remote-for-ADI-2-Host-macOS-1.2.1.zip',
+          'Remote-for-ADI-2-Host-Windows-x64-1.2.1.zip',
+          'Remote-for-ADI-2-Host-Windows-Setup-1.2.1.exe',
+        ])
+          {'name': name, 'browser_download_url': 'https://github.com/d/$name'},
+      ],
+    });
+    for (final (platform, file) in [
+      (UpdatePlatform.android, 'Remote-for-ADI-2-Android-1.2.3.apk'),
+      (UpdatePlatform.macos, 'Remote-for-ADI-2-Host-macOS-1.2.1.zip'),
+      (UpdatePlatform.windows, 'Remote-for-ADI-2-Host-Windows-Setup-1.2.1.exe'),
+    ]) {
+      final result = await UpdateCheck(
+        installedVersion: '1.2.0',
+        platform: platform,
+        fetcher: () async => data,
+      ).check();
+      expect(result.url.toString(), 'https://github.com/d/$file');
+    }
+  });
+
+  test(
+    'host compares the version in its asset name, not the release tag',
+    () async {
+      final data = jsonEncode({
+        'tag_name': 'v1.2.4',
+        'html_url':
+            'https://github.com/kahuna34/remote-for-ADI-2/releases/tag/v1.2.4',
+        'assets': [
+          {
+            'name': 'Remote-for-ADI-2-Host-macOS-1.2.2.zip',
+            'browser_download_url': 'https://github.com/d/mac.zip',
+          },
+        ],
+      });
+      final current = await UpdateCheck(
+        installedVersion: '1.2.2 (7)',
+        platform: UpdatePlatform.macos,
+        fetcher: () async => data,
+      ).check();
+      expect(current.status, UpdateStatus.current);
+      final older = await UpdateCheck(
+        installedVersion: '1.2.1 (6)',
+        platform: UpdatePlatform.macos,
+        fetcher: () async => data,
+      ).check();
+      expect(older.status, UpdateStatus.available);
+      expect(older.version, '1.2.2');
+      expect(assetVersion('Remote-for-ADI-2-Android.apk'), isNull);
+    },
+  );
+
   test(
     'automatic checks throttle for 24 hours; disabled checks never fetch',
     () async {

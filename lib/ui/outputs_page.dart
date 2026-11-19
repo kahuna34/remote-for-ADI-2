@@ -485,6 +485,11 @@ class _OutputsPageState extends State<OutputsPage> {
     final generation = _inputGeneration;
     final pending = c.stopVolumeRamp(o.address);
     if (pending == null || !mounted) return;
+    // Beim Herunterdrehen bleibt oft ein winziger Rest über dem Gerätewert
+    // (Rundung des Geräts, leichtes Zurückrutschen des Fingers). Bis 1 dB
+    // nicht nachfragen: Die Lautstärke bleibt einfach etwas leiser.
+    final reached = c.value(o.address, OutIdx.volume);
+    if (reached != null && pending - reached <= 10) return;
     final now = c.valueOr(o.address, OutIdx.volume, pending) / 10;
     final go = await showModalBottomSheet<bool>(
       context: context,

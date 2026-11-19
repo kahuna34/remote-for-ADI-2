@@ -1,11 +1,83 @@
 import 'package:adi2_remote/media/now_playing.dart';
+import 'package:adi2_remote/l10n/l10n.dart';
+import 'package:adi2_remote/ui/player_bar.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets('iOS startet die Medienbrücke und zeigt Apple-Music-Freigabe', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    final language = AppLang.instance.language;
+    AppLang.instance.language = AppLanguage.de;
+    SharedPreferences.setMockInitialValues({});
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    final calls = <String>[];
+    messenger.setMockMethodCallHandler(
+      const MethodChannel('adi2/media/events'),
+      (_) async => null,
+    );
+    messenger.setMockMethodCallHandler(const MethodChannel('adi2/media'), (
+      call,
+    ) async {
+      calls.add(call.method);
+      return false;
+    });
+    final np = NowPlaying();
+    addTearDown(() {
+      np.dispose();
+      debugDefaultTargetPlatformOverride = null;
+      AppLang.instance.language = language;
+      messenger.setMockMethodCallHandler(
+        const MethodChannel('adi2/media/events'),
+        null,
+      );
+      messenger.setMockMethodCallHandler(
+        const MethodChannel('adi2/media'),
+        null,
+      );
+    });
+    await np.start();
+    expect(np.supported, true);
+    np.restricted =
+        true; // Android's sideload warning must never leak onto iOS.
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: PlayerBar(np: np)),
+      ),
+    );
+    expect(find.text('Apple Music freigeben'), findsOneWidget);
+    expect(find.textContaining('Benachrichtigungszugriff'), findsNothing);
+    await tester.tap(find.text('Erlauben'));
+    expect(calls, ['openAccessSettings']);
+    await messenger.handlePlatformMessage(
+      'adi2/media/events',
+      const StandardMethodCodec().encodeSuccessEnvelope({
+        'access': true,
+        'title': 'Music song',
+        'artist': 'Artist',
+        'app': 'Music',
+        'playing': true,
+      }),
+      (_) {},
+    );
+    await tester.pump();
+    expect(
+      find.textContaining('Music song', findRichText: true),
+      findsOneWidget,
+    );
+    await tester.tap(find.byIcon(Icons.pause));
+    expect(calls.last, 'command');
+    await tester.pumpWidget(const SizedBox());
+    debugDefaultTargetPlatformOverride = null;
+  });
 
   test('Gleiche Cover-Bytes bleiben identisch, späte und entfernte Cover kommen an', () async {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;

@@ -20,6 +20,7 @@ import 'analyzer_controls.dart';
 import 'update_settings.dart';
 import 'setup_wizard.dart';
 import 'privacy_page.dart';
+import 'safety_notice.dart';
 import '../media/now_playing.dart';
 
 /// App-Menü: Einstellungen der App selbst (nicht des Geräts).
@@ -90,6 +91,14 @@ class AppSettingsPage extends StatelessWidget {
                         HeaderContentPicker(
                           value: AppSettings.instance.headerContent,
                           onChanged: AppSettings.instance.setHeaderContent,
+                        ),
+                        SwitchListTile(
+                          title: Text(tr('Lautstärketasten steuern den ADI-2')),
+                          subtitle: Text(
+                            tr('Nur solange die App im Vordergrund ist.'),
+                          ),
+                          value: AppSettings.instance.volumeKeys,
+                          onChanged: AppSettings.instance.setVolumeKeys,
                         ),
                         if (eqLibraryAvailable)
                           SwitchListTile(
@@ -227,6 +236,16 @@ class AppSettingsPage extends StatelessWidget {
                       style: ts(12, color: Palette.muted, height: 1.4),
                     ),
                     const SizedBox(height: 12),
+                    Material(
+                      type: MaterialType.transparency,
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(tr('Sicherheit und Haftung')),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () =>
+                            showSafetyNotice(context, requireAcceptance: false),
+                      ),
+                    ),
                     Material(
                       type: MaterialType.transparency,
                       child: ListTile(

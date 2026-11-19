@@ -5,6 +5,7 @@ import 'device/adi2_controller.dart';
 import 'l10n/l10n.dart';
 import 'media/now_playing.dart';
 import 'ui/start_animation.dart';
+import 'ui/safety_notice.dart';
 import 'ui/setup_wizard.dart';
 import 'ui/home_page.dart';
 import 'ui/eq_display_mode.dart';
@@ -33,14 +34,14 @@ class _Adi2RemoteAppState extends State<Adi2RemoteApp> {
   final NowPlaying _np = NowPlaying();
   late final AppLifecycleListener _life;
   bool _animationDone = false;
+  bool _servicesStarted = false;
 
   @override
   void initState() {
     super.initState();
     AppLang.instance.load();
     AppUpdates.instance.initialize();
-    _ctrl.start();
-    _np.start();
+
     // Sicherheit: Sobald die App nicht mehr im Vordergrund ist, wird jede
     // laufende Lautstärke-Anhebung gestoppt.
     _life = AppLifecycleListener(
@@ -48,9 +49,15 @@ class _Adi2RemoteAppState extends State<Adi2RemoteApp> {
       // leiste): Anhebungen stoppen, die Host-Sitzung aber behalten. Erst
       // Ausblenden/Pausieren gibt sie frei.
       onInactive: _ctrl.stopAllVolumeRamps,
-      onHide: () => _ctrl.setHostForeground(false),
-      onPause: () => _ctrl.setHostForeground(false),
-      onResume: () => _ctrl.setHostForeground(true),
+      onHide: () {
+        if (_servicesStarted) _ctrl.setHostForeground(false);
+      },
+      onPause: () {
+        if (_servicesStarted) _ctrl.setHostForeground(false);
+      },
+      onResume: () {
+        if (_servicesStarted) _ctrl.setHostForeground(true);
+      },
     );
   }
 
@@ -72,17 +79,24 @@ class _Adi2RemoteAppState extends State<Adi2RemoteApp> {
         debugShowCheckedModeBanner: false,
         theme: buildTheme(),
         builder: (context, child) => TabletOrientation(child: child!),
-        home: StartAnimation(
-          onComplete: () {
-            if (mounted) setState(() => _animationDone = true);
+        home: SafetyGate(
+          onReady: () {
+            _servicesStarted = true;
+            _ctrl.start();
+            _np.start();
           },
-          child: _animationDone
-              ? SetupGate(
-                  ctrl: _ctrl,
-                  np: _np,
-                  child: HomePage(ctrl: _ctrl, np: _np),
-                )
-              : const Scaffold(),
+          child: StartAnimation(
+            onComplete: () {
+              if (mounted) setState(() => _animationDone = true);
+            },
+            child: _animationDone
+                ? SetupGate(
+                    ctrl: _ctrl,
+                    np: _np,
+                    child: HomePage(ctrl: _ctrl, np: _np),
+                  )
+                : const Scaffold(),
+          ),
         ),
       ),
     );

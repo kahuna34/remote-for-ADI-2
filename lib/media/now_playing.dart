@@ -1,6 +1,6 @@
 // Aktuell laufender Player (Titel, Interpret, Cover) und Steuerung.
 // Android: aktive Medien-Sitzung über den Benachrichtigungszugriff.
-// Andere Plattformen: (noch) nicht verfügbar -> Leiste bleibt verborgen.
+// iOS: Apple Music über den systemMusicPlayer.
 
 import 'dart:async';
 
@@ -47,7 +47,14 @@ class NowPlaying extends ChangeNotifier {
   NowPlayingInfo? info;
 
   Future<void> start() async {
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    if (kIsWeb ||
+        ![
+          TargetPlatform.android,
+          TargetPlatform.iOS,
+        ].contains(defaultTargetPlatform) ||
+        _sub != null) {
+      return;
+    }
     supported = true;
     try {
       final prefs = await SharedPreferences.getInstance();

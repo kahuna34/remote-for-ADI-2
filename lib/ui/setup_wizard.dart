@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -181,9 +182,13 @@ class _SetupWizardState extends State<SetupWizard> {
                         _text(widget.ctrl!.deviceLabel)
                       else ...[
                         _text(
-                          tr(
-                            'Verbinde den ADI-2 per USB-OTG-Kabel. Aktiviere MIDI Control → ON: DAC: SETUP → Options → Remap Keys / Diag; Pro und ADI-2/4 Pro: SETUP → Options → Device Mode / DSD.',
-                          ),
+                          defaultTargetPlatform == TargetPlatform.iOS
+                              ? tr(
+                                  'Verbinde den ADI-2 per USB-C-Kabel oder Lightning-Kamera-Adapter. Aktiviere MIDI Control → ON: DAC: SETUP → Options → Remap Keys / Diag; Pro und ADI-2/4 Pro: SETUP → Options → Device Mode / DSD.',
+                                )
+                              : tr(
+                                  'Verbinde den ADI-2 per USB-OTG-Kabel. Aktiviere MIDI Control → ON: DAC: SETUP → Options → Remap Keys / Diag; Pro und ADI-2/4 Pro: SETUP → Options → Device Mode / DSD.',
+                                ),
                         ),
                         _text(
                           tr('Du kannst das Gerät auch später anschließen.'),

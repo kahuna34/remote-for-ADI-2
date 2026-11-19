@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <key>NSAppleMusicUsageDescription</key>
+    <string>Zeigt den laufenden Titel aus Apple Music und steuert die Wiedergabe.</string>
     <key>NSLocalNetworkUsageDescription</key>
     <string>Verbindet diese App über WLAN mit dem ADI-2 Host auf deinem Computer.</string>
     <key>NSBonjourServices</key>

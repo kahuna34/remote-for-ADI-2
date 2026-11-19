@@ -56,6 +56,10 @@ Future<String> fetchLatestRelease() async {
   }
 }
 
+/// Version am Ende eines Dateinamens, z. B. „…-macOS-1.2.1.zip“ → „1.2.1“.
+String? assetVersion(String name) =>
+    RegExp(r'-(\d+\.\d+\.\d+)\.[A-Za-z0-9]+$').firstMatch(name)?.group(1);
+
 Uri _https(Object? value) {
   final uri = Uri.parse(value as String);
   if (uri.scheme != 'https' || uri.host.isEmpty) {
@@ -127,23 +131,40 @@ class UpdateCheck {
       final data = jsonDecode(
         await fetcher().timeout(const Duration(seconds: 10)),
       ) as Map<String, dynamic>;
-      final tag = data['tag_name'] as String;
+      var tag = data['tag_name'] as String;
+      var url = _https(data['html_url']);
+      // Dateinamen tragen seit 1.2.2 die Versionsnummer
+      // (Remote-for-ADI-2-Android-1.2.3.apk). Deshalb nach Präfix und
+      // Endung suchen; in Reihenfolge der Vorliebe.
+      final patterns = switch (platform) {
+        UpdatePlatform.android => [('Remote-for-ADI-2-Android', '.apk')],
+        UpdatePlatform.macos => [('Remote-for-ADI-2-Host-macOS', '.zip')],
+        UpdatePlatform.windows => [
+          ('Remote-for-ADI-2-Host-Windows-Setup', '.exe'),
+          ('Remote-for-ADI-2-Host-Windows', '.zip'),
+        ],
+        UpdatePlatform.other => <(String, String)>[],
+      };
+      final assets = [
+        for (final a in (data['assets'] as List? ?? []))
+          if (a is Map && a['name'] is String) a,
+      ];
+      search:
+      for (final (prefix, ext) in patterns) {
+        for (final asset in assets) {
+          final name = asset['name'] as String;
+          if (name.startsWith(prefix) && name.endsWith(ext)) {
+            url = _https(asset['browser_download_url']);
+            // App und Host haben eigene Versionsnummern. Steht eine im
+            // Dateinamen, gilt sie (Host 1.2.1 im Release 1.2.3 ist aktuell).
+            tag = assetVersion(name) ?? tag;
+            break search;
+          }
+        }
+      }
       if (!isNewerVersion(installedVersion, tag)) {
         result = const UpdateResult(UpdateStatus.current);
       } else {
-        var url = _https(data['html_url']);
-        final name = switch (platform) {
-          UpdatePlatform.android => 'Remote-for-ADI-2-Android.apk',
-          UpdatePlatform.macos => 'Remote-for-ADI-2-Host-macOS.zip',
-          UpdatePlatform.windows => 'Remote-for-ADI-2-Host-Windows-x64.zip',
-          UpdatePlatform.other => '',
-        };
-        for (final asset in (data['assets'] as List? ?? [])) {
-          if (asset is Map && asset['name'] == name) {
-            url = _https(asset['browser_download_url']);
-            break;
-          }
-        }
         result = UpdateResult(
           UpdateStatus.available,
           version: _version(tag)!.join('.'),

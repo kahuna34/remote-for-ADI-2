@@ -1061,8 +1061,10 @@ class AnalyzerDisplay extends StatelessWidget {
                         Expanded(
                           child: Align(
                             alignment: Alignment.centerLeft,
-                            child: SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
+                            // Schmale Telefone: verkleinern statt abschneiden.
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
                               child: hasData && !_levelsOnly
                                   ? _AnalyzerPeakControls(
                                       controller: controller,
@@ -1071,6 +1073,9 @@ class AnalyzerDisplay extends StatelessWidget {
                             ),
                           ),
                         ),
+                        // Abstand, damit „Zurücksetzen“ auf schmalen Telefonen
+                        // (iPhone SE) nicht direkt am Info-Knopf klebt.
+                        const SizedBox(width: 12),
                         infoToggle,
                         _SmallIconButton(
                           key: const ValueKey('analyzer-main-view-toggle'),

@@ -23,15 +23,17 @@ class AppLang extends ChangeNotifier {
   static final AppLang instance = AppLang._();
 
   AppLanguage language = AppLanguage.en;
-
   Future<void> load() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final s = prefs.getString('app_language');
-      language = AppLanguage.values.firstWhere(
-        (l) => l.name == s,
-        orElse: () => AppLanguage.en,
-      );
+      // Ohne gespeicherte Wahl bleibt die aktuelle Sprache (Standard Englisch).
+      if (s != null) {
+        language = AppLanguage.values.firstWhere(
+          (l) => l.name == s,
+          orElse: () => AppLanguage.en,
+        );
+      }
     } catch (_) {}
     notifyListeners();
   }

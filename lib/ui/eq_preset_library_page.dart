@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../app_settings.dart';
+import 'theme.dart';
 import '../eq/eq_library.dart';
 import '../eq/eq_model.dart';
 import '../eq/eq_preset_library.dart';
@@ -36,99 +38,147 @@ class _EqPresetLibraryPageState extends State<EqPresetLibraryPage> {
             ),
           ),
           Expanded(
-            child: FutureBuilder<List<EqLibraryEntry>>(
-              future: _entries,
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Text(tr('Bibliothek konnte nicht geladen werden.')),
-                  );
-                }
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final entries = snapshot.data!
-                    .where((entry) => entry.matches(_query))
-                    .toList();
-                return ListView(
-                  children: [
-                    if (entries.isEmpty)
-                      ListTile(title: Text(tr('Keine passenden Presets.'))),
-                    for (var i = 0; i < entries.length; i++) ...[
-                      if (i == 0 || entries[i - 1].brand != entries[i].brand)
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-                          child: Text(
-                            entries[i].brand,
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
+            child: ListenableBuilder(
+              listenable: AppSettings.instance,
+              builder: (context, _) => FutureBuilder<List<EqLibraryEntry>>(
+                future: _entries,
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Text(
+                        tr('Bibliothek konnte nicht geladen werden.'),
+                      ),
+                    );
+                  }
+                  if (!snapshot.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  final filtered = snapshot.data!
+                      .where((entry) => entry.matches(_query))
+                      .toList();
+                  final favorites = filtered
+                      .where(
+                        (entry) => AppSettings.instance.eqFavorites.contains(
+                          entry.favoriteKey,
                         ),
-                      ListTile(
-                        title: Text(entries[i].model),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (entries[i].variant.isNotEmpty)
-                              Text(entries[i].variant),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 4,
-                              crossAxisAlignment: WrapCrossAlignment.center,
-                              children: [
-                                Chip(
-                                  label: Text(
-                                    entries[i].target,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .labelSmall,
-                                  ),
-                                  visualDensity: VisualDensity.compact,
-                                ),
-                                if (entries[i].generated != null ||
-                                    entries[i].fit != null)
+                      )
+                      .toList();
+                  final entries = [
+                    ...favorites,
+                    ...filtered.where(
+                      (entry) => !AppSettings.instance.eqFavorites.contains(
+                        entry.favoriteKey,
+                      ),
+                    ),
+                  ];
+                  return ListView(
+                    children: [
+                      if (entries.isEmpty)
+                        ListTile(title: Text(tr('Keine passenden Presets.'))),
+                      for (var i = 0; i < entries.length; i++) ...[
+                        if (i == 0 ||
+                            i == favorites.length ||
+                            (i > favorites.length &&
+                                entries[i - 1].brand != entries[i].brand))
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                            child: Text(
+                              i < favorites.length
+                                  ? tr('Favoriten')
+                                  : entries[i].brand,
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ),
+                        ListTile(
+                          title: Text(entries[i].model),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (entries[i].variant.isNotEmpty)
+                                Text(entries[i].variant),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 4,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
                                   Chip(
-                                    avatar: const Icon(Icons.tune, size: 16),
                                     label: Text(
-                                      entries[i].generated != null
-                                          ? tr('Angepasst')
-                                          : tr('2 Fassungen'),
+                                      entries[i].target,
                                       style: Theme.of(context)
                                           .textTheme
                                           .labelSmall,
                                     ),
                                     visualDensity: VisualDensity.compact,
                                   ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        trailing: entries[i].notes.isEmpty
-                            ? null
-                            : Icon(
-                                Icons.info_outline,
-                                semanticLabel: tr('Hinweise'),
+                                  if (entries[i].generated != null ||
+                                      entries[i].fit != null)
+                                    Chip(
+                                      avatar: const Icon(Icons.tune, size: 16),
+                                      label: Text(
+                                        entries[i].generated != null
+                                            ? tr('Angepasst')
+                                            : tr('2 Fassungen'),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .labelSmall,
+                                      ),
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                ],
                               ),
-                        onTap: () async {
-                          final preset = await Navigator.push<AppEqPreset>(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  EqLibraryDetailPage(entry: entries[i]),
-                            ),
-                          );
-                          if (preset != null && context.mounted) {
-                            Navigator.pop(context, preset);
-                          }
-                        },
+                            ],
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (entries[i].notes.isNotEmpty)
+                                Icon(
+                                  Icons.info_outline,
+                                  semanticLabel: tr('Hinweise'),
+                                ),
+                              IconButton(
+                                constraints: const BoxConstraints(
+                                  minWidth: 48,
+                                  minHeight: 48,
+                                ),
+                                tooltip: i < favorites.length
+                                    ? tr('Aus Favoriten entfernen')
+                                    : tr('Zu Favoriten hinzufügen'),
+                                icon: Icon(
+                                  i < favorites.length
+                                      ? Icons.star
+                                      : Icons.star_border,
+                                  color: i < favorites.length
+                                      ? Palette.amber
+                                      : null,
+                                ),
+                                onPressed: () => AppSettings.instance
+                                    .toggleEqFavorite(entries[i].favoriteKey),
+                              ),
+                            ],
+                          ),
+                          onTap: () async {
+                            final preset = await Navigator.push<AppEqPreset>(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    EqLibraryDetailPage(entry: entries[i]),
+                              ),
+                            );
+                            if (preset != null && context.mounted) {
+                              Navigator.pop(context, preset);
+                            }
+                          },
+                        ),
+                      ],
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(eqLibraryCredit()),
                       ),
                     ],
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Text(eqLibraryCredit()),
-                    ),
-                  ],
-                );
-              },
+                  );
+                },
+              ),
             ),
           ),
         ],

@@ -10,6 +10,7 @@ import 'package:adi2_remote/ui/home_page.dart';
 import 'package:adi2_remote/ui/setup_wizard.dart';
 import 'package:adi2_remote/ui/start_animation.dart';
 import 'package:adi2_remote/ui/theme.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_midi_command/flutter_midi_command.dart';
@@ -159,6 +160,30 @@ void main() {
     );
     await _tap(tester, 'Next');
     expect(find.byKey(const ValueKey('setup-complete')), findsOneWidget);
+  });
+
+  testWidgets('connection hint names the cable for each platform', (
+    tester,
+  ) async {
+    final np = _Player();
+    addTearDown(np.dispose);
+    Future<void> show() async {
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SetupWizard(np: np, onDone: () {}),
+        ),
+      );
+    }
+
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    await show();
+    expect(find.textContaining('Lightning camera adapter'), findsOneWidget);
+    expect(find.textContaining('OTG'), findsNothing);
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    await show();
+    expect(find.textContaining('USB OTG cable'), findsOneWidget);
+    debugDefaultTargetPlatformOverride = null;
   });
 
   testWidgets('live connection confirms model; offline does not count', (

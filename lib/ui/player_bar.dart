@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 
 import '../l10n/l10n.dart';
 import '../media/now_playing.dart';
@@ -67,7 +68,7 @@ class PlayerBar extends StatelessWidget {
           child: Align(
             alignment: Alignment.topCenter,
             // Hohe Kopfzeile am Smartphone: Player nutzt den Platz.
-            child: _content(source, large: slot >= 144),
+            child: _content(source, large: slot >= 144, fillHeight: slot),
           ),
         );
       },
@@ -76,11 +77,19 @@ class PlayerBar extends StatelessWidget {
 
   Widget _empty() => fallback ?? const SizedBox.shrink();
 
-  Widget _content(PlayerSource source, {bool large = false}) {
+  Widget _content(
+    PlayerSource source, {
+    bool large = false,
+    double? fillHeight,
+  }) {
     return ListenableBuilder(
       listenable: source,
       builder: (context, _) {
-        final content = _playerContent(source, large: large);
+        final content = _playerContent(
+          source,
+          large: large,
+          fillHeight: source.needsHostUpdate ? null : fillHeight,
+        );
         if (!source.needsHostUpdate) return content;
         return Column(
           mainAxisSize: MainAxisSize.min,
@@ -101,122 +110,140 @@ class PlayerBar extends StatelessWidget {
     );
   }
 
-  Widget _playerContent(PlayerSource source, {bool large = false}) {
-    final art = large ? 60.0 : 48.0;
+  /// [fillHeight]: feste Kopfzeilenhöhe am Smartphone. Der Player füllt sie
+  /// dann ganz aus (wie der Analyzer), statt oben eine Lücke zu lassen.
+  Widget _playerContent(
+    PlayerSource source, {
+    bool large = false,
+    double? fillHeight,
+  }) {
+    // Innenhöhe: Kopfzeile minus Außenabstand unten (8) und Panel-Innenabstand
+    // (12), minus Knopfreihe und Zwischenabstand.
+    final art = fillHeight == null
+        ? (large ? 60.0 : 48.0)
+        : (fillHeight - 8 - 12 - (large ? 52 : 48) - 8).clamp(48.0, 96.0);
     if (source.showPrompt) return _prompt();
     if (!source.available) return _empty();
     final i = source.info;
     if (i == null || !i.hasContent) return _empty();
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-      child: Panel(
-        padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            InkWell(
-              borderRadius: BorderRadius.circular(8),
-              onTap: source.usesHost ? null : source.openPlayer,
-              child: Row(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: SizedBox(
-                      width: art,
-                      height: art,
-                      child: i.art != null
-                          ? Image.memory(
-                              i.art!,
-                              key: ValueKey((i.app, i.title, i.artist)),
-                              fit: BoxFit.cover,
-                              gaplessPlayback: true,
-                              errorBuilder: (_, _, _) =>
-                                  const Icon(Icons.music_note),
-                            )
-                          : Container(
-                              color: Palette.surf2,
-                              child: const Icon(
-                                Icons.music_note,
-                                color: Palette.muted,
-                              ),
-                            ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text.rich(
-                          TextSpan(
-                            children: [
-                              TextSpan(
-                                text: i.title ?? '',
-                                style: ts(large ? 17 : 15, weight: 600),
-                              ),
-                              if ((i.artist ?? '').isNotEmpty)
-                                TextSpan(
-                                  text: '  –  ${i.artist}',
-                                  style: ts(
-                                    large ? 17 : 15,
-                                    color: Palette.muted,
-                                  ),
+      child: SizedBox(
+        height: fillHeight == null ? null : fillHeight - 8,
+        child: Panel(
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+          child: Column(
+            mainAxisSize: fillHeight == null
+                ? MainAxisSize.min
+                : MainAxisSize.max,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: source.usesHost ? null : source.openPlayer,
+                child: Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: SizedBox(
+                        width: art,
+                        height: art,
+                        child: i.art != null
+                            ? Image.memory(
+                                i.art!,
+                                key: ValueKey((i.app, i.title, i.artist)),
+                                fit: BoxFit.cover,
+                                gaplessPlayback: true,
+                                errorBuilder: (_, _, _) =>
+                                    const Icon(Icons.music_note),
+                              )
+                            : Container(
+                                color: Palette.surf2,
+                                child: const Icon(
+                                  Icons.music_note,
+                                  color: Palette.muted,
                                 ),
-                            ],
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        if ((i.app ?? '').isNotEmpty)
-                          Text(
-                            trf('über {app}', {'app': i.app}),
+                              ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text.rich(
+                            TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: i.title ?? '',
+                                  style: ts(large ? 17 : 15, weight: 600),
+                                ),
+                                if ((i.artist ?? '').isNotEmpty)
+                                  TextSpan(
+                                    text: '  –  ${i.artist}',
+                                    style: ts(
+                                      large ? 17 : 15,
+                                      color: Palette.muted,
+                                    ),
+                                  ),
+                              ],
+                            ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: ts(
-                              12,
-                              weight: 500,
-                              color: Palette.muted,
-                              narrow: true,
-                            ),
                           ),
-                      ],
+                          if ((i.app ?? '').isNotEmpty)
+                            Text(
+                              trf('über {app}', {'app': i.app}),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: ts(
+                                12,
+                                weight: 500,
+                                color: Palette.muted,
+                                narrow: true,
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Expanded(
-                  child: _btn(
-                    Icons.skip_previous,
-                    () => source.command('previous'),
-                    large: large,
-                  ),
-                ),
-                Expanded(
-                  child: Center(child: _main(i.playing, source, large: large)),
-                ),
-                Expanded(
-                  child: _btn(
-                    Icons.skip_next,
-                    () => source.command('next'),
-                    large: large,
-                  ),
-                ),
-                if (!source.usesHost)
+              const SizedBox(height: 4),
+              Row(
+                children: [
                   Expanded(
                     child: _btn(
-                      Icons.stop,
-                      () => source.command('stop'),
-                      size: large ? 26 : 22,
+                      Icons.skip_previous,
+                      () => source.command('previous'),
                       large: large,
                     ),
                   ),
-              ],
-            ),
-          ],
+                  Expanded(
+                    child: Center(
+                      child: _main(i.playing, source, large: large),
+                    ),
+                  ),
+                  Expanded(
+                    child: _btn(
+                      Icons.skip_next,
+                      () => source.command('next'),
+                      large: large,
+                    ),
+                  ),
+                  if (!source.usesHost)
+                    Expanded(
+                      child: _btn(
+                        Icons.stop,
+                        () => source.command('stop'),
+                        size: large ? 26 : 22,
+                        large: large,
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -264,7 +291,10 @@ class PlayerBar extends StatelessWidget {
         ),
       );
 
-  Widget _prompt() => np.restricted ? _restrictedPrompt() : _accessPrompt();
+  Widget _prompt() =>
+      defaultTargetPlatform != TargetPlatform.iOS && np.restricted
+      ? _restrictedPrompt()
+      : _accessPrompt();
 
   /// Android sperrt den Benachrichtigungszugriff für Apps aus einer
   /// heruntergeladenen Datei; Freigabe nur über die App-Infos.
@@ -336,7 +366,9 @@ class PlayerBar extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              tr('Laufenden Titel anzeigen und steuern?'),
+              defaultTargetPlatform == TargetPlatform.iOS
+                  ? tr('Apple Music freigeben')
+                  : tr('Laufenden Titel anzeigen und steuern?'),
               style: ts(13, weight: 500, color: Palette.muted),
             ),
           ),

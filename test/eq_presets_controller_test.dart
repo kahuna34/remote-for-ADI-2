@@ -196,35 +196,42 @@ void main() {
       if (parseSysex(m) case Adi2ParamsMessage(:final params)) ...params,
   ];
 
-  test('Speichern nimmt die angezeigte Kurve, auch wenn Gain noch hochfährt', () async {
-    const left = Adi2Addr.lineEqL, right = Adi2Addr.lineEqR;
-    controller.setMany([
-      const Adi2Param(left, 4, 0),
-      const Adi2Param(left, EqIdx2.presetSelect, 0),
-    ]);
-    // +6 dB: läuft gebremst (0,5 dB je Takt), der Gerätewert hängt hinterher.
-    controller.setEq(left, 4, 12);
-    expect(controller.value(left, 4), 0);
-    midi.sent.clear();
-    await controller.storeEqPreset(left, right, 2, 'Lib', false);
-    final stored = sentParams()
-        .where((p) => p.address == Adi2Addr.presetEqL && p.index == 4);
-    expect(stored.map((p) => p.value), [12]);
-    // Keine offenen Schritte mehr, die das geladene Preset verändern.
-    expect(controller.eqValue(left, 4), controller.value(left, 4));
-    expect(controller.value(left, EqIdx2.presetSelect), 4);
-  });
+  test(
+    'Speichern nimmt die angezeigte Kurve, auch wenn Gain noch hochfährt',
+    () async {
+      const left = Adi2Addr.lineEqL, right = Adi2Addr.lineEqR;
+      controller.setMany([
+        const Adi2Param(left, 4, 0),
+        const Adi2Param(left, EqIdx2.presetSelect, 0),
+      ]);
+      // +6 dB: läuft gebremst (0,5 dB je Takt), der Gerätewert hängt hinterher.
+      controller.setEq(left, 4, 12);
+      expect(controller.value(left, 4), 0);
+      midi.sent.clear();
+      await controller.storeEqPreset(left, right, 2, 'Lib', false);
+      final stored = sentParams().where(
+        (p) => p.address == Adi2Addr.presetEqL && p.index == 4,
+      );
+      expect(stored.map((p) => p.value), [12]);
+      // Keine offenen Schritte mehr, die das geladene Preset verändern.
+      expect(controller.eqValue(left, 4), controller.value(left, 4));
+      expect(controller.value(left, EqIdx2.presetSelect), 4);
+    },
+  );
 
-  test('Speichern in das gewählte Preset wählt erst Manual, dann das Preset', () async {
-    const left = Adi2Addr.lineEqL, right = Adi2Addr.lineEqR;
-    controller.setMany([const Adi2Param(left, EqIdx2.presetSelect, 4)]);
-    midi.sent.clear();
-    await controller.storeEqPreset(left, right, 2, 'Same', false);
-    final selects = sentParams()
-        .where((p) => p.address == left && p.index == EqIdx2.presetSelect)
-        .map((p) => p.value);
-    expect(selects, [0, 4]);
-  });
+  test(
+    'Speichern in das gewählte Preset wählt erst Manual, dann das Preset',
+    () async {
+      const left = Adi2Addr.lineEqL, right = Adi2Addr.lineEqR;
+      controller.setMany([const Adi2Param(left, EqIdx2.presetSelect, 4)]);
+      midi.sent.clear();
+      await controller.storeEqPreset(left, right, 2, 'Same', false);
+      final selects = sentParams()
+          .where((p) => p.address == left && p.index == EqIdx2.presetSelect)
+          .map((p) => p.value);
+      expect(selects, [0, 4]);
+    },
+  );
 
   test('Preset aus Temp heraus laden wählt erst Manual', () async {
     const left = Adi2Addr.lineEqL;

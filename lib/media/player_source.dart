@@ -4,6 +4,26 @@ import '../device/adi2_controller.dart';
 import '../host/host_client.dart';
 import 'now_playing.dart';
 
+bool _preferLocal(NowPlaying? np, HostClient? host) =>
+    np?.supported == true &&
+    np?.access == true &&
+    np?.info?.hasContent == true &&
+    np?.info?.playing == true &&
+    host?.playerInfo?.playing != true;
+
+bool _hostReady(HostClient? host) =>
+    host?.playerAvailable == true && (host!.connected || host.reconnecting);
+
+/// Also used by HomePage to decide whether an otherwise empty header exists.
+bool playerIsVisible(NowPlaying? np, Adi2Controller? device) {
+  final host = device?.viaHost == true ? device!.host : null;
+  return _hostReady(host) ||
+      (host != null && !host.playerAvailable && !_preferLocal(np, host)) ||
+      np?.supported == true &&
+          ((np?.access == false && np?.promptDismissed == false) ||
+              np?.access == true && np?.info?.hasContent == true);
+}
+
 /// One visible consumer of the shared host subscription, or the local player.
 class PlayerSource extends ChangeNotifier {
   PlayerSource({this.np, this.deviceController}) {
@@ -18,11 +38,11 @@ class PlayerSource extends ChangeNotifier {
   HostClient? _subscribed;
   HostClient? get host =>
       deviceController?.viaHost == true ? deviceController!.host : null;
-  bool get usesHost =>
-      host?.playerAvailable == true && (host!.connected || host!.reconnecting);
+  bool get usesHost => _hostReady(host) && !_preferLocal(np, host);
   bool get controlsEnabled =>
-      host == null || (host!.connected && !host!.reconnecting);
-  bool get needsHostUpdate => host != null && !host!.playerAvailable;
+      !usesHost || (host!.connected && !host!.reconnecting);
+  bool get needsHostUpdate =>
+      host != null && !host!.playerAvailable && !_preferLocal(np, host);
   NowPlayingInfo? get info => usesHost ? host!.playerInfo : np?.info;
   bool get available =>
       usesHost || (np?.supported == true && np?.access == true);
@@ -31,11 +51,7 @@ class PlayerSource extends ChangeNotifier {
       np?.supported == true &&
       np?.access == false &&
       np?.promptDismissed == false;
-  bool get visible =>
-      usesHost ||
-      needsHostUpdate ||
-      showPrompt ||
-      (available && info?.hasContent == true);
+  bool get visible => playerIsVisible(np, deviceController);
 
   void setActive(bool active) {
     _active = active;
@@ -43,7 +59,9 @@ class PlayerSource extends ChangeNotifier {
   }
 
   void _syncSubscription() {
-    final next = _active && usesHost ? host : null;
+    // Keep observing the host while local music wins, so a host starting
+    // playback can take precedence without changing routes.
+    final next = _active && _hostReady(host) ? host : null;
     if (_subscribed != next) {
       _subscribed?.unsubscribePlayer(this);
       _subscribed = next;

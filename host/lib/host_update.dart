@@ -12,15 +12,23 @@ Future<String> fetchWindowsHostRelease({
   final assets = data['assets'] as List? ?? [];
   // Die Auswahl ist hier abgeschlossen; "other" soll kein Asset mehr ersetzen.
   data['assets'] = <Object>[];
-  for (final name in [
-    'Remote-for-ADI-2-Host-Windows-Setup.exe',
-    'Remote-for-ADI-2-Host-Windows-x64.zip',
+  // Dateinamen tragen seit 1.2.2 die Versionsnummer; Setup vor ZIP.
+  for (final (prefix, ext) in [
+    ('Remote-for-ADI-2-Host-Windows-Setup', '.exe'),
+    ('Remote-for-ADI-2-Host-Windows', '.zip'),
   ]) {
     for (final asset in assets) {
-      if (asset is! Map || asset['name'] != name) continue;
+      if (asset is! Map) continue;
+      final name = asset['name'];
+      if (name is! String || !name.startsWith(prefix) || !name.endsWith(ext)) {
+        continue;
+      }
       final url = Uri.tryParse('${asset['browser_download_url']}');
       if (url?.scheme != 'https' || url!.host.isEmpty) continue;
       data['html_url'] = url.toString();
+      // Host und App haben eigene Versionen: die des Setups vergleichen.
+      final version = assetVersion(name);
+      if (version != null) data['tag_name'] = 'v$version';
       return jsonEncode(data);
     }
   }

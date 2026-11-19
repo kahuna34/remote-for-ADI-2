@@ -71,8 +71,9 @@ class _VolumeRingState extends State<VolumeRing> {
   bool _onBand(Offset local) {
     final c = Offset(_size.width / 2, _size.width / 2);
     final d = (local - c).distance;
-    final r = _size.width / 2 - 36;
-    return d > r - 46 && d < r + 44;
+    final k = ringScale(_size.width);
+    final r = _size.width / 2 - 36 * k;
+    return d > r - 46 * k && d < r + 44 * k;
   }
 
   void _start(Offset local) {
@@ -91,7 +92,7 @@ class _VolumeRingState extends State<VolumeRing> {
     _prevAngle = ang;
     // Sehr nah an der Mitte sind Winkel unzuverlässig – ignorieren.
     final c = Offset(_size.width / 2, _size.width / 2);
-    if ((local - c).distance < 30) return;
+    if ((local - c).distance < 30 * ringScale(_size.width)) return;
     _frac = (_frac + delta / _sweep).clamp(0.0, 1.0);
     final db = (fracToDb(_frac) * 2).round() / 2;
     widget.onChanged(db.clamp(-114.5, 6.0));
@@ -188,7 +189,7 @@ class _VolumeRingState extends State<VolumeRing> {
                                 // ist der Ring deutlich kleiner.
                                 isTablet(context)
                                     ? (side * 0.07).clamp(11.0, 16.0)
-                                    : 14,
+                                    : (14 * ringScale(side)).clamp(12.0, 14.0),
                                 weight: 500,
                                 color: Palette.muted,
                               ),
@@ -200,7 +201,7 @@ class _VolumeRingState extends State<VolumeRing> {
                                   widget.levelText!,
                                   textAlign: TextAlign.center,
                                   style: ts(
-                                    13,
+                                    (13 * ringScale(side)).clamp(11.5, 13.0),
                                     weight: 600,
                                     color: Palette.amber,
                                     narrow: true,
@@ -222,6 +223,11 @@ class _VolumeRingState extends State<VolumeRing> {
   }
 }
 
+/// Maßstab für feste Maße (Rand, Strich, Knopf, Schrift): 1 bei 300 pt,
+/// kleiner auf kleinen Bildschirmen (z. B. iPhone SE), damit der Ring innen
+/// nicht zuläuft.
+double ringScale(double side) => (side / 300).clamp(0.55, 1.0);
+
 String _fmt(double db) =>
     '${db < 0 ? '−' : (db > 0 ? '+' : '')}${db.abs().toStringAsFixed(1).replaceAll('.', ',')}';
 
@@ -237,7 +243,9 @@ class _RingPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final c = Offset(size.width / 2, size.width / 2);
-    final r = size.width / 2 - 36;
+    final k = ringScale(size.width);
+    final r = size.width / 2 - 36 * k;
+    final w = 16 * k;
     final rect = Rect.fromCircle(center: c, radius: r);
     double rad(double f) => (_start + _sweep * f) * math.pi / 180;
     Offset at(double f, double rr) =>
@@ -254,26 +262,26 @@ class _RingPainter extends CustomPainter {
     }
 
     final fa = dbToFrac(actual), fl = dbToFrac(limit);
-    arc(0, 1, stroke(Palette.surf2, 16));
+    arc(0, 1, stroke(Palette.surf2, w));
     // Deckend vorgemischt, damit sich überlappende Stücke nicht verstärken.
     final limitRed = Color.alphaBlend(
       Palette.red.withValues(alpha: 0.35),
       Palette.surf2,
     );
     if (limit < 6) {
-      arc(fl, 1, stroke(limitRed, 16, cap: StrokeCap.butt));
+      arc(fl, 1, stroke(limitRed, w, cap: StrokeCap.butt));
       // Runde Kappe am Ende, damit Rot bis zum Ende der Spur reicht.
       if (fl < 0.999) {
-        arc(0.999, 1, stroke(limitRed, 16));
+        arc(0.999, 1, stroke(limitRed, w));
       }
     }
     final active = muted ? Palette.muted : Palette.amber;
-    arc(0, fa, stroke(active, 16));
+    arc(0, fa, stroke(active, w));
     if (target != null && target! > actual) {
       final ft = dbToFrac(target!);
       final p = stroke(
         Palette.amber.withValues(alpha: 0.35),
-        16,
+        w,
         cap: StrokeCap.butt,
       );
       // gestrichelt
@@ -286,30 +294,39 @@ class _RingPainter extends CustomPainter {
     final tick = stroke(Palette.line, 2);
     for (var d = -90; d <= 0; d += 10) {
       final f = dbToFrac(d.toDouble());
-      canvas.drawLine(at(f, r + 14), at(f, r + 22), tick);
+      canvas.drawLine(at(f, r + 14 * k), at(f, r + 22 * k), tick);
     }
     for (final d in [-90, -60, -30, 0]) {
       final tp = TextPainter(
         text: TextSpan(
           text: d == 0 ? '0' : '−${-d}',
-          style: ts(12, weight: 500, color: Palette.muted, narrow: true),
+          style: ts(
+            12 * k.clamp(0.8, 1.0),
+            weight: 500,
+            color: Palette.muted,
+            narrow: true,
+          ),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
-      final p = at(dbToFrac(d.toDouble()), r + 32);
+      final p = at(dbToFrac(d.toDouble()), r + 32 * k);
       tp.paint(canvas, p - Offset(tp.width / 2, tp.height / 2));
     }
     if (limit < 6) {
-      canvas.drawLine(at(fl, r - 14), at(fl, r + 22), stroke(Palette.red, 3));
+      canvas.drawLine(
+        at(fl, r - 14 * k),
+        at(fl, r + 22 * k),
+        stroke(Palette.red, 3 * k),
+      );
     }
     if (target != null && (target! - actual).abs() >= 0.1) {
       final pt = at(dbToFrac(target!), r);
-      canvas.drawCircle(pt, 9, Paint()..color = Palette.bg);
-      canvas.drawCircle(pt, 9, stroke(Palette.amber, 2.5));
+      canvas.drawCircle(pt, 9 * k, Paint()..color = Palette.bg);
+      canvas.drawCircle(pt, 9 * k, stroke(Palette.amber, 2.5 * k));
     }
     final pa = at(fa, r);
-    canvas.drawCircle(pa, 16, Paint()..color = Palette.bg);
-    canvas.drawCircle(pa, 12, Paint()..color = active);
+    canvas.drawCircle(pa, 16 * k, Paint()..color = Palette.bg);
+    canvas.drawCircle(pa, 12 * k, Paint()..color = active);
   }
 
   @override

@@ -1,6 +1,6 @@
 # Remote for ADI-2 — Benutzerhandbuch
 
-Version **1.2.3 (8)** · [Projektübersicht](README.de.md) · [English](USER_GUIDE.md)
+Version **1.2.4 (9)** · [Projektübersicht](README.de.md) · [English](USER_GUIDE.md)
 
 Dieses Handbuch beschreibt die aktuelle App. Die verfügbaren Regler hängen vom gewählten Modell und den vom Gerät gemeldeten Werten ab. Die Screenshots zeigen Android-Geräte mit englischer Oberfläche. Getestet ist die App mit allen unterstützten ADI-2-Modellen auf Android-Smartphone und Android-Tablet sowie mit dem ADI-2 DAC am Mac, auch über den Host. Die Player-Anbindung unterstützt derzeit nur Android.
 
@@ -32,6 +32,8 @@ Dieses Handbuch beschreibt die aktuelle App. Die verfügbaren Regler hängen vom
 Hier verbinden Sie den ADI-2, wählen den richtigen Ausgang und bereiten die erste Bedienung vor.
 
 ### Erster Start
+
+Vor allem anderen erscheint ein **Hinweis zur Lautstärke**: Die App verändert Einstellungen des ADI-2 einschließlich der Lautstärke; Fehler können zu plötzlich hoher Lautstärke führen. Er enthält Tipps zur sicheren Nutzung und den Haftungshinweis und muss einmal bestätigt werden, auch von bestehenden Nutzern nach dem Update. Unter **App-Einstellungen → Sicherheit und Haftung** lässt er sich jederzeit erneut lesen.
 
 Nach der Startanimation erscheint einmalig der Einrichtungs-Assistent, auch beim ersten Start nach diesem Update. Er begleitet USB-OTG oder **Über Host verbinden**, die optionale Android-Player-Freigabe und die automatische Update-Prüfung. Erkannte Verbindungen und erteilte Freigaben werden mit einem Häkchen bestätigt. **Weiter** führt zum nächsten Schritt; **Überspringen** beendet die Einrichtung jederzeit. Gerätewerte und Lautstärkeschutz werden dabei nicht verändert. Kamera und Aufnahmeberechtigung werden erst beim QR-Scan bzw. Analyzer benötigt.
 
@@ -144,6 +146,8 @@ Zum Regeln entlang des Lautstärkebogens ziehen. Die Bewegung ist relativ: Eine 
 
 **− 0,5 dB** und **+ 0,5 dB** ändern die Lautstärke schrittweise; gedrückt halten wiederholt. Leiser geht sofort, lauter über eine Rampe. Loslassen des Rings oder einer gehaltenen Lautstärketaste stoppt eine noch nicht abgeschlossene Anhebung. **Anhebung angehalten** bietet **Hier stoppen** oder **Weiter anheben**. Auch Ausgangswechsel und der Wechsel der App in den Hintergrund stoppen Lautstärkerampen.
 
+**Lautstärketasten des Smartphones:** Solange die App im Vordergrund und mit einem ADI-2 verbunden ist, ändern die Lauter-/Leiser-Tasten des Smartphones die Lautstärke des gewählten Ausgangs um je 0,5 dB, per USB und über den Host. Lauter läuft wie die Knöpfe über Rampe und Obergrenze; eine gesperrte Lautstärke bleibt unverändert. Im Hintergrund steuern die Tasten wieder das Smartphone. Abschalten unter **App-Einstellungen → Lautstärketasten steuern den ADI-2**.
+
 **Bal** verschiebt die Balance nach links oder rechts. Gedrückt halten des Balancewerts in der Standardansicht setzt auf die Mitte (**C**) zurück. **Bass** und **Treble** ändern die Klangverstärkung; ihre Beschriftungen gedrückt halten öffnet die Detaileinstellungen. Die Referenzpegel-Taste öffnet **Ref Level** / **Auto Ref Level**, die Filtertaste den **DA-Filter**. Beim Wechsel des Referenzpegels kann die Rückfrage einen Lautstärkeausgleich anbieten, um ähnlich laut zu bleiben.
 
 ### Ausgangstasten
@@ -218,6 +222,8 @@ Die Rampe gibt Ihnen bei einer Anhebung Zeit zum Reagieren. **Adaptiv** bremst b
 Hier wählen Sie, welche Zusatzinformation über dem Ausgangsbedienfeld erscheint.
 
 Unter **App-Einstellungen → Anzeige unter der Kopfzeile** zwischen **Player**, **Status**, **Analyzer** und **nichts** wählen. Dieser Bereich gehört zu Ausgänge. Die eigene Ansicht verwendet die in ihrer Layoutseite gespeicherte Auswahl.
+
+Auf dem Smartphone lässt sich der Bereich auch direkt **wischen**: nach links oder rechts zwischen **Status**, **Player** und **Analyzer**. Der Inhalt folgt dem Finger; ab etwa einem Drittel der Breite oder bei schnellem Wischen wird umgeschaltet, sonst federt er zurück. Drei Punkte zeigen die aktuelle Seite. Die Wahl wird wie in den Einstellungen gespeichert, in der eigenen Ansicht für die jeweilige Seite.
 
 **Player** nutzt im Host-Betrieb den Computer-Player mit Titel, Interpret, App, Cover und Zurück/Weiter sowie Wiedergabe/Pause. Ohne Host oder bei fehlender Host-Player-Fähigkeit nutzt die Anzeige die aktive Android-Mediensitzung; ältere Hosts erhalten den Hinweis **Host aktualisieren**. Die folgenden Freigaben sowie Stopp und das Öffnen der Player-App gelten für die Smartphone-Quelle. Über den angebotenen Einstellungslink Benachrichtigungszugriff erteilen. Die Leiste kann Medieninformationen und Cover zeigen, vorheriger/nächster, Wiedergabe/Pause und Stopp senden sowie durch Antippen der Informationen den Player öffnen. Die Verfügbarkeit hängt von der Medien-App ab. Eine Musikbibliothek enthält sie nicht. Ohne verwendbaren Player-Inhalt erscheint gegebenenfalls die vorgesehene Status-Ersatzanzeige oder die Leiste klappt ein. Andere Smartphone-Plattformen bieten die lokale Player-Anbindung derzeit nicht; ein aktueller Host kann auch dort den Computer-Player liefern.
 
@@ -519,6 +525,8 @@ Auf der Live-EQ-Seite gehen Änderungen direkt an den gewählten Gerätekanal; s
 
 **Clear** setzt nach Rückfrage die Bandwerte beider Seiten einschließlich Bass/Treble auf die Standardwerte mit 0 dB Gain. Gespeicherte Presets bleiben erhalten; EQ an/aus, Bass/Treble an/aus und die Presetwahl bleiben unverändert. Der **EQ-Preset-Editor** unter Setups arbeitet dagegen zunächst in einem eigenen Puffer.
 
+**Doppeltipp** auf einen Punkt im EQ-Graphen setzt nach Rückfrage den Gain dieses Bands auf 0 dB. Das funktioniert bei eingeschaltetem EQ und bei Bändern mit Gain; Frequenz und Q bleiben erhalten. Ziehen beginnt erst nach einer kleinen Fingerbewegung, ein Tipp verschiebt den Punkt nicht.
+
 Beispiel: Wählen Sie am Ausgang Band 2 als **Peak**, 500 Hz, −2 dB und Q 1,0 für eine breite Absenkung. Hören Sie leise und vergleichen Sie mit dem EQ-Schalter. Wenn Sie die Kurve behalten möchten, wählen Sie **Als Preset speichern**, einen Geräteslot und einen Namen, prüfen Sie das Überschreiben und bestätigen Sie. Eine Anhebung kann die digitale Reserve verkleinern; bei Übersteuerung Gain reduzieren.
 
 ## Setups und EQ-Preset-Editor
@@ -748,7 +756,7 @@ Für den Vergleich mit dem Gerät **post FX** verwenden: nach EQ/Effekten und vo
 - **Analyzer-Farbe** bietet **Wie Gerät**, **Grün**, **Cyan**, **Amber**, **Mono**, **Rot** und **Orange**.
 - **Peak / RMS · dBFS** zeigt die aufgenommenen L-/R-Audiopegel einschließlich gespeichertem Kalibrier-Offset. Ein voll ausgesteuerter Sinus hat 0 dBFS Peak und etwa −3 dBFS RMS. Übersteuerung wird gesondert angezeigt. Spektrumsbänder beziehen einen voll ausgesteuerten Sinus bei Bandmitte auf 0 dB. Filter und Ballistik können vom Gerät abweichen; dessen tiefstes Band erfasst auch Gleichanteile.
 
-**Analyzer-Einstellungen** öffnet diese Optionen und die Kalibrierung. Im Vollbild blendet **Nur Spektrum** die Bedienleiste aus; **Bedienleiste anzeigen** holt sie zurück. Die folgenden Vollbildaufnahmen zeigen Querformat. Manuelles Öffnen schaltet auch auf Tablets ins Querformat; beim Verlassen gilt wieder die vorherige Ausrichtungsregel. Die Bandauflösung steht als Knöpfe in der oberen Leiste. **Ballistik** und **Loopback-Quelle** sind kompakte Dropdowns links neben den Symbolen oben rechts; lange Texte werden bei wenig Platz gekürzt. Oben in den Analyzer-Einstellungen wählt **Werkzeug → Spektrum** das Werkzeug. Direkt darunter wählen Knöpfe **Linien / Balken**, gefolgt von der Bandauflösung. Die Analyzer-Einstellungen bieten außerdem umbrechende Auswahlknöpfe für Ballistik, Bandauflösung, Analyzer-Farbe, Pegelbereich, Ausgang (nur Pro / 2/4) und Loopback-Quelle; Farbknöpfe zeigen Farbmuster.
+**Analyzer-Einstellungen** öffnet diese Optionen; die selten benötigte Kalibrierung steht ganz unten. Im Vollbild blendet **Nur Spektrum** die Bedienleiste aus; **Bedienleiste anzeigen** holt sie zurück. Die folgenden Vollbildaufnahmen zeigen Querformat. Manuelles Öffnen schaltet auch auf Tablets ins Querformat; beim Verlassen gilt wieder die vorherige Ausrichtungsregel. Die Bandauflösung steht als Knöpfe in der oberen Leiste. **Ballistik** und **Loopback-Quelle** sind kompakte Dropdowns links neben den Symbolen oben rechts; lange Texte werden bei wenig Platz gekürzt. Oben in den Analyzer-Einstellungen wählt **Werkzeug → Spektrum** das Werkzeug. Direkt darunter wählen Knöpfe **Linien / Balken**, gefolgt von der Bandauflösung. Die Analyzer-Einstellungen bieten außerdem umbrechende Auswahlknöpfe für Ballistik, Bandauflösung, Analyzer-Farbe, Pegelbereich, Ausgang (nur Pro / 2/4) und Loopback-Quelle; Farbknöpfe zeigen Farbmuster.
 
 Die folgenden Abbildungen zeigen eine frühere Anordnung der Bedienelemente. Für die aktuelle Version gelten die oben beschriebenen Auswahlknöpfe und Kopfzeilenregler.
 

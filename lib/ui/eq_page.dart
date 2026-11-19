@@ -950,6 +950,56 @@ class _EqPlotState extends State<EqPlot>
   EqPlotScale _scale = const EqPlotScale(12);
   int? _drag;
   Offset _grab = Offset.zero;
+  Duration? _lastTap;
+  Duration _pointerTime = Duration.zero;
+  int? _lastTapBand;
+  Offset? _lastTapPos;
+  Offset _dragStart = Offset.zero;
+  bool _dragging = false;
+  bool _resetDialog = false;
+
+  Future<void> _confirmGainReset(int i) async {
+    if (_resetDialog || !widget.enabled || !_shape(i).hasGain) return;
+    final raw = widget.read(_addr(i), eqBands[i].gainIdx) ?? 0;
+    if (raw == 0) return;
+    final band = eqBands[i];
+    final name = band.isBassTreble
+        ? tr(band.label)
+        : trf('Band {band}', {'band': band.label});
+    final gain = (raw / 2).toStringAsFixed(1);
+    _resetDialog = true;
+    try {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          title: Text(tr('Gain zurücksetzen?')),
+          content: Text(
+            trf('Gain von {band} auf 0 dB setzen? (jetzt {gain} dB)', {
+              'band': name,
+              'gain': AppLang.instance.language == AppLanguage.de
+                  ? gain.replaceAll('.', ',')
+                  : gain,
+            }),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialog, false),
+              child: Text(tr('Abbrechen')),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialog, true),
+              child: Text(tr('Zurücksetzen')),
+            ),
+          ],
+        ),
+      );
+      if (confirmed == true && mounted && widget.enabled && _shape(i).hasGain) {
+        widget.write(_addr(i), band.gainIdx, 0);
+      }
+    } finally {
+      _resetDialog = false;
+    }
+  }
 
   /// Neue Werte (etwa aus anderer Software über den Host) kommen in Sprüngen
   /// an. Die Kurve gleitet deshalb kurz zum neuen Stand, außer beim Ziehen.
@@ -1205,84 +1255,116 @@ class _EqPlotState extends State<EqPlot>
         final sh = _shapes();
         _scale = EqPlotScale.forShapes(sh.whereType<EqBandShape>());
         _retarget(sh);
-        return RawGestureDetector(
-          gestures: {
-            TapGestureRecognizer:
-                GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
-                  TapGestureRecognizer.new,
-                  (t) => t.onTapUp = (d) {
+        return Listener(
+          onPointerUp: (event) => _pointerTime = event.timeStamp,
+          child: RawGestureDetector(
+            gestures: {
+              _PointDrag: GestureRecognizerFactoryWithHandlers<_PointDrag>(
+                _PointDrag.new,
+                (r) => r
+                  ..onTapUp = (d) {
+                    final now = _pointerTime;
+                    // Zweiter Tipp eines Doppeltipps landet oft etwas neben
+                    // dem ersten: bis 44 px Abstand gilt er demselben Punkt.
+                    final near =
+                        _lastTapPos != null &&
+                        (d.localPosition - _lastTapPos!).distance <= 44;
+                    final i = near && _lastTapBand != null
+                        ? _lastTapBand
+                        : _hit(d.localPosition, size);
+                    final doubleTap =
+                        i != null &&
+                        i == _lastTapBand &&
+                        _lastTap != null &&
+                        now - _lastTap! <= const Duration(milliseconds: 500);
+                    _lastTap = doubleTap || i == null ? null : now;
+                    _lastTapBand = doubleTap ? null : i;
+                    _lastTapPos = doubleTap || i == null
+                        ? null
+                        : d.localPosition;
+                    if (i != null) {
+                      widget.onSelect(i);
+                      if (doubleTap) unawaited(_confirmGainReset(i));
+                    }
+                  }
+                  // Ecke mit dem Vollbild-Knopf frei lassen, sonst fängt der
+                  // Graph den Tipp ab.
+                  ..accepts = ((p) =>
+                      !(!widget.fullscreen &&
+                          p.dx > size.width - 60 &&
+                          p.dy < 60) &&
+                      _hit(p, size) != null)
+                  ..onStart = (d) {
                     final i = _hit(d.localPosition, size);
-                    if (i != null) widget.onSelect(i);
-                  },
-                ),
-            _PointDrag: GestureRecognizerFactoryWithHandlers<_PointDrag>(
-              _PointDrag.new,
-              (r) => r
-                // Ecke mit dem Vollbild-Knopf frei lassen, sonst fängt der
-                // Graph den Tipp ab.
-                ..accepts = ((p) =>
-                    !(!widget.fullscreen &&
-                        p.dx > size.width - 60 &&
-                        p.dy < 60) &&
-                    _hit(p, size) != null)
-                ..onStart = (d) {
-                  final i = _hit(d.localPosition, size);
-                  if (i == null) return;
-                  // Abstand Finger–Punkt merken, damit der Punkt nicht springt.
-                  _grab = _pointPos(i, _shapes(), size) - d.localPosition;
-                  _drag = i;
-                  widget.onSelect(i);
-                  setState(() {});
-                }
-                ..onUpdate = (d) {
-                  final i = _drag;
-                  if (i != null) _dragTo(i, d.localPosition + _grab, size);
-                }
-                ..onEnd = ((_) => setState(() => _drag = null))
-                ..onCancel = (() => setState(() => _drag = null)),
-            ),
-          },
-          child: Container(
-            height: height,
-            decoration: BoxDecoration(
-              color: Palette.surf,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: AnimatedBuilder(
-                    animation: _glider,
-                    builder: (context, _) => CustomPaint(
-                      painter: _EqPainter(
-                        _shown(sh),
-                        widget.selected,
-                        widget.enabled,
-                        _drag != null,
-                        _scale,
+                    if (i == null) return;
+                    // Abstand Finger–Punkt merken, damit der Punkt nicht springt.
+                    _grab = _pointPos(i, _shapes(), size) - d.localPosition;
+                    _dragStart = d.localPosition;
+                    _dragging = false;
+                    _drag = i;
+                    widget.onSelect(i);
+                    setState(() {});
+                  }
+                  ..onUpdate = (d) {
+                    // Android meldet beim Tippen kleine Fingerbewegungen. Erst
+                    // ab 8 px ist es ein Ziehen; sonst bliebe kein Doppeltipp
+                    // erkannt und der Punkt würde beim Tippen verschoben.
+                    if (!_dragging) {
+                      if ((d.localPosition - _dragStart).distance < 8) return;
+                      _dragging = true;
+                    }
+                    _lastTap = null;
+                    _lastTapBand = null;
+                    _lastTapPos = null;
+                    final i = _drag;
+                    if (i != null) _dragTo(i, d.localPosition + _grab, size);
+                  }
+                  ..onEnd = ((_) => setState(() => _drag = null))
+                  ..onCancel = (() => setState(() => _drag = null)),
+              ),
+            },
+            child: Container(
+              height: height,
+              decoration: BoxDecoration(
+                color: Palette.surf,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: AnimatedBuilder(
+                      animation: _glider,
+                      builder: (context, _) => CustomPaint(
+                        painter: _EqPainter(
+                          _shown(sh),
+                          widget.selected,
+                          widget.enabled,
+                          _drag != null,
+                          _scale,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                if (_drag != null && sh[_drag!] != null)
-                  Positioned(
-                    top: 8,
-                    left: 0,
-                    right: 0,
-                    child: Center(child: _bubble(_drag!, sh[_drag!]!)),
-                  ),
-                if (!widget.fullscreen)
-                  Positioned(
-                    top: 2,
-                    right: 2,
-                    child: IconButton.filledTonal(
-                      tooltip: tr('Vollbild'),
-                      onPressed: _openFullscreen,
-                      icon: const Icon(Icons.fullscreen),
+                  if (_drag != null && sh[_drag!] != null)
+                    Positioned(
+                      top: 8,
+                      left: 0,
+                      right: 0,
+                      child: Center(child: _bubble(_drag!, sh[_drag!]!)),
                     ),
-                  ),
-              ],
+                  if (!widget.fullscreen)
+                    Positioned(
+                      top: 2,
+                      right: 2,
+                      child: IconButton.filledTonal(
+                        tooltip: tr('Vollbild'),
+                        onPressed: _openFullscreen,
+                        icon: const Icon(Icons.fullscreen),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         );
@@ -1488,10 +1570,14 @@ class _EqPainter extends CustomPainter {
   bool shouldRepaint(_EqPainter o) => true;
 }
 
-/// Greift einen EQ-Punkt sofort (sonst würde die scrollbare Seite
-/// senkrechte Bewegungen abfangen). Nur auf einem Punkt aktiv.
+/// Points must claim the arena on down to beat ancestor vertical scrolling.
+/// Report stationary releases as taps from that same owner, without waiting
+/// for a second tap or competing with the eagerly accepted pan recognizer.
 class _PointDrag extends PanGestureRecognizer {
   bool Function(Offset local) accepts = (_) => false;
+  GestureTapUpCallback? onTapUp;
+  PointerDownEvent? _down;
+  bool _moved = false;
 
   @override
   bool isPointerAllowed(PointerEvent event) =>
@@ -1499,8 +1585,36 @@ class _PointDrag extends PanGestureRecognizer {
 
   @override
   void addAllowedPointer(PointerDownEvent event) {
+    _down = event;
+    _moved = false;
     super.addAllowedPointer(event);
     resolve(GestureDisposition.accepted);
+  }
+
+  @override
+  void handleEvent(PointerEvent event) {
+    final down = _down;
+    if (down != null &&
+        event.pointer == down.pointer &&
+        (event.position - down.position).distance > kPanSlop) {
+      _moved = true;
+    }
+    super.handleEvent(event);
+    if (down == null || event.pointer != down.pointer) return;
+    if (event is PointerUpEvent) {
+      if (!_moved && event.timeStamp - down.timeStamp < kLongPressTimeout) {
+        onTapUp?.call(
+          TapUpDetails(
+            kind: event.kind,
+            globalPosition: event.position,
+            localPosition: event.localPosition,
+          ),
+        );
+      }
+      _down = null;
+    } else if (event is PointerCancelEvent) {
+      _down = null;
+    }
   }
 }
 

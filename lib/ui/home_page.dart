@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import '../l10n/l10n.dart';
 import '../device/adi2_controller.dart';
 import '../device/volume_options.dart';
+import '../device/volume_keys.dart';
 import '../device/supported_models.dart';
 import '../protocol/adi2_codec.dart';
 import '../protocol/adi2_params.dart';
@@ -27,10 +28,12 @@ import 'outputs_page.dart';
 import 'param_tile.dart';
 import 'player_bar.dart';
 import '../media/now_playing.dart';
+import '../media/player_source.dart';
 import 'theme.dart';
 import '../analyzer/header_content.dart';
 import 'analyzer_panel.dart';
 import 'responsive_layout.dart';
+import 'header_swipe.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({
@@ -292,6 +295,24 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// Eine Aufnahme für alle Ansichten: Beim Drehen des Tablets wechselt die
   /// Anzeige, die laufende USB-Aufnahme darf dabei nicht neu starten.
   final _analyzer = AnalyzerController();
+  late VolumeKeys _volumeKeys;
+  bool _foreground = true;
+  bool _currentRoute = false;
+
+  int? _headerOutput() {
+    final c = widget.ctrl, v = c.variant;
+    if (v == null) return null;
+    final outputs = outputsFor(v);
+    final selected = c.selectedOutput;
+    if (!outputs.any((o) => o.address == selected) ||
+        (!v.isDac &&
+            c.valueOr(Adi2Addr.device, 8, 0) == 0 &&
+            selected == Adi2Addr.ph12)) {
+      return v.isDac ? Adi2Addr.ph12 : outputs.last.address;
+    }
+    return selected;
+  }
+
   Timer? _updateDialogTimer;
   final Set<String> _announcedUpdates = {};
 
@@ -354,6 +375,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _foreground =
+        WidgetsBinding.instance.lifecycleState == null ||
+        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+    _volumeKeys = VolumeKeys(controller: widget.ctrl, output: _headerOutput);
     _updateDialogTimer = Timer.periodic(
       const Duration(seconds: 2),
       (_) => _maybeShowUpdate(),
@@ -361,7 +386,22 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   @override
+  void didUpdateWidget(HomePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.ctrl != widget.ctrl) {
+      _volumeKeys.dispose();
+      _volumeKeys = VolumeKeys(controller: widget.ctrl, output: _headerOutput);
+    }
+  }
+
+  @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    _foreground = state == AppLifecycleState.resumed;
+    _volumeKeys.update(
+      foreground: _foreground,
+      current: _currentRoute,
+      force: _foreground,
+    );
     if (state == AppLifecycleState.resumed) {
       AppUpdates.instance.checker?.check();
     }
@@ -376,6 +416,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _updateDialogTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _analyzer.dispose();
+    _volumeKeys.dispose();
     super.dispose();
   }
 
@@ -383,6 +424,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    _currentRoute = ModalRoute.isCurrentOf(context) ?? true;
+    _volumeKeys.update(foreground: _foreground, current: _currentRoute);
     return ListenableBuilder(
       listenable: Listenable.merge([
         widget.ctrl,
@@ -401,21 +444,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         final landscape = isTabletLandscape(context);
         final layout = settings.easyLayout(v);
         final availableOutputs = outputsFor(v);
-        var headerOutput = c.selectedOutput;
-        if (!availableOutputs.any((o) => o.address == headerOutput) ||
-            (!v.isDac &&
-                c.valueOr(Adi2Addr.device, 8, 0) == 0 &&
-                headerOutput == Adi2Addr.ph12)) {
-          headerOutput = v.isDac
-              ? Adi2Addr.ph12
-              : availableOutputs.last.address;
-        }
-        final headerLayout = layout.pageFor(headerOutput!);
-        final playerVisible =
-            c.viaHost ||
-            widget.np.supported &&
-                ((!widget.np.access && !widget.np.promptDismissed) ||
-                    widget.np.access && widget.np.info?.hasContent == true);
+        final headerOutput = _headerOutput()!;
+        final headerLayout = layout.pageFor(headerOutput);
+        final playerVisible = playerIsVisible(widget.np, c);
         final header = easy
             ? headerLayout.headerContent
             : settings.headerContent;
@@ -675,7 +706,59 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 ),
               ),
             ),
-            if (idx == outputsIndex && !landscape) ...outputHeader,
+            if (idx == outputsIndex && !landscape)
+              if (hasMainHeader)
+                HeaderSwipe(
+                  content: header,
+                  onChanged: (content) {
+                    if (easy) {
+                      final slots = settings.easySlots(v);
+                      unawaited(
+                        settings.saveEasySlot(
+                          v,
+                          slots.active,
+                          layout.withPage(
+                            headerOutput,
+                            headerLayout.withHeaderContent(content),
+                          ),
+                        ),
+                      );
+                    } else {
+                      unawaited(settings.setHeaderContent(content));
+                    }
+                  },
+                  preview: (content) => switch (content) {
+                    HeaderContent.player => PlayerBar(
+                      deviceController: c,
+                      np: widget.np,
+                      fallback: _DigitalMini(ctrl: c, onTap: () {}),
+                    ),
+                    HeaderContent.status => Align(
+                      alignment: Alignment.topCenter,
+                      child: _DigitalMini(ctrl: c, onTap: () {}),
+                    ),
+                    // Der Analyzer misst nur einmal; die Vorschau bleibt eine
+                    // ruhige Fläche in seiner Form.
+                    _ => Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Palette.surf,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        alignment: Alignment.center,
+                        child: const Icon(
+                          Icons.graphic_eq,
+                          color: Palette.muted,
+                          size: 32,
+                        ),
+                      ),
+                    ),
+                  },
+                  child: outputHeader.single,
+                )
+              else
+                ...outputHeader,
             Expanded(
               child: IgnorePointer(
                 ignoring: c.hostReconnecting,

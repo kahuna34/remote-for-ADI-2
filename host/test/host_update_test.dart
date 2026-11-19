@@ -28,6 +28,18 @@ Future<UpdateResult> check(List<Object> assets, {String page = releasePage}) {
 }
 
 void main() {
+  test('Setup mit Versionsnummer: Version des Setups zählt', () async {
+    final result = await check([
+      asset('Remote-for-ADI-2-Host-Windows-Setup-1.2.1.exe'),
+    ]);
+    expect(result.status, UpdateStatus.available);
+    expect(result.version, '1.2.1');
+    expect(
+      result.url.toString(),
+      'https://example.com/download/Remote-for-ADI-2-Host-Windows-Setup-1.2.1.exe',
+    );
+  });
+
   test('Setup wird unabhängig von der Asset-Reihenfolge bevorzugt', () async {
     for (final assets in [
       [asset(zip), asset(setup)],

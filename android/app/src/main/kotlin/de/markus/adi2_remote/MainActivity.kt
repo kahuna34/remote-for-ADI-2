@@ -17,6 +17,7 @@ import android.os.Build
 import android.os.Looper
 import android.provider.Settings
 import android.view.WindowInsets
+import android.view.KeyEvent
 import android.view.WindowInsetsController
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -36,6 +37,24 @@ class MainActivity : FlutterActivity() {
     private var analyzer: AnalyzerCapture? = null
     private var analyzerSelfTest: AnalyzerSelfTest? = null
     private var eqFullscreen = false
+    private var volumeKeysEnabled = false
+    private var volumeKeysForeground = false
+    private var volumeKeysChannel: MethodChannel? = null
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (volumeKeysEnabled && (keyCode == KeyEvent.KEYCODE_VOLUME_UP ||
+                keyCode == KeyEvent.KEYCODE_VOLUME_DOWN)) {
+            volumeKeysChannel?.invokeMethod("step", if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) 1 else -1)
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if (volumeKeysEnabled && (keyCode == KeyEvent.KEYCODE_VOLUME_UP ||
+                keyCode == KeyEvent.KEYCODE_VOLUME_DOWN)) return true
+        return super.onKeyUp(keyCode, event)
+    }
     private var hostMulticastLock: android.net.wifi.WifiManager.MulticastLock? = null
 
     private fun applyEqFullscreen() {
@@ -127,6 +146,14 @@ class MainActivity : FlutterActivity() {
             }
         }
         val messenger = flutterEngine.dartExecutor.binaryMessenger
+        volumeKeysChannel = MethodChannel(messenger, "adi2/volume_keys").also { channel ->
+            channel.setMethodCallHandler { call, result ->
+                if (call.method == "setEnabled") {
+                    volumeKeysEnabled = call.arguments == true && volumeKeysForeground
+                    result.success(null)
+                } else result.notImplemented()
+            }
+        }
         analyzer = AnalyzerCapture(this, messenger)
         analyzerSelfTest = AnalyzerSelfTest(this, messenger, analyzer!!)
 
@@ -222,6 +249,7 @@ class MainActivity : FlutterActivity() {
 
     override fun onResume() {
         super.onResume()
+        volumeKeysForeground = true
         // Nach Rückkehr aus den Einstellungen: Freigabe erneut prüfen.
         refresh()
     }
@@ -232,6 +260,8 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onPause() {
+        volumeKeysForeground = false
+        volumeKeysEnabled = false
         analyzer?.stopForBackground()
         analyzerSelfTest?.stop()
         super.onPause()
