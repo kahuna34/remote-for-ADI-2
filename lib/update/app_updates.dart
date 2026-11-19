@@ -3,21 +3,29 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 import '../app_info.dart';
+import '../store_build.dart';
 import '../app_settings.dart';
 import 'update_check.dart';
 
 class AppUpdates extends ChangeNotifier {
   AppUpdates._();
+
+  @visibleForTesting
+  AppUpdates.forTesting();
   static final instance = AppUpdates._();
   UpdateCheck? checker;
   UpdateResult? _visibleResult;
   UpdateResult? get result => _visibleResult;
   Future<void>? _initializing;
-  Future<void> initialize() => _initializing ??= _initialize();
+  Future<void> initialize() async {
+    if (isPlayStoreBuild) return;
+    await (_initializing ??= _initialize());
+  }
 
   Future<void> _initialize() async {
     final settings = AppSettings.instance;
     await settings.load();
+    if (isPlayStoreBuild) return;
     checker = UpdateCheck(
       installedVersion: appVersion,
       platform: Platform.isAndroid
@@ -63,12 +71,14 @@ class AppUpdates extends ChangeNotifier {
   }
 
   Future<UpdateResult> checkNow() async {
+    if (isPlayStoreBuild) return const UpdateResult(UpdateStatus.skipped);
     if (checker == null) await initialize();
     final value = await checker!.check(manual: true);
     return value;
   }
 
   void settingsChanged() {
+    if (isPlayStoreBuild) return;
     checker?.enabled = AppSettings.instance.updateCheck;
     if (checker?.enabled ?? false) checker?.check();
   }

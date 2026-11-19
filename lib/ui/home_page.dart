@@ -10,6 +10,7 @@ import '../analyzer/analyzer_controller.dart';
 import 'package:flutter/material.dart';
 
 import '../l10n/l10n.dart';
+import '../store_build.dart';
 import '../device/adi2_controller.dart';
 import '../device/volume_options.dart';
 import '../device/volume_keys.dart';
@@ -317,6 +318,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final Set<String> _announcedUpdates = {};
 
   void _maybeShowUpdate() {
+    if (isPlayStoreBuild) return;
     final service = AppUpdates.instance;
     final result = service.result;
     if (!mounted ||
@@ -379,10 +381,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         WidgetsBinding.instance.lifecycleState == null ||
         WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
     _volumeKeys = VolumeKeys(controller: widget.ctrl, output: _headerOutput);
-    _updateDialogTimer = Timer.periodic(
-      const Duration(seconds: 2),
-      (_) => _maybeShowUpdate(),
-    );
+    if (!isPlayStoreBuild) {
+      _updateDialogTimer = Timer.periodic(
+        const Duration(seconds: 2),
+        (_) => _maybeShowUpdate(),
+      );
+    }
   }
 
   @override
@@ -402,7 +406,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       current: _currentRoute,
       force: _foreground,
     );
-    if (state == AppLifecycleState.resumed) {
+    if (!isPlayStoreBuild && state == AppLifecycleState.resumed) {
       AppUpdates.instance.checker?.check();
     }
     // Am Gerät kann sich im Hintergrund alles geändert haben.

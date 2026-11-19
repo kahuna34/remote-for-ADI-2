@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../l10n/l10n.dart';
+import '../store_build.dart';
 import 'theme.dart';
 
 /// Same wording as the repository privacy notices.
@@ -16,9 +17,10 @@ List<String> privacyParagraphs() => [
   tr(
     'Host: Für die Verbindung im lokalen Netzwerk werden WebSockets verwendet (Standardport 47321, bei Belegung ein anderer Port). mDNS macht Computername, Host-ID und Port im Netz sichtbar. Kopplung erfolgt per Code und gespeichertem Schlüssel. Steuerdaten bleiben bei dieser Nutzung im lokalen Netz. MIDI und Erstkopplung sind unverschlüsselt; nutze ein vertrauenswürdiges Netz und gib den Host-Port nicht ins Internet frei.',
   ),
-  tr(
-    'Updates: Die automatische Prüfung ist abschaltbar und fragt höchstens einmal täglich api.github.com nach dem neuesten Release. Manuelle Prüfungen sind zusätzlich möglich. GitHub erhält die IP-Adresse und technische HTTP-Anfragedaten (unter anderem den App-User-Agent), keine Gerätewerte oder Kopplungsschlüssel. Ein Download öffnet sich nur auf Knopfdruck im Browser. GitHub-Datenschutzerklärung: https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement',
-  ),
+  if (!isPlayStoreBuild)
+    tr(
+      'Updates: Die automatische Prüfung ist abschaltbar und fragt höchstens einmal täglich api.github.com nach dem neuesten Release. Manuelle Prüfungen sind zusätzlich möglich. GitHub erhält die IP-Adresse und technische HTTP-Anfragedaten (unter anderem den App-User-Agent), keine Gerätewerte oder Kopplungsschlüssel. Ein Download öffnet sich nur auf Knopfdruck im Browser. GitHub-Datenschutzerklärung: https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement',
+    ),
   tr(
     'Kamera: Nur zum Scannen des Kopplungs-QR-Codes. Die App speichert keine Kamerabilder. Die Berechtigung wird erst beim Scannen benötigt.',
   ),

@@ -1,0 +1,41 @@
+{
+  "name": "Remote for ADI-2",
+  "identifier": "io.github.kahuna34.remote-for-adi2",
+  "subtitle": "Remote control for RME ADI-2 devices",
+  "website": "https://github.com/kahuna34/remote-for-ADI-2",
+  "iconURL": "https://raw.githubusercontent.com/kahuna34/remote-for-ADI-2/main/assets/images/app_icon.png",
+  "tintColor": "#2E7BD6",
+  "apps": [
+    {
+      "name": "Remote for ADI-2",
+      "bundleIdentifier": "de.markus.adi2Remote",
+      "developerName": "Kahuna Labs",
+      "subtitle": "Remote control for ADI-2 DAC, ADI-2 Pro and ADI-2/4 Pro",
+      "localizedDescription": "Remote control for the RME ADI-2 DAC, ADI-2 Pro, ADI-2 Pro EX, ADI-2/4 Pro SE and ADI-2/4 Pro EX over USB or Wi-Fi (via Remote for ADI-2 Host on Mac/Windows). Outputs and volume, parametric EQ, device settings, setups, analyzer and a custom control panel. Free and open source (GPL-3.0). RME and ADI-2 are trademarks of RME Intelligent Audio Solutions.",
+      "iconURL": "https://raw.githubusercontent.com/kahuna34/remote-for-ADI-2/main/assets/images/app_icon.png",
+      "tintColor": "#2E7BD6",
+      "category": "utilities",
+      "versions": [
+        {
+          "version": "1.2.4",
+          "buildVersion": "9",
+          "date": "2026-11-19",
+          "localizedDescription": "First iPhone release.",
+          "downloadURL": "https://github.com/kahuna34/remote-for-ADI-2/releases/download/v1.2.4/Remote-for-ADI-2-iPhone-1.2.4.ipa",
+          "size": 9252453,
+          "minOSVersion": "15.0"
+        }
+      ],
+      "appPermissions": {
+        "entitlements": [],
+        "privacy": {
+          "NSCameraUsageDescription": "Scans the QR code to pair with Remote for ADI-2 Host.",
+          "NSMicrophoneUsageDescription": "The analyzer records USB audio from the ADI-2 while visible. Audio is not saved and the phone microphone is not used.",
+          "NSAppleMusicUsageDescription": "Shows the current Apple Music track and controls playback.",
+          "NSLocalNetworkUsageDescription": "Connects to Remote for ADI-2 Host on your computer over Wi-Fi."
+        }
+      }
+    }
+  ],
+  "news": []
+}

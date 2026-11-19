@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../app_settings.dart';
 import '../device/adi2_controller.dart';
 import '../l10n/l10n.dart';
+import '../store_build.dart';
 import '../media/now_playing.dart';
 import '../update/app_updates.dart';
 import 'host_connect_page.dart';
@@ -110,7 +111,10 @@ class _SetupWizardState extends State<SetupWizard> {
 
   void _next() {
     _scroll.jumpTo(0);
-    setState(() => _step = _step == 0 && !widget.np.supported ? 2 : _step + 1);
+    setState(() {
+      _step = _step == 0 && !widget.np.supported ? 2 : _step + 1;
+      if (isPlayStoreBuild && _step == 2) _step = 3;
+    });
   }
 
   Widget _text(String value) => Padding(
@@ -237,7 +241,7 @@ class _SetupWizardState extends State<SetupWizard> {
                         ),
                       ],
                     ],
-                    if (_step == 2) ...[
+                    if (_step == 2 && !isPlayStoreBuild) ...[
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
                         key: const ValueKey('setup-update-check'),

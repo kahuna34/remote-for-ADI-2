@@ -6,29 +6,33 @@ Remote for ADI-2 is a free Flutter app for controlling compatible ADI-2 audio in
 
 ## Download
 
-| What | File | For |
-| --- | --- | --- |
-| **App** | [Remote-for-ADI-2-Android-1.2.4.apk](https://github.com/kahuna34/remote-for-ADI-2/releases/download/v1.2.4/Remote-for-ADI-2-Android-1.2.4.apk) | Android smartphone or tablet |
-| **Host for Mac** | [Remote-for-ADI-2-Host-macOS-1.2.3.zip](https://github.com/kahuna34/remote-for-ADI-2/releases/download/v1.2.4/Remote-for-ADI-2-Host-macOS-1.2.3.zip) | Mac with the ADI-2 connected by USB |
-| **Host for Windows** | [Remote-for-ADI-2-Host-Windows-Setup-1.2.3.exe](https://github.com/kahuna34/remote-for-ADI-2/releases/download/v1.2.4/Remote-for-ADI-2-Host-Windows-Setup-1.2.3.exe) | Windows PC (64-bit) with the ADI-2 connected by USB |
+### Android and computer (host)
+
+| What | File | For | Installation |
+| --- | --- | --- | --- |
+| **App** | [Remote-for-ADI-2-Android-1.2.4.apk](https://github.com/kahuna34/remote-for-ADI-2/releases/download/v1.2.4/Remote-for-ADI-2-Android-1.2.4.apk) | Android smartphone or tablet | [Guide](docs/install/android.md) |
+| **Host for Mac** | [Remote-for-ADI-2-Host-macOS-1.2.3.zip](https://github.com/kahuna34/remote-for-ADI-2/releases/download/v1.2.4/Remote-for-ADI-2-Host-macOS-1.2.3.zip) | Mac with the ADI-2 connected by USB | [Guide](docs/install/host-mac.md) |
+| **Host for Windows** | [Remote-for-ADI-2-Host-Windows-Setup-1.2.3.exe](https://github.com/kahuna34/remote-for-ADI-2/releases/download/v1.2.4/Remote-for-ADI-2-Host-Windows-Setup-1.2.3.exe) | Windows PC (64-bit) with the ADI-2 connected by USB | [Guide](docs/install/host-windows.md) |
+
+### iPhone
+
+The iPhone app is not in the App Store. It is installed with your own Apple ID through AltStore/SideStore or, on a Mac with Xcode, with a build script.
+
+| What | File | For | Installation |
+| --- | --- | --- | --- |
+| **App (IPA)** | [Remote-for-ADI-2-iPhone-1.2.4.ipa](https://github.com/kahuna34/remote-for-ADI-2/releases/download/v1.2.4/Remote-for-ADI-2-iPhone-1.2.4.ipa) | iPhone with iOS 15 or later, through AltStore or SideStore | [Guide](docs/install/iphone-altstore.md) |
+| **AltStore source** | `https://raw.githubusercontent.com/kahuna34/remote-for-ADI-2/main/apps.json` | Add in AltStore/SideStore under Sources; updates then appear there | [Guide](docs/install/iphone-altstore.md#3-install-remote-for-adi-2) |
+| **AltServer** | [altstore.io](https://altstore.io) (official download) | Mac or Windows PC: installs AltStore and keeps the app signed | [Guide](docs/install/iphone-altstore.md#1-install-altserver-on-the-computer) |
+| **Xcode package** | [Remote-for-ADI-2-iPhone-Xcode-1.2.4.zip](https://github.com/kahuna34/remote-for-ADI-2/releases/download/v1.2.4/Remote-for-ADI-2-iPhone-Xcode-1.2.4.zip) | Mac with Xcode, no AltStore needed | [Guide](docs/install/iphone-xcode.md) |
+| **Host for Mac / Windows** | [macOS](https://github.com/kahuna34/remote-for-ADI-2/releases/download/v1.2.4/Remote-for-ADI-2-Host-macOS-1.2.3.zip) · [Windows](https://github.com/kahuna34/remote-for-ADI-2/releases/download/v1.2.4/Remote-for-ADI-2-Host-Windows-Setup-1.2.3.exe) | Control over Wi-Fi; runs next to AltServer | [Mac](docs/install/host-mac.md) · [Windows](docs/install/host-windows.md) |
 
 All files of the current version are also on the [releases page](https://github.com/kahuna34/remote-for-ADI-2/releases/latest). The host is only needed to control the ADI-2 over Wi-Fi through a computer; for a direct USB connection the app is enough.
 
-App and host report new versions; this can be disabled, and the check only asks GitHub for the latest version. Downloads start only when you choose Download.
-
-**Install the app (Android):** Download the APK in Chrome itself. If the link opens inside another app (for example GitHub, Gmail or a messenger), the download stops at 100 % and the file cannot be opened: tap **⋮ → Open in Chrome** first. Then open the APK on the smartphone and allow installing from this source when Android asks. If Google Play Protect warns, choose **More details → Install anyway**. If Play Protect blocks the installation, turn it off for the installation: open the **Play Store**, tap your profile picture at the top right, then **Play Protect → Settings** (gear icon at the top right), and switch off **Scan apps with Play Protect**. Turn it back on after installing. Connect the ADI-2 with a data-capable USB cable (USB OTG) and switch on **MIDI Control** on the device. On first launch, a wizard guides you through setup, including enabling the player display.
-
-[Privacy policy](PRIVACY.md)
-
-**Install the host on a Mac:** Unzip the file and move **Remote for ADI-2 Host** to Applications. The program is not signed by Apple: on first start, macOS blocks it. Open **System Settings → Privacy & Security** and choose **Open Anyway**. The icon then appears in the menu bar.
-
-**Install the host on Windows:** Run **Remote-for-ADI-2-Host-Windows-Setup-1.2.3.exe**. It installs for your user account without administrator rights, adds **Remote for ADI-2 Host** to the Start menu and switches on **Start with Windows**; uninstall it under **Settings → Apps → Installed apps**. If SmartScreen warns, choose **More info → Run anyway**. The icon appears in the notification area of the taskbar, possibly behind the arrow (^).
-
-Allow **Private networks** when Windows Firewall asks. If access was granted only for Public networks, open **Windows Security → Firewall & network protection → Allow an app through firewall** and check **Private** for **Remote for ADI-2 Host**.
-
-On Windows, the host detects devices being connected or disconnected and opens a fresh MIDI connection for each session through a small helper program. The host keeps running and its icon stays visible. Pairings and settings are preserved.
+App and host report new versions; this can be disabled, and the check only asks GitHub for the latest version. Downloads start only when you choose Download. On iPhone, AltStore shows updates from the source.
 
 **Connect smartphone and host:** Choose **Pair smartphone…** in the host menu, then **Connect via host** in the app and scan the QR code or enter the code. Up to four smartphones or tablets can be connected at the same time; pair each one once. Details are in the [user guide](docs/USER_GUIDE.md#control-through-a-computer-host).
+
+[Privacy policy](PRIVACY.md)
 
 ## Screenshots
 
@@ -61,12 +65,12 @@ Android smartphone and tablet, plus the host on a Mac; the screenshots show the 
 - Custom Mode with four layout slots per model, editable tiles and shared or separate output pages.
 - USB analyzer with lines or bars, octave resolutions, Peak hold, ballistics and level calibration.
 - English and German interface; tablet landscape navigation with an Additional panel.
-- Android player controls through notification access, when an active media session is available.
+- Android player controls through notification access, when an active media session is available; on iPhone, the player bar shows Apple Music.
 - Wi-Fi control through the background host for Mac and Windows, with pairing by code or QR code.
 
 ## Devices and verification
 
-Supported models are ADI-2 Pro, ADI-2 Pro EX, ADI-2/4 Pro SE, ADI-2/4 Pro EX and ADI-2 DAC. The app has been tested with all of them on an Android smartphone and an Android tablet, and with the ADI-2 DAC on a Mac. Built-in test-tone calibration is not yet confirmed on the ADI-2/4 Pro EX, and the Mac analyzer is not yet confirmed.
+Supported models are ADI-2 Pro, ADI-2 Pro EX, ADI-2/4 Pro SE, ADI-2/4 Pro EX and ADI-2 DAC. The app has been tested with all of them on an Android smartphone and an Android tablet, with the ADI-2 DAC on a Mac, and on iPhone SE and iPhone 15 Pro Max. Built-in test-tone calibration is not yet confirmed on the ADI-2/4 Pro EX, and the Mac analyzer is not yet confirmed.
 
 The macOS app includes a USB analyzer using the same Dart signal processing as Android, with 1/3-, 1/6- and 1/12-octave bands and level calibration per Mac/ADI-2 combination. Capture and the built-in test tone explicitly select the connected ADI-2; the Mac's default audio devices are unchanged. Capture requires microphone permission. The Mac analyzer has not yet been verified on real hardware.
 

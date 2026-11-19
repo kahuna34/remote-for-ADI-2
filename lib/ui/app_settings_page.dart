@@ -14,6 +14,7 @@ import 'easy_slot_preview.dart';
 import 'outputs_page.dart';
 import '../device/supported_models.dart';
 import '../l10n/l10n.dart';
+import '../store_build.dart';
 import 'theme.dart';
 import 'header_content_picker.dart';
 import 'analyzer_controls.dart';
@@ -147,13 +148,15 @@ class AppSettingsPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 20),
-              const Panel(
-                child: Material(
-                  type: MaterialType.transparency,
-                  child: UpdateSettings(),
+              if (!isPlayStoreBuild) ...[
+                const Panel(
+                  child: Material(
+                    type: MaterialType.transparency,
+                    child: UpdateSettings(),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 20),
+                const SizedBox(height: 20),
+              ],
               ListTile(
                 title: Text(tr('Einrichtung erneut starten')),
                 trailing: const Icon(Icons.chevron_right),

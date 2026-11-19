@@ -1,7 +1,27 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+val playSigning = System.getenv("ADI2_PLAY_SIGNING") == "1"
+val playUploadFile = rootProject.file("play-upload.properties")
+val playUpload = Properties()
+if (playSigning) {
+    check(playUploadFile.isFile) {
+        "ADI2_PLAY_SIGNING=1: android/play-upload.properties fehlt. Play-Build abgebrochen."
+    }
+    playUploadFile.inputStream().use { playUpload.load(it) }
+    for (key in listOf("storeFile", "storePassword", "keyAlias", "keyPassword")) {
+        check(!playUpload.getProperty(key).isNullOrBlank()) {
+            "Play-Signatur: Eintrag '$key' fehlt in android/play-upload.properties."
+        }
+    }
+    check(rootProject.file(playUpload.getProperty("storeFile")).isFile) {
+        "Play-Signatur: storeFile aus android/play-upload.properties existiert nicht."
+    }
 }
 
 android {
@@ -29,11 +49,22 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (playSigning) {
+            create("playUpload") {
+                // Relative storeFile paths are resolved against android/.
+                storeFile = rootProject.file(playUpload.getProperty("storeFile"))
+                storePassword = playUpload.getProperty("storePassword")
+                keyAlias = playUpload.getProperty("keyAlias")
+                keyPassword = playUpload.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Keep the existing GitHub APK signature unless Play signing is explicit.
+            signingConfig = signingConfigs.getByName(if (playSigning) "playUpload" else "debug")
         }
     }
 }
