@@ -785,7 +785,11 @@ class AnalyzerDisplay extends StatelessWidget {
   final Widget? actions;
   final bool showToolSelector;
   static String analyzerSourceStatusText(AnalyzerController controller) {
-    if (!controller.viaHost) return statusText(controller.status);
+    if (!controller.viaHost) {
+      final detail = controller.inputErrorDetail;
+      final base = statusText(controller.status);
+      return detail == null ? base : '$base\n$detail';
+    }
     if (controller.inputErrorCode == 'analyzer_unsupported') {
       return tr(
         'Dieser Host unterstützt den Analyzer noch nicht. Host aktualisieren.',

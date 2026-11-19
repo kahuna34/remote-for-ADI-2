@@ -53,7 +53,10 @@ final class VolumeKeys: NSObject {
   /// iPhone hängt per USB am ADI-2: iOS hat dort keine eigene Lautstärke, und
   /// eine eigene Audio-Sitzung stört die USB-Verbindung. Dann nichts tun.
   private var usbRoute: Bool {
-    session.currentRoute.outputs.contains { $0.portType == .usbAudio }
+    session.currentRoute.outputs.contains {
+      $0.portType == .usbAudio || $0.portName.localizedCaseInsensitiveContains("ADI-2")
+        || $0.portName.localizedCaseInsensitiveContains("RME")
+    }
   }
 
   private func routeChanged() {

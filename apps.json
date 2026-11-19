@@ -18,11 +18,11 @@
       "versions": [
         {
           "version": "1.2.4",
-          "buildVersion": "9",
+          "buildVersion": "10",
           "date": "2026-11-19",
-          "localizedDescription": "First iPhone release.",
+          "localizedDescription": "First iPhone release. Build 10: the analyzer now finds the ADI-2 USB input on iPhones where iOS reports it as a wired microphone (for example iPhone 15).",
           "downloadURL": "https://github.com/kahuna34/remote-for-ADI-2/releases/download/v1.2.4/Remote-for-ADI-2-iPhone-1.2.4.ipa",
-          "size": 9252453,
+          "size": 9254886,
           "minOSVersion": "15.0"
         }
       ],

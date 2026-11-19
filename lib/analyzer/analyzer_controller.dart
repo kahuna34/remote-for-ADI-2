@@ -405,6 +405,9 @@ class AnalyzerController extends ChangeNotifier {
   Map<String, dynamic> diagnostics = {};
   bool inputRejected = false;
   String? inputErrorCode;
+
+  /// iPhone: native Diagnose, warum die USB-Aufnahme nicht startet.
+  String? inputErrorDetail;
   bool get phoneMicrophone =>
       (diagnostics['routedDevice'] as Map?)?['phoneMicrophone'] == true;
   String get diagnosticText =>
@@ -525,6 +528,7 @@ class AnalyzerController extends ChangeNotifier {
     if (_host?.reconnecting == true || _running) return;
     inputRejected = false;
     inputErrorCode = null;
+    inputErrorDetail = null;
     diagnostics = {};
     status = AnalyzerStatus.starting;
     _notify();
@@ -649,6 +653,7 @@ class AnalyzerController extends ChangeNotifier {
       _cancelHostDisplay();
       inputRejected = true;
       inputErrorCode = code;
+      inputErrorDetail = data['detail'] as String?;
       device = null;
       status = switch (code) {
         'permissionDenied' ||
@@ -671,6 +676,7 @@ class AnalyzerController extends ChangeNotifier {
     if (inputRejected && data['routeVerified'] != true) return;
     inputRejected = false;
     inputErrorCode = null;
+    inputErrorDetail = null;
     device = data['device'] as String?;
     mediaVolume = data['mediaStreamVolume'] as int?;
     mediaVolumeMax = data['mediaStreamMax'] as int?;
@@ -828,6 +834,7 @@ class AnalyzerController extends ChangeNotifier {
     diagnostics = {};
     inputRejected = false;
     inputErrorCode = null;
+    inputErrorDetail = null;
     spectrum.reset();
     bassSpectrum.reset();
     bands.reset();

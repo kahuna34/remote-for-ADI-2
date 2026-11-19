@@ -57,9 +57,28 @@ final class AnalyzerCapture: NSObject, FlutterStreamHandler {
     })
   }
   private func isAdi(_ input: AVAudioSessionPortDescription) -> Bool {
-    input.portType == .usbAudio && (input.portName.localizedCaseInsensitiveContains("ADI-2") || input.portName.localizedCaseInsensitiveContains("RME"))
+    // iOS meldet den ADI-2 je nach Version als USB-Audio oder als kabelgebundenes
+    // Mikrofon (iPhone 15, iOS 27: MicrophoneWired). Entscheidend ist der Name.
+    input.portType != .builtInMic &&
+      (input.portName.localizedCaseInsensitiveContains("ADI-2") || input.portName.localizedCaseInsensitiveContains("RME"))
   }
   private func validRoute() -> Bool { session.currentRoute.inputs.contains(where: isAdi) }
+
+  /// Kurze Diagnose für „USB nicht verfügbar“: was das iPhone an Eingängen sieht.
+  private func routeDetail(_ reason: String, channels: AVAudioChannelCount? = nil, rate: Double? = nil) -> String {
+    func port(_ p: AVAudioSessionPortDescription) -> String {
+      // Seriennummer in Klammern nicht anzeigen.
+      let name = p.portName.replacingOccurrences(of: #"\s*\(\d+\)"#, with: "", options: .regularExpression)
+      return "\(name) [\(p.portType.rawValue), \(p.channels?.count ?? 0) ch]"
+    }
+    var parts = [reason]
+    let available = session.availableInputs ?? []
+    parts.append("inputs: " + (available.isEmpty ? "-" : available.map(port).joined(separator: "; ")))
+    let route = session.currentRoute.inputs
+    parts.append("route: " + (route.isEmpty ? "-" : route.map(port).joined(separator: "; ")))
+    if let c = channels { parts.append("format: \(c) ch, \(Int(rate ?? 0)) Hz") }
+    return parts.joined(separator: " | ")
+  }
 
   /// Gleiche Bausteine wie Android/Host: Hersteller, Gerätemodell, USB-Name.
   /// Die Kalibrierung gilt damit nur für dieses Telefon mit diesem ADI-2-Modell.
@@ -185,7 +204,8 @@ final class AnalyzerCapture: NSObject, FlutterStreamHandler {
       try session.setPreferredSampleRate((44100...192000).contains(rate) ? rate : 48000)
       try session.setActive(true)
       guard let usb = session.availableInputs?.first(where: isAdi) else {
-        stop(); sink?(["status": "usbUnavailable"]); return
+        let detail = routeDetail("no ADI-2 USB input")
+        stop(); sink?(["status": "usbUnavailable", "detail": detail]); return
       }
       try session.setPreferredInput(usb)
       updateFixedOutputVolume()
@@ -193,7 +213,9 @@ final class AnalyzerCapture: NSObject, FlutterStreamHandler {
       let input = audioEngine.inputNode
       let format = input.outputFormat(forBus: 0)
       guard validRoute(), format.channelCount >= 2, format.sampleRate > 0 else {
-        stop(); sink?(["status": "usbUnavailable"]); return
+        let detail = routeDetail(validRoute() ? "input format" : "route not on ADI-2",
+                                 channels: format.channelCount, rate: format.sampleRate)
+        stop(); sink?(["status": "usbUnavailable", "detail": detail]); return
       }
       let token = generation
       let name = usb.portName
@@ -249,7 +271,10 @@ final class AnalyzerCapture: NSObject, FlutterStreamHandler {
       engine = audioEngine
       audioEngine.prepare()
       try audioEngine.start()
-    } catch { stop(); sink?(["status": "captureFailed"]) }
+    } catch {
+      let detail = routeDetail("error: \(error.localizedDescription)")
+      stop(); sink?(["status": "captureFailed", "detail": detail])
+    }
   }
   func stop() {
     stopCalibrationTone()
