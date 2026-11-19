@@ -19,15 +19,16 @@ AltServer läuft wie Remote for ADI-2 Host im Hintergrund auf deinem Mac oder PC
 
 ### 1. AltServer auf dem Computer installieren
 
-1. AltServer von der offiziellen Seite **[altstore.io](https://altstore.io)** laden und der Anleitung für [macOS](https://faq.altstore.io/altstore-classic/how-to-install-altstore-macos) oder [Windows](https://faq.altstore.io/altstore-classic/how-to-install-altstore-windows) folgen.
-   - Windows: AltServer braucht **iTunes** und **iCloud** von Apples Website (nicht die Versionen aus dem Microsoft Store).
-2. AltServer starten; das Symbol erscheint in der Menüleiste (Mac) bzw. im Infobereich (Windows).
+1. AltServer von der offiziellen Seite **[altstore.io](https://altstore.io)** laden.
+2. **Mac:** Die heruntergeladene AltServer-ZIP-Datei entpacken, **AltServer** in **Programme** ziehen und starten. Die Berechtigungen zulassen, nach denen macOS fragt. Danach erscheint das AltServer-Symbol oben in der Menüleiste des Mac.
+3. **Windows:** AltServer mit dem Setup installieren. AltServer braucht **iTunes** und **iCloud** von Apples Website (nicht die Versionen aus dem Microsoft Store). Das Symbol erscheint im Infobereich der Taskleiste.
+4. Weicht etwas ab, hilft die offizielle Anleitung für [macOS](https://faq.altstore.io/altstore-classic/how-to-install-altstore-macos) oder [Windows](https://faq.altstore.io/altstore-classic/how-to-install-altstore-windows).
 
 ### 2. AltStore auf dem iPhone installieren
 
 1. iPhone per USB anschließen, entsperren und **Diesem Computer vertrauen** tippen.
 2. Mac: im Finder das iPhone auswählen und **Dieses iPhone im WLAN anzeigen** einschalten. Windows: in iTunes das iPhone auswählen und **Mit diesem iPhone über WLAN synchronisieren** einschalten. Damit klappt das Erneuern per WLAN.
-3. Auf das AltServer-Symbol klicken → **Install AltStore** → dein iPhone wählen und mit deiner Apple-ID anmelden.
+3. Oben in der Menüleiste auf das AltServer-Symbol klicken → **Install AltStore** → dein iPhone wählen und mit deiner Apple-ID anmelden.
 4. Am iPhone (ab iOS 16): **Einstellungen → Datenschutz & Sicherheit → Entwicklermodus** → einschalten, Neustart, **Aktivieren** bestätigen.
 5. **Einstellungen → Allgemein → VPN und Geräteverwaltung** → deine Apple-ID → **Vertrauen**.
 

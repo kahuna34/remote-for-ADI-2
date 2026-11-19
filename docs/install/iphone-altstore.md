@@ -19,15 +19,16 @@ AltServer runs in the background on your Mac or PC, like Remote for ADI-2 Host, 
 
 ### 1. Install AltServer on the computer
 
-1. Download AltServer from the official site **[altstore.io](https://altstore.io)** and follow its instructions for [macOS](https://faq.altstore.io/altstore-classic/how-to-install-altstore-macos) or [Windows](https://faq.altstore.io/altstore-classic/how-to-install-altstore-windows).
-   - Windows: AltServer needs **iTunes** and **iCloud** from Apple's website (not the Microsoft Store versions).
-2. Start AltServer; its icon appears in the menu bar (Mac) or notification area (Windows).
+1. Download AltServer from the official site **[altstore.io](https://altstore.io)**.
+2. **Mac:** unzip the downloaded AltServer ZIP file, move **AltServer** to **Applications** and start it. Allow the permissions macOS asks for. The AltServer icon then appears at the top of the Mac's menu bar.
+3. **Windows:** install AltServer with the setup. AltServer needs **iTunes** and **iCloud** from Apple's website (not the Microsoft Store versions). The icon appears in the notification area of the taskbar.
+4. If anything differs, see the official instructions for [macOS](https://faq.altstore.io/altstore-classic/how-to-install-altstore-macos) or [Windows](https://faq.altstore.io/altstore-classic/how-to-install-altstore-windows).
 
 ### 2. Install AltStore on the iPhone
 
 1. Connect the iPhone by USB, unlock it and tap **Trust This Computer**.
 2. Mac: in Finder select the iPhone and switch on **Show this iPhone when on Wi-Fi**. Windows: in iTunes select the iPhone and switch on **Sync with this iPhone over Wi-Fi**. This enables refreshing over Wi-Fi.
-3. Click the AltServer icon → **Install AltStore** → choose your iPhone and sign in with your Apple ID.
+3. Click the AltServer icon in the menu bar → **Install AltStore** → choose your iPhone and sign in with your Apple ID.
 4. On the iPhone (iOS 16 or later): **Settings → Privacy & Security → Developer Mode** → on, restart, confirm **Turn On**.
 5. **Settings → General → VPN & Device Management** → your Apple ID → **Trust**.
 
