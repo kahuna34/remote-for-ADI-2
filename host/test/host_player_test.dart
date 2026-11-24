@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:adi2_host/host_player.dart';
+import 'package:adi2_remote/host/host_player_protocol.dart';
 import 'package:adi2_remote/media/now_playing.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -27,6 +29,27 @@ class _Source implements HostPlayerSource {
 }
 
 void main() {
+  test('local interface gets the large cover, phones the small one', () async {
+    final small = Uint8List.fromList([255, 216, 255, 217]);
+    final large = Uint8List.fromList([255, 216, 255, ...List.filled(50000, 1)]);
+    final source = _Source()
+      ..info = NowPlayingInfo(title: 'Big', art: small, artLarge: large);
+    final phone = <Map<String, dynamic>>[], local = <Map<String, dynamic>>[];
+    final player = HostPlayer(source: source);
+    addTearDown(player.dispose);
+    player.subscribe('phone', (_, state) => phone.add(state));
+    player.subscribe('local', (_, state) => local.add(state), large: true);
+    await Future<void>.delayed(Duration.zero);
+    await player.refresh();
+    expect(base64Decode(phone.last['artwork'] as String), small);
+    expect(base64Decode(local.last['artwork'] as String), large);
+    expect(
+      decodeHostPlayerState(local.last, null).art,
+      large,
+      reason: 'the client accepts the large cover',
+    );
+  });
+
   test(
     'poll only on demand, per-client artwork changes and unsubscribe',
     () async {

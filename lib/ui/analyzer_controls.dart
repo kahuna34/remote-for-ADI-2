@@ -18,6 +18,7 @@ import '../protocol/adi2_params.dart';
 import '../protocol/adi2_codec.dart';
 import 'outputs_page.dart';
 import 'responsive_layout.dart';
+import 'test_signals_page.dart';
 import 'theme.dart' show ts;
 import '../eq/eq_model.dart';
 
@@ -635,6 +636,7 @@ Future<void> showAnalyzerSettings(
               ],
             ),
             if (!loopbackOnly) ...[
+              TestSignalsTile(ctrl: ctrl),
               ListenableBuilder(
                 listenable: controller,
                 builder: (context, _) => Column(
@@ -699,7 +701,11 @@ Future<void> showAnalyzerSettings(
             ),
             // Selten gebraucht: ganz unten. Braucht den Testton per USB vom
             // Smartphone; über den Host gibt es sie nicht, also auch nicht hier.
-            if (!loopbackOnly && !controller.viaHost && ctrl?.viaHost != true)
+            // Linux nimmt bitgenau auf (Quelle fest auf 100 %), keine Kalibrierung nötig.
+            if (!loopbackOnly &&
+                !controller.viaHost &&
+                ctrl?.viaHost != true &&
+                defaultTargetPlatform != TargetPlatform.linux)
               AnalyzerCalibrationSetting(
                 controller: controller,
                 deviceController: ctrl,
@@ -953,6 +959,7 @@ List<String> calibrationToneBlockers(
     }
   }
   if (defaultTargetPlatform != TargetPlatform.macOS &&
+      defaultTargetPlatform != TargetPlatform.linux &&
       (controller.mediaVolume == null ||
           controller.mediaVolumeMax == null ||
           controller.mediaVolumeBelowMaximum)) {
@@ -1116,7 +1123,8 @@ class _AnalyzerCalibrationSettingState
         !kIsWeb &&
         (defaultTargetPlatform == TargetPlatform.android ||
             defaultTargetPlatform == TargetPlatform.iOS ||
-            defaultTargetPlatform == TargetPlatform.macOS) &&
+            defaultTargetPlatform == TargetPlatform.macOS ||
+            defaultTargetPlatform == TargetPlatform.linux) &&
         widget.deviceController != null;
     final accepted =
         await showDialog<bool>(

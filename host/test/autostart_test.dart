@@ -34,7 +34,7 @@ void main() {
           '/t',
           'REG_SZ',
           '/d',
-          '"${autostart.executable}"',
+          '"${autostart.executable}" --autostart',
           '/f',
         ]),
       );
@@ -97,7 +97,7 @@ void main() {
       '/t',
       'REG_SZ',
       '/d',
-      '"C:\\My App\\Host.exe"',
+      '"C:\\My App\\Host.exe" --autostart',
       '/f',
     ]);
     await autostart.setEnabled(false);
@@ -160,6 +160,13 @@ void main() {
       final contents = await File(autostart.agentPath).readAsString();
       expect(contents, contains('A &amp; B'));
       expect(contents, contains('<key>RunAtLoad</key><true/>'));
+      expect(contents, contains('<string>--autostart</string>'));
+      await File(autostart.agentPath).writeAsString('<legacy-agent/>');
+      expect(await autostart.refreshEnabledPath(), isTrue);
+      expect(
+        await File(autostart.agentPath).readAsString(),
+        contains('<string>--autostart</string>'),
+      );
       expect(await autostart.enabled(), isTrue);
       await autostart.setEnabled(false);
       expect(await autostart.enabled(), isFalse);

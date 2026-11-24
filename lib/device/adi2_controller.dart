@@ -9,7 +9,9 @@ import 'package:flutter_midi_command/flutter_midi_command.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/l10n.dart';
+import '../desktop/desktop_host_selection.dart';
 import '../host/host_client.dart';
+import '../host/host_protocol.dart';
 import '../host/host_errors.dart';
 import '../host/host_discovery.dart';
 import '../protocol/adi2_codec.dart';
@@ -38,9 +40,21 @@ enum ConnState {
 class Adi2Controller extends ChangeNotifier {
   Adi2Controller({
     MidiCommand? midi,
+    this.localHost,
+    DesktopHostSelection? desktopSelection,
+    HostCredentials? windowHost,
+    bool windowHostLocal = false,
     HostClient? host,
     Future<UsbCcMode> Function()? ccModeReader,
-  }) : host = host ?? HostClient(),
+  }) : desktopSelection =
+           desktopSelection ??
+           (localHost == null ? null : DesktopHostSelection(localHost)),
+       // Public argument names; the private route is replaced on window updates.
+       // ignore: prefer_initializing_formals
+       _windowHost = windowHost,
+       // ignore: prefer_initializing_formals
+       _windowHostLocal = windowHostLocal,
+       host = host ?? HostClient(),
        _midi = midi ?? MidiCommand(),
        _ccModeReader = ccModeReader ?? readUsbCcMode;
 
@@ -81,6 +95,41 @@ class Adi2Controller extends ChangeNotifier {
     sync: true,
   );
 
+  final HostCredentials? localHost;
+  final DesktopHostSelection? desktopSelection;
+  HostCredentials? _windowHost;
+  bool _windowHostLocal;
+  bool get _auxiliary => _windowHost != null;
+  bool get embeddedHost => desktopSelection != null || _auxiliary;
+  bool get usesLocalHost =>
+      _auxiliary ? _windowHostLocal : desktopSelection?.isLocal == true;
+  bool get canSelectDesktopHost => desktopSelection != null;
+  Iterable<HostEndpoint> get discoveredHosts => hostDiscovery.hosts.values
+      .where((h) => h.id != desktopSelection?.local.host.id);
+
+  Future<void> connectLocalHost() async {
+    final local = desktopSelection?.local;
+    if (local != null) await connectHost(local);
+  }
+
+  /// Window processes receive the route exclusively over the instance channel.
+  Future<void> followWindowHost(
+    HostCredentials credentials, {
+    required bool local,
+  }) async {
+    if (!_auxiliary) return;
+    if (jsonEncode(_windowHost?.toJson()) == jsonEncode(credentials.toJson()) &&
+        _windowHostLocal == local) {
+      if (!host.connected) await _autoConnect();
+      return;
+    }
+    disconnect();
+    _hostConnecting = false;
+    _windowHost = credentials;
+    _windowHostLocal = local;
+    await connectHost(credentials);
+  }
+
   final HostClient host;
   bool _viaHost = false;
   bool get viaHost => _viaHost;
@@ -91,13 +140,15 @@ class Adi2Controller extends ChangeNotifier {
 
   /// Kennung des Hosts, über den gerade verbunden ist.
   String? get hostId => _viaHost ? _preferredHost?.host.id : null;
-  bool get hostAvailable => Platform.isAndroid || Platform.isIOS;
+  bool get hostAvailable =>
+      embeddedHost || Platform.isAndroid || Platform.isIOS;
   List<HostCredentials> pairedHosts = [];
   final HostDiscovery _hostDiscovery = HostDiscovery();
   HostDiscovery get hostDiscovery => _hostDiscovery;
   StreamSubscription<Uint8List>? _hostRx;
   Timer? _hostRetry;
   bool _hostConnecting = false;
+  int _hostAttempt = 0, _hostChoice = 0;
   bool _hostForeground = true;
   HostCredentials? _preferredHost;
 
@@ -134,7 +185,14 @@ class Adi2Controller extends ChangeNotifier {
     } catch (_) {}
   }
 
+  Future<HostCredentials> pairHost(
+    HostEndpoint endpoint,
+    String code,
+    String name,
+  ) => HostClient.pair(endpoint, code, name);
+
   Future<void> savePairedHost(HostCredentials credentials) async {
+    if (credentials.host.id == desktopSelection?.local.host.id) return;
     final updated = [
       credentials,
       ...pairedHosts.where((h) => h.host.id != credentials.host.id),
@@ -161,7 +219,9 @@ class Adi2Controller extends ChangeNotifier {
       throw StateError(tr('Kopplung konnte nicht gespeichert werden'));
     }
     pairedHosts = updated;
+    desktopSelection?.forget(id);
     if (_preferredHost?.host.id == id) {
+      // Keep the desktop choice explicit: removing it does not route to USB.
       _preferredHost = null;
       if (_viaHost) disconnect();
     }
@@ -178,15 +238,39 @@ class Adi2Controller extends ChangeNotifier {
     if (foreground && (device == null || _viaHost)) unawaited(_autoConnect());
   }
 
-  Future<void> connectHost(HostCredentials credentials) async {
-    if (_hostConnecting || _disposed || offline || !hostAvailable) return;
+  /// [automatic]: periodischer Neuversuch (nicht vom Nutzer ausgelöst).
+  Future<void> connectHost(
+    HostCredentials credentials, {
+    bool automatic = false,
+  }) async {
+    if (_disposed || offline || !hostAvailable) return;
+    if (_hostConnecting &&
+        (!embeddedHost ||
+            jsonEncode(_preferredHost?.toJson()) ==
+                jsonEncode(credentials.toJson()))) {
+      return;
+    }
+    final choice = ++_hostChoice;
+    if (desktopSelection case final selection?) {
+      if (credentials.host.id == selection.local.host.id) {
+        credentials = selection.local;
+      }
+      await selection.select(credentials);
+      if (_disposed || choice != _hostChoice) return;
+    }
+    if (_hostConnecting) {
+      disconnect();
+      _hostConnecting = false;
+    }
     if (hostPaused) {
       // Manuelle Wahl eines Hosts hebt die Pause auf.
       hostPaused = false;
       unawaited(_saveHostPaused());
     }
     if (device != null && !_viaHost) return;
-    final discovered = hostDiscovery.hosts[credentials.host.id];
+    final discovered = usesLocalHost || _auxiliary
+        ? null
+        : hostDiscovery.hosts[credentials.host.id];
     if (discovered != null) {
       credentials = HostCredentials(
         discovered,
@@ -194,8 +278,25 @@ class Adi2Controller extends ChangeNotifier {
         credentials.key,
       );
     }
+    desktopSelection?.updateEndpoint(credentials);
+    final attempt = ++_hostAttempt;
+    final switching = _preferredHost?.host.id != credentials.host.id;
+    if (embeddedHost && switching && _viaHost) {
+      _viaHost = false;
+      host.disconnect();
+    }
     final bridging =
         hostReconnecting && _preferredHost?.host.id == credentials.host.id;
+    // Meldet der eingebaute Host „kein ADI-2“, läuft alle 3 s ein stiller
+    // Neuversuch: Anzeige und Fehlerzeile bleiben stehen, statt jedes Mal
+    // kurz auf „Verbinde …“ mit Ladekreis zu springen (Oberfläche zappelte).
+    // Gilt für die Desktop-Oberfläche und für alle Clients (Handy/Tablet).
+    final quiet =
+        automatic &&
+        !switching &&
+        state == ConnState.searching &&
+        (error == hostErrorText('usb_missing') ||
+            error == hostErrorText('usb_busy'));
     _preferredHost = credentials;
     _hostConnecting = true;
     if (!bridging) _reset();
@@ -203,9 +304,11 @@ class Adi2Controller extends ChangeNotifier {
     _offlineVariant = null;
     _offlineLabel = null;
     _viaHost = true;
-    error = null;
-    if (!bridging) state = ConnState.connecting;
-    notifyListeners();
+    if (!quiet) {
+      error = null;
+      if (!bridging) state = ConnState.connecting;
+      notifyListeners();
+    }
     try {
       await host.connect(credentials);
       if (_disposed ||
@@ -235,7 +338,7 @@ class Adi2Controller extends ChangeNotifier {
         state = ConnState.searching;
       }
     } finally {
-      _hostConnecting = false;
+      if (attempt == _hostAttempt) _hostConnecting = false;
       if (!_disposed) notifyListeners();
     }
   }
@@ -768,7 +871,7 @@ class Adi2Controller extends ChangeNotifier {
 
   Future<void> start() async {
     if (hostAvailable && _hostRx == null) {
-      unawaited(hostDiscovery.start());
+      if (!_auxiliary) unawaited(hostDiscovery.start());
       _hostRx ??= host.packets.stream.listen((bytes) {
         if (!_viaHost || !host.connected || device == null) return;
         final message = parseSysex(bytes);
@@ -785,12 +888,32 @@ class Adi2Controller extends ChangeNotifier {
       } catch (_) {
         pairedHosts = [];
       }
+      if (embeddedHost) {
+        await desktopSelection?.load();
+        pairedHosts = pairedHosts
+            .where((c) => c.host.id != desktopSelection?.local.host.id)
+            .toList();
+        hostPaused = false;
+      }
       _hostRetry ??= Timer.periodic(const Duration(seconds: 3), (_) {
         if (!_disposed &&
             !offline &&
             _hostForeground &&
             !_hostConnecting &&
             (device == null || (_viaHost && !host.connected))) {
+          unawaited(_autoConnect());
+        }
+      });
+    }
+    if (embeddedHost) {
+      await _autoConnect();
+      return;
+    }
+    if (defaultTargetPlatform == TargetPlatform.linux) {
+      // ALSA setup notifications differ between systems. Poll even with an
+      // open port so unplugging is detected without a setup event.
+      _hostRetry ??= Timer.periodic(const Duration(seconds: 3), (_) {
+        if (!_disposed && !offline && _hostForeground) {
           unawaited(_autoConnect());
         }
       });
@@ -805,6 +928,7 @@ class Adi2Controller extends ChangeNotifier {
   }
 
   Future<void> refreshDevices() async {
+    if (embeddedHost) return;
     final found = (await _midi.devices) ?? [];
     if (_disposed) return;
     devices = found;
@@ -836,6 +960,26 @@ class Adi2Controller extends ChangeNotifier {
   }
 
   Future<void> _autoConnect() async {
+    if (embeddedHost) {
+      final credentials = _windowHost ?? desktopSelection?.current;
+      if (credentials == null) {
+        state = ConnState.searching;
+        error = tr(
+          'Gespeicherte Host-Kopplung fehlt. Bitte Host wählen oder zu „Dieser Rechner“ wechseln.',
+        );
+        notifyListeners();
+        return;
+      }
+      if (!_disposed &&
+          !offline &&
+          _hostForeground &&
+          !hostPaused &&
+          !_hostConnecting &&
+          !host.connected) {
+        await connectHost(credentials, automatic: true);
+      }
+      return;
+    }
     await refreshDevices();
     if (_disposed || offline) {
       return; // im Offline-Modus nicht automatisch verbinden
@@ -883,6 +1027,7 @@ class Adi2Controller extends ChangeNotifier {
   }
 
   Future<void> connect(MidiDevice d) async {
+    if (embeddedHost) return;
     if (_viaHost) {
       _viaHost = false;
       host.disconnect();
@@ -1034,6 +1179,9 @@ class Adi2Controller extends ChangeNotifier {
   }
 
   void _handle(Adi2Message m) {
+    // Nur bei echten Änderungen benachrichtigen: Das Gerät bzw. der Host
+    // fragt laufend ab, und jede Benachrichtigung baut die Oberfläche neu auf.
+    var changed = hostReconnecting || state != ConnState.connected;
     if (hostReconnecting && model?.id != m.deviceId) {
       final target = device;
       _reset();
@@ -1064,6 +1212,9 @@ class Adi2Controller extends ChangeNotifier {
         analyzerSelfTestReadbacks.add(params);
         for (final p in params) {
           if (_isStaleVolumeReadback(p) || _isStaleOwnWrite(p)) continue;
+          final valueChanged =
+              _values[p.key] != p.value || _confirmedValues[p.key] != p.value;
+          if (valueChanged) changed = true;
           _values[p.key] = p.value;
           _confirmedValues[p.key] = p.value;
           _confirmedMessages[p.key] = _paramsMessages;
@@ -1079,29 +1230,37 @@ class Adi2Controller extends ChangeNotifier {
                   p.address == Adi2Addr.presetEqR)) {
             _capture!.add(p);
             _lastCapture = DateTime.now();
+            changed = true;
           }
           if (!hostReconnecting &&
               p.index == OutIdx.volume &&
               volumeAddresses.contains(p.address)) {
             _onDeviceVolume(p.address, p.value);
           }
-          if (!hostReconnecting &&
+          // Ref Level wird laufend zurückgelesen; Grenzen nur bei Änderung
+          // neu anwenden (sonst baut jede Abfrage die Oberfläche neu auf).
+          if (valueChanged &&
+              !hostReconnecting &&
               p.index == OutIdx.refLevel &&
               volumeAddresses.contains(p.address)) {
             _applyLimits();
           }
         }
       case Adi2NameMessage(:final slot, :final name):
+        if (names[slot] != name) changed = true;
         names[slot] = name;
       case Adi2StatusMessage(:final data):
         final prev = status?.activeOutput;
+        // Statusmeldungen kommen selten; Warteschritte (z. B. Selbsttest)
+        // verlassen sich auf eine Benachrichtigung je Meldung.
+        changed = true;
         status = Adi2Status(data);
         if (hostReconnecting) _hostGotStatus = true;
         _maybeSwitchOutput(prev, status!.activeOutput);
     }
     if (hostReconnecting) _checkHostSync();
     _maybeProbeDaFilter();
-    notifyListeners();
+    if (changed) notifyListeners();
   }
 
   void _startWatchdog() {

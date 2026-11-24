@@ -1,3 +1,6 @@
+import '../desktop/desktop_windows.dart';
+import '../desktop/host_interface.dart';
+
 import 'dart:math' as math;
 import 'dart:async';
 
@@ -173,7 +176,7 @@ Future<void> showHostMenu(BuildContext context, Adi2Controller c) =>
                     content: Text(
                       trf(
                         'Die Kopplung mit {name} wird gelöscht. Zum erneuten '
-                        'Verbinden im Host „Smartphone koppeln…“ öffnen.',
+                        'Verbinden im Host „Client koppeln…“ öffnen.',
                         {'name': c.hostName ?? 'Host'},
                       ),
                     ),
@@ -233,8 +236,11 @@ Future<void> showHostMenu(BuildContext context, Adi2Controller c) =>
       ),
     );
 
+/// Statusknopf der Verbindungsrolle: grün „HOST“ in der Oberfläche des
+/// Hosts selbst, blau „CLIENT“ in einer App, die über einen Host verbunden ist.
 class HostBadge extends StatelessWidget {
-  const HostBadge({super.key});
+  const HostBadge({super.key, this.client = false});
+  final bool client;
 
   /// Breite des Knopfs „Eigene Ansicht“: Beschriftung plus Innenabstand
   /// 2 × 8 und Rahmen 2 × 1, wie beim FilterChip daneben.
@@ -255,19 +261,19 @@ class HostBadge extends StatelessWidget {
   // Gleiche Größe und Form wie der Knopf „Eigene Ansicht“ daneben.
   @override
   Widget build(BuildContext context) => Container(
-    key: const ValueKey('host-badge'),
+    key: ValueKey(client ? 'client-badge' : 'host-badge'),
     // Sichtbare Höhe des Knopfs „Eigene Ansicht“ einschließlich Rahmen
     // (dessen 44 sind Tippfläche).
     height: 34,
     width: easyChipWidth(context),
     padding: const EdgeInsets.symmetric(horizontal: 4),
     decoration: BoxDecoration(
-      color: Palette.green,
+      color: client ? Palette.client : Palette.green,
       borderRadius: BorderRadius.circular(8),
     ),
     alignment: Alignment.center,
     child: Text(
-      'HOST',
+      client ? 'CLIENT' : 'HOST',
       maxLines: 1,
       style: ts(11, weight: 600, color: Colors.white).copyWith(height: 1.0),
     ),
@@ -323,7 +329,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final result = service.result;
     if (!mounted ||
         !widget.updatesReady ||
-        !AppSettings.instance.updateCheck ||
+        !AppUpdates.instance.automaticEnabled ||
         WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed ||
         ModalRoute.of(context)?.isCurrent != true ||
         result == null ||
@@ -425,6 +431,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   int? _tab;
+  bool? _deviceOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -445,7 +452,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         final v = c.variant!;
         final settings = AppSettings.instance;
         final easy = settings.easyMode;
-        final landscape = isTabletLandscape(context);
+        final windows = c.embeddedHost
+            ? DesktopWindowScope.maybeOf(context)
+            : null;
+        // Desktop-Programm: Desktop-Layout unabhängig vom
+        // Seitenverhältnis; „Kompakt“ und sehr schmale Fenster zeigen die
+        // Handy-Ansicht.
+        final landscape = windows != null
+            ? !settings.linuxCompact && MediaQuery.sizeOf(context).width >= 600
+            : isTabletLandscape(context);
+        final deviceOnly =
+            windows != null && landscape && !settings.linuxLandscapeExtra;
+        if (_deviceOnly != deviceOnly) _tab = null;
+        _deviceOnly = deviceOnly;
         final layout = settings.easyLayout(v);
         final availableOutputs = outputsFor(v);
         final headerOutput = _headerOutput()!;
@@ -465,6 +484,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           (
             tr('Ausgänge'),
             Icons.volume_up,
+            // Ausgänge immer oben als Reiter, auch in der breiten Ansicht
+            // „Nur Gerät“ (Wunsch: keine Liste links).
             OutputsPage(
               ctrl: c,
               easyLayout: easy ? layout : null,
@@ -474,6 +495,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           ),
           (tr('Gerät'), Icons.settings, DevicePage(ctrl: c)),
           (tr('Setups'), Icons.layers_outlined, SetupsPage(ctrl: c)),
+          if (deviceOnly)
+            (
+              tr('EQ'),
+              Icons.tune,
+              EqPage(
+                key: ValueKey(headerOutput),
+                ctrl: c,
+                channelAddr: headerOutput,
+                title: availableOutputs
+                    .firstWhere((o) => o.address == headerOutput)
+                    .name,
+                embedded: true,
+              ),
+            ),
           (tr('Status'), Icons.info_outline, StatusPage(ctrl: c)),
         ];
         final idx = (_tab ?? outputsIndex).clamp(0, tabs.length - 1);
@@ -498,11 +533,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         final connectionRate = rate == null ? '' : ', $rate';
         final outputHeader = <Widget>[
           if (header == HeaderContent.analyzer)
-            AnalyzerPanel(
-              controller: _analyzer,
-              deviceController: c,
-              np: widget.np,
-            )
+            if (windows?.isOpen(AuxiliaryWindow.analyzer) == true)
+              const AnalyzerWindowPlaceholder()
+            else
+              AnalyzerPanel(
+                controller: _analyzer,
+                deviceController: c,
+                np: widget.np,
+              )
           else if (header == HeaderContent.player)
             PlayerBar(
               deviceController: c,
@@ -523,6 +561,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               onTap: () => setState(() => _tab = tabs.length - 1),
             ),
         ];
+        // Desktop-Ansicht (nicht Kompakt): Die Ausgangsseite hat eine feste
+        // Grundgröße und wird als Ganzes gleichmäßig skaliert – Ring, Tasten
+        // und Schrift im selben Verhältnis. Beim Ziehen der Fenstergröße ändert sich nur der
+        // Maßstab, nicht die Anordnung (schnell, keine Sprünge).
+        Widget scaledTab(Widget page) =>
+            windows != null && landscape && idx == outputsIndex && !easy
+            ? FittedBox(
+                key: const ValueKey('desktop-output-scale'),
+                child: SizedBox.fromSize(size: desktopOutputSize, child: page),
+              )
+            : page;
         final mainContent = Column(
           children: [
             Padding(
@@ -537,10 +586,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                         Flexible(
                           child: SizedBox(
                             // A fitted Host title must retain the USB title's
-                            // line height so the analyzer and channels stay put.
-                            height:
-                                isTablet(context) &&
-                                    header == HeaderContent.analyzer
+                            // line height so the analyzer and channels stay
+                            // put – and look the same for every header content.
+                            height: isTablet(context)
                                 ? MediaQuery.textScalerOf(context).scale(28)
                                 : null,
                             child: c.offline || c.viaHost
@@ -611,7 +659,68 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 actions: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (c.viaHost)
+                    if (windows != null) ...[
+                      IconButton(
+                        key: const ValueKey('desktop-compact-toggle'),
+                        tooltip: settings.linuxCompact
+                            ? tr('Desktop-Ansicht')
+                            : tr('Kompakte Ansicht'),
+                        icon: Icon(
+                          settings.linuxCompact
+                              ? Icons.desktop_windows_outlined
+                              : Icons.smartphone,
+                        ),
+                        onPressed: () {
+                          c.stopAllVolumeRamps();
+                          settings.setLinuxCompact(!settings.linuxCompact);
+                        },
+                      ),
+                      if (!settings.linuxCompact)
+                        IconButton(
+                          key: const ValueKey('desktop-extra-toggle'),
+                          tooltip: settings.linuxLandscapeExtra
+                              ? tr('Nur Gerät')
+                              : tr('Zusatzbereich anzeigen'),
+                          icon: Icon(
+                            settings.linuxLandscapeExtra
+                                ? Icons.splitscreen
+                                : Icons.view_sidebar_outlined,
+                          ),
+                          onPressed: () {
+                            c.stopAllVolumeRamps();
+                            settings.setLinuxLandscapeExtra(
+                              !settings.linuxLandscapeExtra,
+                            );
+                          },
+                        ),
+                      _windowButton(windows, AuxiliaryWindow.analyzer),
+                      _windowButton(windows, AuxiliaryWindow.player),
+                    ],
+                    if (c.canSelectDesktopHost)
+                      // Eigener Host: grün „HOST“; mit einem anderen Host
+                      // verbunden: blau „CLIENT“. Tippen öffnet die Auswahl.
+                      Tooltip(
+                        message:
+                            'HOST · ${c.usesLocalHost ? tr('Dieser Rechner') : c.desktopSelection?.current?.host.name ?? tr('Host wählen')}',
+                        child: InkWell(
+                          key: const ValueKey('desktop-host-choice'),
+                          borderRadius: BorderRadius.circular(8),
+                          onTap: () {
+                            c.stopAllVolumeRamps();
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute<void>(
+                                builder: (_) => HostConnectPage(ctrl: c),
+                              ),
+                            );
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            child: HostBadge(client: !c.usesLocalHost),
+                          ),
+                        ),
+                      ),
+                    if (c.viaHost && !c.embeddedHost)
                       Padding(
                         padding: const EdgeInsets.only(left: 6),
                         child: GestureDetector(
@@ -629,7 +738,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                             ),
                           child: Opacity(
                             opacity: c.hostReconnecting ? 0.5 : 1,
-                            child: const HostBadge(),
+                            child: const HostBadge(client: true),
                           ),
                         ),
                       ),
@@ -768,7 +877,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 ignoring: c.hostReconnecting,
                 child: Opacity(
                   opacity: c.hostReconnecting ? 0.65 : 1,
-                  child: landscape && idx == outputsIndex
+                  child: landscape && !deviceOnly && idx == outputsIndex
                       ? Row(
                           key: const ValueKey('tablet-output-columns'),
                           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -777,7 +886,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                               child: Column(
                                 children: [
                                   if (easy) ...outputHeader,
-                                  Expanded(child: tabs[idx].$3),
+                                  Expanded(child: scaledTab(tabs[idx].$3)),
                                 ],
                               ),
                             ),
@@ -791,7 +900,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                             ),
                           ],
                         )
-                      : tabs[idx].$3,
+                      : scaledTab(tabs[idx].$3),
                 ),
               ),
             ),
@@ -861,11 +970,40 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
+  Future<void> _openWindow(DesktopWindows windows, AuxiliaryWindow kind) async {
+    try {
+      await windows.open(kind);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(tr('Fenster konnte nicht geöffnet werden'))),
+        );
+      }
+    }
+  }
+
+  Widget _windowButton(DesktopWindows windows, AuxiliaryWindow kind) =>
+      IconButton(
+        key: ValueKey('desktop-window-${kind.name}'),
+        tooltip: kind == AuxiliaryWindow.analyzer
+            ? tr('Analyzer in eigenem Fenster öffnen')
+            : tr('Player in eigenem Fenster öffnen'),
+        icon: Icon(
+          kind == AuxiliaryWindow.analyzer
+              ? Icons.graphic_eq
+              : Icons.music_note,
+        ),
+        onPressed: () => _openWindow(windows, kind),
+      );
+
   Widget _extraContent(
     Adi2Controller ctrl,
     int output,
     List<OutputInfo> outputs,
   ) {
+    final windows = ctrl.embeddedHost
+        ? DesktopWindowScope.maybeOf(context)
+        : null;
     final selected = AppSettings.instance.tabletExtraContent;
     final title = outputs.firstWhere((o) => o.address == output).name;
     return Column(
@@ -914,23 +1052,29 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                     ? Palette.amber
                                     : Palette.line,
                               ),
+                              // Feste Höhe mit Luft zum Rand: Symbol und
+                              // Schrift stießen sonst oben/unten an.
+                              minimumSize: const Size(0, 48),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 2,
-                                vertical: 8,
+                                horizontal: 6,
+                                vertical: 6,
                               ),
                             ),
                             onPressed: () => AppSettings.instance
                                 .setTabletExtraContent(item.$1),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(item.$3, size: 20),
-                                const SizedBox(height: 4),
-                                FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  child: Text(item.$2),
-                                ),
-                              ],
+                            // Symbol immer neben der Schrift; schmale Knöpfe
+                            // verkleinern beides gemeinsam statt umzubrechen.
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(item.$3, size: 18),
+                                  const SizedBox(width: 6),
+                                  Text(item.$2, maxLines: 1),
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -941,6 +1085,23 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             ],
           ),
         ),
+        if (ctrl.embeddedHost && DesktopWindowScope.maybeOf(context) != null)
+          if (selected == TabletExtraContent.analyzer ||
+              selected == TabletExtraContent.player)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                key: const ValueKey('desktop-extra-open-window'),
+                icon: const Icon(Icons.open_in_new, size: 18),
+                label: Text(tr('In eigenem Fenster öffnen')),
+                onPressed: () => _openWindow(
+                  DesktopWindowScope.maybeOf(context)!,
+                  selected == TabletExtraContent.analyzer
+                      ? AuxiliaryWindow.analyzer
+                      : AuxiliaryWindow.player,
+                ),
+              ),
+            ),
         Expanded(
           child: switch (selected) {
             TabletExtraContent.eq => EqPage(
@@ -950,12 +1111,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               title: title,
               embedded: true,
             ),
-            TabletExtraContent.analyzer => AnalyzerPanel(
-              controller: _analyzer,
-              deviceController: ctrl,
-              expanded: true,
-              np: widget.np,
-            ),
+            TabletExtraContent.analyzer =>
+              windows?.isOpen(AuxiliaryWindow.analyzer) == true
+                  ? const AnalyzerWindowPlaceholder(expanded: true)
+                  : AnalyzerPanel(
+                      controller: _analyzer,
+                      deviceController: ctrl,
+                      expanded: true,
+                      np: widget.np,
+                    ),
             TabletExtraContent.status => StatusPage(ctrl: ctrl),
             TabletExtraContent.player => ListView(
               children: [
@@ -1089,7 +1253,7 @@ class ConnectPage extends StatelessWidget {
                   ],
                 ),
               ),
-              if (c.hostAvailable && c.hostPaused)
+              if (c.hostAvailable && !c.embeddedHost && c.hostPaused)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: FilledButton.icon(
@@ -1099,7 +1263,39 @@ class ConnectPage extends StatelessWidget {
                     label: Text(tr('Host-Verbindung fortsetzen')),
                   ),
                 ),
-              if (c.hostAvailable)
+              if (c.canSelectDesktopHost && !c.usesLocalHost) ...[
+                Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Text(
+                    tr(
+                      'Gewählter Netzwerk-Host nicht verbunden. Erneut versuchen oder zu „Dieser Rechner“ wechseln.',
+                    ),
+                  ),
+                ),
+                TextButton(
+                  key: const ValueKey('host-return-local'),
+                  onPressed: () async {
+                    try {
+                      await c.connectLocalHost();
+                    } catch (_) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              tr(
+                                'Verbindungswahl konnte nicht gespeichert werden',
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+                    }
+                  },
+                  child: Text(tr('Dieser Rechner')),
+                ),
+              ],
+              if (c.hostAvailable &&
+                  (!c.embeddedHost || c.canSelectDesktopHost))
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   child: OutlinedButton.icon(
@@ -1988,7 +2184,10 @@ class _DigitalMini extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           onTap: onTap,
           child: SizedBox(
-            height: isTablet(context) ? null : headerSlotHeight(context) - 8,
+            // Desktop: feste Kopfhöhe wie Player und Analyzer.
+            height: isTablet(context) && !hostHasInterface
+                ? null
+                : headerSlotHeight(context) - 8,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
               child: rows.isEmpty

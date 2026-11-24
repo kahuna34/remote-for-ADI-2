@@ -1,10 +1,11 @@
+import '../desktop/host_interface.dart';
+import '../desktop/desktop_windows.dart';
 import 'loopback_feedback.dart';
 import '../dev/analyzer_selftest_diagnostics.dart';
 
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -30,8 +31,7 @@ import 'theme.dart';
 /// analyzer keeps running there. Mobile apps only run while resumed.
 bool analyzerRunsIn(AppLifecycleState state) =>
     state == AppLifecycleState.resumed ||
-    (state == AppLifecycleState.inactive &&
-        defaultTargetPlatform == TargetPlatform.macOS);
+    (state == AppLifecycleState.inactive && hostHasInterface);
 
 /// „Peak hold“: Tippen schaltet um, langes Drücken setzt die Marken zurück.
 class AnalyzerPeakHoldChip extends StatelessWidget {
@@ -88,6 +88,23 @@ class AnalyzerPeakHoldChip extends StatelessWidget {
   );
 }
 
+/// No controller, capture owner or subscription is created for this slot.
+class AnalyzerWindowPlaceholder extends StatelessWidget {
+  const AnalyzerWindowPlaceholder({super.key, this.expanded = false});
+  final bool expanded;
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: expanded ? null : headerSlotHeight(context),
+    child: Center(
+      child: Text(
+        tr('Analyzer im eigenen Fenster'),
+        key: const ValueKey('analyzer-window-placeholder'),
+        style: ts(14, color: Palette.muted),
+      ),
+    ),
+  );
+}
+
 class AnalyzerPanel extends StatefulWidget {
   const AnalyzerPanel({
     super.key,
@@ -95,8 +112,10 @@ class AnalyzerPanel extends StatefulWidget {
     this.deviceController,
     this.np,
     this.expanded = false,
+    this.allowFullscreen = true,
   });
   final bool expanded;
+  final bool allowFullscreen;
   final Adi2Controller? deviceController;
   final NowPlaying? np;
   final AnalyzerController? controller;
@@ -108,6 +127,7 @@ class _AnalyzerPanelState extends State<AnalyzerPanel>
     with WidgetsBindingObserver {
   late final AnalyzerController _controller;
   late AnalyzerRouting _routing;
+  DesktopWindows? _windows;
   bool _current = true, _foreground = true, _waitForPortrait = false;
   bool _scheduled = false, _controlsOpen = false;
   bool _fullscreenCurrent = false;
@@ -116,7 +136,10 @@ class _AnalyzerPanelState extends State<AnalyzerPanel>
   bool _calibrationPromptScheduled = false, _calibrationPromptOpen = false;
 
   void _scheduleCalibrationPrompt() {
-    if (_calibrationPromptScheduled || _calibrationPromptOpen || !mounted) {
+    if (_calibrationPromptScheduled ||
+        _calibrationPromptOpen ||
+        !mounted ||
+        !_canOfferCalibration) {
       return;
     }
     _calibrationPromptScheduled = true;
@@ -234,7 +257,11 @@ class _AnalyzerPanelState extends State<AnalyzerPanel>
   void _syncSource() {
     final device = widget.deviceController;
     unawaited(
-      _controller.setHostSource(device?.viaHost == true ? device!.host : null),
+      _controller.setHostSource(
+        device != null && (device.viaHost || device.embeddedHost)
+            ? device.host
+            : null,
+      ),
     );
   }
 
@@ -288,6 +315,7 @@ class _AnalyzerPanelState extends State<AnalyzerPanel>
   void didChangeDependencies() {
     super.didChangeDependencies();
     _current = ModalRoute.isCurrentOf(context) ?? true;
+    _windows = DesktopWindowScope.maybeOf(context);
     _updateActivity();
     MediaQuery.orientationOf(context);
     _schedule();
@@ -302,6 +330,12 @@ class _AnalyzerPanelState extends State<AnalyzerPanel>
   }
 
   void _updateActivity() {
+    _controller.setMeterOnlyFor(
+      this,
+      !widget.expanded &&
+          !_fullscreenCurrent &&
+          AppSettings.instance.analyzerMainView == AnalyzerMainView.levels,
+    );
     _scheduleCalibrationPrompt();
     final active =
         _foreground && (_current || _fullscreenCurrent || _controlsOpen);
@@ -323,7 +357,10 @@ class _AnalyzerPanelState extends State<AnalyzerPanel>
       _updateActivity();
       final size = MediaQuery.sizeOf(context);
       if (size.height >= size.width) _waitForPortrait = false;
-      final auto = AppSettings.instance.autoFullscreenEq && !isTablet(context);
+      final auto =
+          widget.allowFullscreen &&
+          AppSettings.instance.autoFullscreenEq &&
+          !isTablet(context);
       EqDisplayMode.allowRotation(this, _current && auto && !_waitForPortrait);
       if (_foreground &&
           _current &&
@@ -355,7 +392,7 @@ class _AnalyzerPanelState extends State<AnalyzerPanel>
   }
 
   Future<void> _open({bool automatic = false}) async {
-    if (_fullscreen != null) return;
+    if (!widget.allowFullscreen || _fullscreen != null) return;
     _fullscreenDisposed = false;
     final route = MaterialPageRoute<void>(
       settings: const RouteSettings(name: 'analyzer-fullscreen'),
@@ -400,7 +437,12 @@ class _AnalyzerPanelState extends State<AnalyzerPanel>
     widget.deviceController?.removeListener(_deviceChanged);
     AppSettings.instance.removeListener(_schedule);
     EqDisplayMode.allowRotation(this, false);
-    unawaited(_controller.setActiveFor(this, false));
+    unawaited(
+      _windows?.isOpen(AuxiliaryWindow.analyzer) == true
+          ? _controller.detachForWindow(this)
+          : _controller.setActiveFor(this, false),
+    );
+    _controller.setMeterOnlyFor(this, false);
     // Rotation rebuilds the tablet page under this route. The fullscreen owns
     // its capture activity and retains these resources until it closes.
     if (_fullscreen == null || _fullscreenDisposed) _disposeResources();
@@ -416,7 +458,9 @@ class _AnalyzerPanelState extends State<AnalyzerPanel>
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+    // Gleicher Seitenabstand wie Player und Status (20), damit die Kästen
+    // im Kopfbereich deckungsgleich sind.
+    padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
     child: SizedBox(
       height: widget.expanded ? null : headerSlotHeight(context) - 8,
       child: Panel(
@@ -442,11 +486,12 @@ class _AnalyzerPanelState extends State<AnalyzerPanel>
                               icon: Icons.settings_outlined,
                               onPressed: _showControls,
                             ),
-                            _SmallIconButton(
-                              tooltip: tr('Vollbild'),
-                              icon: Icons.fullscreen,
-                              onPressed: _open,
-                            ),
+                            if (widget.allowFullscreen)
+                              _SmallIconButton(
+                                tooltip: tr('Vollbild'),
+                                icon: Icons.fullscreen,
+                                onPressed: _open,
+                              ),
                           ],
                         )
                       : Align(
@@ -476,28 +521,29 @@ class _AnalyzerPanelState extends State<AnalyzerPanel>
                                 icon: const Icon(Icons.settings_outlined),
                                 onPressed: _showControls,
                               ),
-                              IconButton(
-                                tooltip: tr('Vollbild'),
-                                constraints: BoxConstraints.tightFor(
-                                  width: widget.expanded ? 40 : 28,
-                                  height: widget.expanded ? 40 : 28,
-                                ),
-                                style: IconButton.styleFrom(
-                                  fixedSize: Size.square(
-                                    widget.expanded ? 40 : 28,
+                              if (widget.allowFullscreen)
+                                IconButton(
+                                  tooltip: tr('Vollbild'),
+                                  constraints: BoxConstraints.tightFor(
+                                    width: widget.expanded ? 40 : 28,
+                                    height: widget.expanded ? 40 : 28,
                                   ),
-                                  minimumSize: Size.square(
-                                    widget.expanded ? 40 : 28,
+                                  style: IconButton.styleFrom(
+                                    fixedSize: Size.square(
+                                      widget.expanded ? 40 : 28,
+                                    ),
+                                    minimumSize: Size.square(
+                                      widget.expanded ? 40 : 28,
+                                    ),
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
                                   ),
-                                  tapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
+                                  padding: EdgeInsets.zero,
+                                  iconSize: 18,
+                                  visualDensity: VisualDensity.standard,
+                                  icon: const Icon(Icons.fullscreen),
+                                  onPressed: _open,
                                 ),
-                                padding: EdgeInsets.zero,
-                                iconSize: 18,
-                                visualDensity: VisualDensity.standard,
-                                icon: const Icon(Icons.fullscreen),
-                                onPressed: _open,
-                              ),
                             ],
                           ),
                         ),
@@ -612,7 +658,7 @@ class _AnalyzerFullscreenState extends State<_AnalyzerFullscreen>
   Widget build(BuildContext context) => Scaffold(
     body: SafeArea(
       child: AnimatedBuilder(
-        animation: widget.controller,
+        animation: widget.controller.presentation,
         builder: (context, _) => _spectrumOnly
             ? GestureDetector(
                 key: const ValueKey('analyzer-spectrum-only'),
@@ -809,6 +855,10 @@ class AnalyzerDisplay extends StatelessWidget {
     }
     if (controller.status == AnalyzerStatus.usbUnavailable ||
         controller.status == AnalyzerStatus.captureFailed) {
+      if (controller.hostPlatform == 'linux' &&
+          controller.inputErrorDetail != null) {
+        return '${tr('Keine ADI-2-USB-Aufnahme am Host verfügbar. Gerät und Aufnahmeformat prüfen.')}\n${controller.inputErrorDetail}';
+      }
       return tr(
         'Keine ADI-2-USB-Aufnahme am Host verfügbar. Gerät und Aufnahmeformat prüfen.',
       );
@@ -858,259 +908,294 @@ class AnalyzerDisplay extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-    animation: Listenable.merge([
-      controller,
-      AppSettings.instance,
-      analyzerDeveloperMode,
-      ?deviceController,
-    ]),
-    builder: (context, _) {
-      final f = controller.frame;
-      final source = analyzerLoopbackSource(deviceController);
-      final tap = source == null
-          ? 0
-          : decodeLoopback(
-              deviceController!.value(source.address, OutIdx.loopback)!,
-              hasInput: deviceController!.variant!.hasInput,
-            ).tap;
-      final sourceText = source != null
-          ? '${deviceController?.variant?.isDac == true ? tr('Gilt für alle Ausgänge') : source.name} · ${tr('Loopback')} · ${tr(['Aus', 'pre FX', 'post FX', 'post −6 dB'][tap])}'
-          : deviceController?.variant?.isDac == true
-          ? tr('Loopback aus')
-          : tr('Analogeingang');
-      final hasData =
-          f != null &&
-          (controller.status == AnalyzerStatus.running ||
-              controller.status == AnalyzerStatus.silent);
-      return Padding(
-        padding: EdgeInsets.all(
-          spectrumOnly
-              ? 0
-              : compact
-              ? 8
-              : 16,
-        ),
-        child: LayoutBuilder(
-          builder: (context, constraints) => _AnalyzerInfoOverlay(
-            enabled: compact,
-            maxHeight: math.max(0, constraints.maxHeight - 36),
-            info: [
-              if (hasData && !spectrumOnly)
-                [
-                  '${tr('USB 1/2')} · $sourceText · ${f.sampleRate / 1000} kHz',
-                  if (controller.calibrationOffset != 0)
-                    trf('kalibriert {offset} dB', {
-                      'offset': analyzerCalibrationDb(
-                        controller.calibrationOffset,
-                      ),
-                    }),
-                  if (controller.status == AnalyzerStatus.silent)
-                    source == null
-                        ? tr('Kein Signal. Loopback aktivieren.')
-                        : tr('Kein Signal.'),
-                ].join(' · '),
-              if (!hasData && compact) analyzerSourceStatusText(controller),
-              if (analyzerDeveloperMode.value &&
-                  controller.diagnosticText.isNotEmpty)
-                controller.diagnosticText,
-            ].join('\n'),
-            warning: controller.status != AnalyzerStatus.running,
-            builder: (context, infoToggle) => Column(
-              children: [
-                if (!compact && !spectrumOnly && actions != null)
-                  Row(
-                    children: [
-                      Expanded(child: _toolSelector(controller)),
-                      actions!,
-                    ],
+  Widget build(BuildContext context) => RepaintBoundary(
+    child: AnimatedBuilder(
+      animation: Listenable.merge([
+        controller.presentation,
+        AppSettings.instance,
+        analyzerDeveloperMode,
+        ?deviceController,
+      ]),
+      builder: (context, _) {
+        final f = controller.frame;
+        final source = analyzerLoopbackSource(deviceController);
+        final tap = source == null
+            ? 0
+            : decodeLoopback(
+                deviceController!.value(source.address, OutIdx.loopback)!,
+                hasInput: deviceController!.variant!.hasInput,
+              ).tap;
+        final sourceText = source != null
+            ? '${deviceController?.variant?.isDac == true ? tr('Gilt für alle Ausgänge') : source.name} · ${tr('Loopback')} · ${tr(['Aus', 'pre FX', 'post FX', 'post −6 dB'][tap])}'
+            : deviceController?.variant?.isDac == true
+            ? tr('Loopback aus')
+            : tr('Analogeingang');
+        final hasData =
+            f != null &&
+            (controller.status == AnalyzerStatus.running ||
+                controller.status == AnalyzerStatus.silent);
+        return Padding(
+          padding: EdgeInsets.all(
+            spectrumOnly
+                ? 0
+                : compact
+                ? 8
+                : 16,
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) => _AnalyzerInfoOverlay(
+              enabled: compact,
+              maxHeight: math.max(0, constraints.maxHeight - 36),
+              info: [
+                if (hasData && !spectrumOnly)
+                  [
+                    '${tr('USB 1/2')} · $sourceText · ${f.sampleRate / 1000} kHz',
+                    if (controller.calibrationOffset != 0)
+                      trf('kalibriert {offset} dB', {
+                        'offset': analyzerCalibrationDb(
+                          controller.calibrationOffset,
+                        ),
+                      }),
+                    if (controller.status == AnalyzerStatus.silent)
+                      source == null
+                          ? tr('Kein Signal. Loopback aktivieren.')
+                          : tr('Kein Signal.'),
+                  ].join(' · '),
+                if (!hasData && compact) analyzerSourceStatusText(controller),
+                if (analyzerDeveloperMode.value &&
+                    controller.diagnosticText.isNotEmpty)
+                  controller.diagnosticText,
+              ].join('\n'),
+              warning: controller.status != AnalyzerStatus.running,
+              builder: (context, infoToggle) {
+                final viewToggle = _SmallIconButton(
+                  key: const ValueKey('analyzer-main-view-toggle'),
+                  tooltip: switch (_nextMainView(context)) {
+                    AnalyzerMainView.spectrum => tr('Spektrum anzeigen'),
+                    AnalyzerMainView.levels => tr('Pegel anzeigen'),
+                    AnalyzerMainView.both => tr('Spektrum und Pegel anzeigen'),
+                  },
+                  icon: switch (_nextMainView(context)) {
+                    AnalyzerMainView.spectrum => Icons.show_chart,
+                    AnalyzerMainView.levels => Icons.equalizer,
+                    AnalyzerMainView.both => Icons.view_week_outlined,
+                  },
+                  onPressed: () => AppSettings.instance.setAnalyzerMainView(
+                    _nextMainView(context),
                   ),
-                if (!compact && !spectrumOnly) ...[
-                  // Keep the complete header visible on short landscape screens,
-                  // including enlarged text, while reserving room for the plot.
-                  ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxHeight: math.max(
-                        0,
-                        (constraints.maxHeight -
-                                40 -
-                                (actions != null ? 40 : 0)) /
-                            2,
-                      ),
-                    ),
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.topLeft,
-                      child: SizedBox(
-                        width: constraints.maxWidth,
-                        child: LayoutBuilder(
-                          builder: (context, constraints) {
-                            final controls = _FullscreenControls(
+                );
+                // Desktop, Spektrum und Pegel: Peak/RMS oben in der rechten
+                // Spalte, darunter Peak hold/Zurücksetzen und die Symbole –
+                // keine eigene Knopfzeile, das Spektrum nutzt die volle Höhe
+                // und der Kopf ist so hoch wie Status und Player.
+                final side =
+                    compact &&
+                    hostHasInterface &&
+                    !_phone(context) &&
+                    hasData &&
+                    _mainView(context) == AnalyzerMainView.both;
+                final sideControls = side
+                    ? Column(
+                        key: const ValueKey('analyzer-side-controls'),
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerRight,
+                            child: _AnalyzerPeakControls(
                               controller: controller,
-                              deviceController: deviceController,
-                              routing: routing,
-                              showToolSelector:
-                                  showToolSelector && actions == null,
-                            );
-                            final levels = hasData
-                                ? _HorizontalLevels(
-                                    frame: f,
-                                    color: analyzerColor(deviceController),
-                                  )
-                                : null;
-                            if (constraints.maxWidth < 600) {
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  controls,
-                                  if (levels != null) ...[
-                                    const SizedBox(height: 8),
-                                    levels,
-                                  ],
-                                ],
-                              );
-                            }
-                            return Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(child: controls),
-                                if (levels != null) ...[
-                                  const SizedBox(width: 16),
-                                  Expanded(child: levels),
-                                ],
-                              ],
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                ],
-                Expanded(
-                  child: hasData
-                      ? compact
-                            ? _compactData(context, f)
-                            : Row(children: [Expanded(child: _spectrum())])
-                      : Stack(
-                          children: [
-                            Center(
-                              child: SingleChildScrollView(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      controller.phoneMicrophone &&
-                                              controller.inputRejected
-                                          ? tr(
-                                              'Quelle: Handy-Mikrofon – ADI-2-Aufnahme nicht verfügbar',
-                                            )
-                                          : controller.inputErrorCode ==
-                                                    'routeMismatch' &&
-                                                controller
-                                                        .diagnostics['routedDevice']
-                                                    is Map
-                                          ? trf(
-                                              'Aufnahme läuft über {device} statt über den ADI-2',
-                                              {
-                                                'device':
-                                                    (controller
-                                                            .diagnostics['routedDevice']
-                                                        as Map)['name'],
-                                              },
-                                            )
-                                          : analyzerSourceStatusText(
-                                              controller,
-                                            ),
-                                      textAlign: TextAlign.center,
-                                      style: ts(
-                                        compact ? 12 : 16,
-                                        color: Palette.muted,
-                                      ),
-                                    ),
-                                    if (controller.status ==
-                                        AnalyzerStatus.permissionRequired)
-                                      TextButton(
-                                        onPressed: () => _permission(context),
-                                        child: Text(
-                                          tr(
-                                            controller.viaHost
-                                                ? 'Erneut versuchen'
-                                                : 'Berechtigung erteilen',
-                                          ),
-                                        ),
-                                      )
-                                    else if (controller.status ==
-                                            AnalyzerStatus.usbUnavailable ||
-                                        controller.status ==
-                                            AnalyzerStatus.captureFailed)
-                                      TextButton(
-                                        onPressed: controller.retry,
-                                        child: Text(tr('Erneut versuchen')),
-                                      ),
-                                  ],
-                                ),
-                              ),
                             ),
-                          ],
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [infoToggle, viewToggle, ?actions],
+                          ),
+                        ],
+                      )
+                    : null;
+                return Column(
+                  children: [
+                    if (!compact && !spectrumOnly && actions != null)
+                      Row(
+                        children: [
+                          Expanded(child: _toolSelector(controller)),
+                          actions!,
+                        ],
+                      ),
+                    if (!compact && !spectrumOnly) ...[
+                      // Keep the complete header visible on short landscape screens,
+                      // including enlarged text, while reserving room for the plot.
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: math.max(
+                            0,
+                            (constraints.maxHeight -
+                                    40 -
+                                    (actions != null ? 40 : 0)) /
+                                2,
+                          ),
                         ),
-                ),
-                if (compact) ...[
-                  const SizedBox(height: 4),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(minHeight: 28),
-                    child: Row(
-                      key: const ValueKey('analyzer-compact-buttons'),
-                      children: [
-                        Expanded(
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            // Schmale Telefone: verkleinern statt abschneiden.
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              alignment: Alignment.centerLeft,
-                              child: hasData && !_levelsOnly
-                                  ? _AnalyzerPeakControls(
-                                      controller: controller,
-                                    )
-                                  : const SizedBox(),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.topLeft,
+                          child: SizedBox(
+                            width: constraints.maxWidth,
+                            child: LayoutBuilder(
+                              builder: (context, constraints) {
+                                final controls = _FullscreenControls(
+                                  controller: controller,
+                                  deviceController: deviceController,
+                                  routing: routing,
+                                  showToolSelector:
+                                      showToolSelector && actions == null,
+                                );
+                                final levels = hasData
+                                    ? _HorizontalLevels(
+                                        controller: controller,
+                                        color: analyzerColor(deviceController),
+                                      )
+                                    : null;
+                                if (constraints.maxWidth < 600) {
+                                  return Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      controls,
+                                      if (levels != null) ...[
+                                        const SizedBox(height: 8),
+                                        levels,
+                                      ],
+                                    ],
+                                  );
+                                }
+                                return Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(child: controls),
+                                    if (levels != null) ...[
+                                      const SizedBox(width: 16),
+                                      Expanded(child: levels),
+                                    ],
+                                  ],
+                                );
+                              },
                             ),
                           ),
                         ),
-                        // Abstand, damit „Zurücksetzen“ auf schmalen Telefonen
-                        // (iPhone SE) nicht direkt am Info-Knopf klebt.
-                        const SizedBox(width: 12),
-                        infoToggle,
-                        _SmallIconButton(
-                          key: const ValueKey('analyzer-main-view-toggle'),
-                          tooltip: switch (_nextMainView(context)) {
-                            AnalyzerMainView.spectrum => tr(
-                              'Spektrum anzeigen',
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    Expanded(
+                      child: hasData
+                          ? compact
+                                ? _compactData(context, f, side: sideControls)
+                                : Row(children: [Expanded(child: _spectrum())])
+                          : Stack(
+                              children: [
+                                Center(
+                                  child: SingleChildScrollView(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          controller.phoneMicrophone &&
+                                                  controller.inputRejected
+                                              ? tr(
+                                                  'Quelle: Handy-Mikrofon – ADI-2-Aufnahme nicht verfügbar',
+                                                )
+                                              : controller.inputErrorCode ==
+                                                        'routeMismatch' &&
+                                                    controller
+                                                            .diagnostics['routedDevice']
+                                                        is Map
+                                              ? trf(
+                                                  'Aufnahme läuft über {device} statt über den ADI-2',
+                                                  {
+                                                    'device':
+                                                        (controller
+                                                                .diagnostics['routedDevice']
+                                                            as Map)['name'],
+                                                  },
+                                                )
+                                              : analyzerSourceStatusText(
+                                                  controller,
+                                                ),
+                                          textAlign: TextAlign.center,
+                                          style: ts(
+                                            compact ? 12 : 16,
+                                            color: Palette.muted,
+                                          ),
+                                        ),
+                                        if (controller.status ==
+                                            AnalyzerStatus.permissionRequired)
+                                          TextButton(
+                                            onPressed: () =>
+                                                _permission(context),
+                                            child: Text(
+                                              tr(
+                                                controller.viaHost
+                                                    ? 'Erneut versuchen'
+                                                    : 'Berechtigung erteilen',
+                                              ),
+                                            ),
+                                          )
+                                        else if (controller.status ==
+                                                AnalyzerStatus.usbUnavailable ||
+                                            controller.status ==
+                                                AnalyzerStatus.captureFailed)
+                                          TextButton(
+                                            onPressed: controller.retry,
+                                            child: Text(tr('Erneut versuchen')),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                            AnalyzerMainView.levels => tr('Pegel anzeigen'),
-                            AnalyzerMainView.both => tr(
-                              'Spektrum und Pegel anzeigen',
-                            ),
-                          },
-                          icon: switch (_nextMainView(context)) {
-                            AnalyzerMainView.spectrum => Icons.show_chart,
-                            AnalyzerMainView.levels => Icons.equalizer,
-                            AnalyzerMainView.both => Icons.view_week_outlined,
-                          },
-                          onPressed: () => AppSettings.instance
-                              .setAnalyzerMainView(_nextMainView(context)),
-                        ),
-                        ?actions,
-                      ],
                     ),
-                  ),
-                ],
-              ],
+                    if (compact && !side) ...[
+                      const SizedBox(height: 4),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(minHeight: 28),
+                        child: Row(
+                          key: const ValueKey('analyzer-compact-buttons'),
+                          children: [
+                            Expanded(
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                // Schmale Telefone: verkleinern statt abschneiden.
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerLeft,
+                                  child: hasData && !_levelsOnly
+                                      ? _AnalyzerPeakControls(
+                                          controller: controller,
+                                        )
+                                      : const SizedBox(),
+                                ),
+                              ),
+                            ),
+                            // Abstand, damit „Zurücksetzen“ auf schmalen Telefonen
+                            // (iPhone SE) nicht direkt am Info-Knopf klebt.
+                            const SizedBox(width: 12),
+                            infoToggle,
+                            viewToggle,
+                            ?actions,
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                );
+              },
             ),
           ),
-        ),
-      );
-    },
+        );
+      },
+    ),
   );
 
   bool _phone(BuildContext context) => !isTablet(context);
@@ -1132,11 +1217,16 @@ class AnalyzerDisplay extends StatelessWidget {
         AnalyzerMainView.both => AnalyzerMainView.spectrum,
       };
 
-  Widget _compactData(BuildContext context, AnalyzerFrame frame) {
+  Widget _compactData(
+    BuildContext context,
+    AnalyzerFrame frame, {
+    Widget? side,
+  }) {
     final view = _mainView(context);
     final levels = _CompactLevels(
-      frame: frame,
+      controller: controller,
       color: analyzerColor(deviceController),
+      top: side != null,
     );
     if (view == AnalyzerMainView.levels) return levels;
     return Row(
@@ -1149,34 +1239,94 @@ class AnalyzerDisplay extends StatelessWidget {
               250,
               MediaQuery.textScalerOf(context).scale(14) * 20,
             ),
-            child: levels,
+            child: side == null
+                ? levels
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      levels,
+                      const Spacer(),
+                      Align(alignment: Alignment.centerRight, child: side),
+                    ],
+                  ),
           ),
       ],
     );
   }
 
-  Widget _spectrum() => LayoutBuilder(
+  Widget _spectrum() => _AnalyzerSpectrum(
+    controller: controller,
+    compact: compact,
+    deviceController: deviceController,
+    np: np,
+  );
+}
+
+/// Cache the axes across status/device rebuilds as well as audio repaints.
+class _AnalyzerSpectrum extends StatefulWidget {
+  const _AnalyzerSpectrum({
+    required this.controller,
+    required this.compact,
+    this.deviceController,
+    this.np,
+  });
+  final AnalyzerController controller;
+  final bool compact;
+  final Adi2Controller? deviceController;
+  final NowPlaying? np;
+  @override
+  State<_AnalyzerSpectrum> createState() => _AnalyzerSpectrumState();
+}
+
+class _AnalyzerSpectrumState extends State<_AnalyzerSpectrum> {
+  Object? _scaleKey;
+  AnalyzerSpectrumScale? _scale;
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, bounds) {
       // Overlay and painter share the actual plot rectangle,
       // excluding axes, meters and the information line.
-      final scale = AnalyzerSpectrumScale(
-        size: bounds.biggest,
-        compact: compact,
-        range: AppSettings.instance.analyzerRange,
-        bars: controller.bars,
-        resolution: controller.bandResolution,
+      final key = (
+        bounds.biggest,
+        widget.compact,
+        AppSettings.instance.analyzerRange,
+        widget.controller.bars,
+        widget.controller.bandResolution,
+        tr('dB'),
       );
+      if (_scaleKey != key) {
+        _scaleKey = key;
+        _scale = AnalyzerSpectrumScale(
+          size: bounds.biggest,
+          compact: widget.compact,
+          range: AppSettings.instance.analyzerRange,
+          bars: widget.controller.bars,
+          resolution: widget.controller.bandResolution,
+        );
+      }
+      final scale = _scale!;
       return Stack(
         fit: StackFit.expand,
         children: [
           RepaintBoundary(
             child: CustomPaint(
-              key: const ValueKey('analyzer-spectrum'),
-              painter: _SpectrumPainter(
-                controller,
-                compact: compact,
-                color: analyzerColor(deviceController),
-                scale: scale,
+              key: const ValueKey('analyzer-spectrum-grid'),
+              painter: _SpectrumGridPainter(
+                scale,
+                AppSettings.instance.analyzerRange,
+              ),
+            ),
+          ),
+          RepaintBoundary(
+            child: ExcludeSemantics(
+              child: CustomPaint(
+                key: const ValueKey('analyzer-spectrum'),
+                painter: _SpectrumPainter(
+                  widget.controller,
+                  compact: widget.compact,
+                  color: analyzerColor(widget.deviceController),
+                  scale: scale,
+                ),
               ),
             ),
           ),
@@ -1184,8 +1334,8 @@ class AnalyzerDisplay extends StatelessWidget {
             Positioned.fromRect(
               rect: scale.area,
               child: AnalyzerPlayerOverlay(
-                np: np,
-                deviceController: deviceController,
+                np: widget.np,
+                deviceController: widget.deviceController,
                 child: const ColoredBox(
                   key: ValueKey('analyzer-plot'),
                   color: Colors.transparent,
@@ -1311,50 +1461,40 @@ class _AnalyzerInfoOverlayState extends State<_AnalyzerInfoOverlay> {
 
 /// Compact meters keep their labels at native text scale and use all width.
 class _CompactLevels extends StatelessWidget {
-  const _CompactLevels({required this.frame, required this.color});
-  final AnalyzerFrame frame;
+  const _CompactLevels({
+    required this.controller,
+    required this.color,
+    this.top = false,
+  });
+  final AnalyzerController controller;
   final Color color;
 
+  /// Oben in der Spalte statt mittig (Desktop mit Seitenspalte).
+  final bool top;
+
   @override
-  Widget build(BuildContext context) => Column(
-    key: const ValueKey('analyzer-compact-levels'),
-    mainAxisAlignment: MainAxisAlignment.center,
-    children: [
-      Text(
-        tr('Peak / RMS · dBFS'),
-        style: ts(10, color: Palette.muted, height: 1),
-      ),
-      for (var ch = 0; ch < 2; ch++)
-        Row(
-          children: [
-            // Feste Breite, damit L- und R-Balken bündig beginnen.
-            SizedBox(
-              width: 14,
-              child: Text(ch == 0 ? 'L' : 'R', style: ts(14, height: 1.2)),
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: AnalyzerLevelBar(
-                peak: frame.displayPeak[ch],
-                rms: frame.displayRms[ch],
-                clipped: frame.clipped[ch],
-                color: color,
-                height: 10,
-              ),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              '${frame.displayPeak[ch].toStringAsFixed(1)} / ${frame.displayRms[ch].toStringAsFixed(1)}',
-              key: ValueKey('analyzer-compact-values-$ch'),
-              style: ts(
-                14,
-                height: 1.2,
-                color: frame.clipped[ch] ? Palette.red : Palette.text,
-              ),
-            ),
-          ],
+  Widget build(BuildContext context) => RepaintBoundary(
+    child: Column(
+      key: const ValueKey('analyzer-compact-levels'),
+      mainAxisSize: top ? MainAxisSize.min : MainAxisSize.max,
+      mainAxisAlignment: top
+          ? MainAxisAlignment.start
+          : MainAxisAlignment.center,
+      children: [
+        Text(
+          tr('Peak / RMS · dBFS'),
+          style: ts(10, color: Palette.muted, height: 1),
         ),
-    ],
+        for (var ch = 0; ch < 2; ch++)
+          AnalyzerLevelBar(
+            controller: controller,
+            channel: ch,
+            color: color,
+            height: 10,
+            compactRow: true,
+          ),
+      ],
+    ),
   );
 }
 
@@ -1432,73 +1572,63 @@ class _FullscreenControls extends StatelessWidget {
 
 /// Fullscreen levels occupy the header; the plot keeps all available width.
 class _HorizontalLevels extends StatelessWidget {
-  const _HorizontalLevels({required this.frame, required this.color});
+  const _HorizontalLevels({required this.controller, required this.color});
   final Color color;
-  final AnalyzerFrame frame;
+  final AnalyzerController controller;
 
   @override
-  Widget build(BuildContext context) => Column(
-    key: const ValueKey('analyzer-fullscreen-levels'),
-    mainAxisSize: MainAxisSize.min,
-    crossAxisAlignment: CrossAxisAlignment.end,
-    children: [
-      Text(tr('Peak / RMS · dBFS'), style: ts(12, color: Palette.muted)),
-      for (var ch = 0; ch < 2; ch++)
-        Padding(
-          padding: const EdgeInsets.only(top: 3),
-          child: Row(
-            children: [
-              SizedBox(
-                key: ValueKey('analyzer-channel-$ch'),
-                width: 18,
-                child: Text(tr(ch == 0 ? 'L' : 'R'), style: ts(18)),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: AnalyzerLevelBar(
-                  key: ValueKey('analyzer-track-$ch'),
-                  peak: frame.displayPeak[ch],
-                  rms: frame.displayRms[ch],
-                  clipped: frame.clipped[ch],
-                  color: color,
-                  height: 18,
+  Widget build(BuildContext context) => RepaintBoundary(
+    child: Column(
+      key: const ValueKey('analyzer-fullscreen-levels'),
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text(tr('Peak / RMS · dBFS'), style: ts(12, color: Palette.muted)),
+        for (var ch = 0; ch < 2; ch++)
+          Padding(
+            padding: const EdgeInsets.only(top: 3),
+            child: Row(
+              children: [
+                SizedBox(
+                  key: ValueKey('analyzer-channel-$ch'),
+                  width: 18,
+                  child: Text(tr(ch == 0 ? 'L' : 'R'), style: ts(18)),
                 ),
-              ),
-              const SizedBox(width: 8),
-              SizedBox(
-                key: ValueKey('analyzer-values-$ch'),
-                width: 112,
-                child: Row(
-                  children: [
-                    for (var metric = 0; metric < 2; metric++) ...[
-                      if (metric == 1) Text(' / ', style: ts(18)),
-                      Expanded(
-                        child: FittedBox(
-                          key: ValueKey('analyzer-number-$ch-$metric'),
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerRight,
-                          child: Text(
-                            (metric == 0
-                                    ? frame.displayPeak[ch]
-                                    : frame.displayRms[ch])
-                                .toStringAsFixed(1),
-                            style: ts(
-                              18,
-                              color: frame.clipped[ch]
-                                  ? Palette.red
-                                  : Palette.text,
-                            ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: AnalyzerLevelBar(
+                    key: ValueKey('analyzer-track-$ch'),
+                    controller: controller,
+                    channel: ch,
+                    color: color,
+                    height: 18,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  key: ValueKey('analyzer-values-$ch'),
+                  width: 112,
+                  child: Row(
+                    children: [
+                      for (var metric = 0; metric < 2; metric++) ...[
+                        if (metric == 1) Text(' / ', style: ts(18)),
+                        Expanded(
+                          child: _AnalyzerNumber(
+                            key: ValueKey('analyzer-number-$ch-$metric'),
+                            controller: controller,
+                            channel: ch,
+                            metric: metric,
                           ),
                         ),
-                      ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-    ],
+      ],
+    ),
   );
 }
 
@@ -1606,21 +1736,15 @@ class AnalyzerSpectrumScale {
       hz >= 1000 ? '${(hz / 1000).toInt()}k' : '${hz.toInt()}';
 }
 
-class _SpectrumPainter extends CustomPainter {
-  _SpectrumPainter(
-    this.controller, {
-    required this.compact,
-    required this.color,
-    required this.scale,
-  });
+/// Static axes and text keep their own cached display list between audio frames.
+class _SpectrumGridPainter extends CustomPainter {
+  _SpectrumGridPainter(this.scale, this.range);
   final AnalyzerSpectrumScale scale;
-  final Color color;
-  final AnalyzerController controller;
-  final bool compact;
+  final int range;
   @override
   void paint(Canvas canvas, Size size) {
     final area = scale.area;
-    if (area.width <= 0 || area.height <= 0) return;
+    if (area.isEmpty) return;
     final grid = Paint()
       ..color = Palette.line
       ..strokeWidth = 0.6;
@@ -1631,8 +1755,6 @@ class _SpectrumPainter extends CustomPainter {
       text.paint(canvas, bounds.topLeft);
     }
 
-    final resolution = controller.bandResolution;
-    final range = AppSettings.instance.analyzerRange;
     double y(double db) =>
         area.bottom - ((db + range) / range).clamp(0, 1) * area.height;
     for (var db = 0; db >= -range; db -= 10) {
@@ -1656,6 +1778,32 @@ class _SpectrumPainter extends CustomPainter {
       label(AnalyzerSpectrumScale.frequencyText(hz), entry.value);
     }
     text.dispose();
+  }
+
+  @override
+  bool shouldRepaint(_SpectrumGridPainter oldDelegate) =>
+      scale != oldDelegate.scale || range != oldDelegate.range;
+}
+
+class _SpectrumPainter extends CustomPainter {
+  _SpectrumPainter(
+    this.controller, {
+    required this.compact,
+    required this.color,
+    required this.scale,
+  }) : super(repaint: controller);
+  final AnalyzerSpectrumScale scale;
+  final Color color;
+  final AnalyzerController controller;
+  final bool compact;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final area = scale.area;
+    if (area.width <= 0 || area.height <= 0) return;
+    final resolution = controller.bandResolution;
+    final range = AppSettings.instance.analyzerRange;
+    double y(double db) =>
+        area.bottom - ((db + range) / range).clamp(0, 1) * area.height;
     final frame = controller.frame;
     if (frame == null) return;
     canvas.save();
@@ -1727,7 +1875,14 @@ class _SpectrumPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_SpectrumPainter oldDelegate) => true;
+  bool shouldRebuildSemantics(_SpectrumPainter oldDelegate) => false;
+
+  @override
+  bool shouldRepaint(_SpectrumPainter oldDelegate) =>
+      controller != oldDelegate.controller ||
+      compact != oldDelegate.compact ||
+      color != oldDelegate.color ||
+      scale != oldDelegate.scale;
 }
 
 /// Small inter-bar gaps with flush outer edges. On subpixel-sized compact
@@ -1750,61 +1905,258 @@ Rect analyzerBarBounds(
 }
 
 /// RMS fills the track; peak is a bright narrow marker, including at 0 dBFS.
-class AnalyzerLevelBar extends StatelessWidget {
+/// With a controller, audio changes repaint the canvas without rebuilding this
+/// widget. Compact rows also paint their values so text width cannot relayout it.
+class AnalyzerLevelBar extends StatefulWidget {
   const AnalyzerLevelBar({
     super.key,
-    required this.peak,
-    required this.rms,
-    required this.clipped,
+    double peak = -120,
+    double rms = -120,
+    bool clipped = false,
     required this.color,
     required this.height,
-  });
-  final double peak, rms, height;
-  final bool clipped;
+    this.controller,
+    this.channel = 0,
+    this.compactRow = false,
+  }) : _initialLevels = (peak: peak, rms: rms, clipped: clipped);
+  final ({double peak, double rms, bool clipped}) _initialLevels;
+  final double height;
+  final bool compactRow;
   final Color color;
+  final AnalyzerController? controller;
+  final int channel;
+  double get peak =>
+      controller?.frame?.displayPeak[channel] ?? _initialLevels.peak;
+  double get rms =>
+      controller?.frame?.displayRms[channel] ?? _initialLevels.rms;
+  bool get clipped =>
+      controller?.frame?.clipped[channel] ?? _initialLevels.clipped;
+  @override
+  State<AnalyzerLevelBar> createState() => _AnalyzerLevelBarState();
+}
+
+class _AnalyzerLevelBarState extends State<AnalyzerLevelBar> {
+  final _values = _MeterText();
+  final _label = _MeterText();
+  @override
+  void dispose() {
+    _values.dispose();
+    _label.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final range = AppSettings.instance.analyzerRange;
-    double fraction(double db) => ((db + range) / range).clamp(0, 1);
+    final style = DefaultTextStyle.of(context).style.merge(ts(14, height: 1.2));
+    final scaler = MediaQuery.textScalerOf(context);
+    final locale = Localizations.maybeLocaleOf(context);
+    _values.configure(style, scaler, locale);
+    _label.configure(style, scaler, locale);
+    final label = _label.layout(widget.channel == 0 ? 'L' : 'R');
     return Semantics(
-      label: tr('Peak / RMS · dBFS'),
-      value: '$peak / $rms',
-      child: SizedBox(
-        height: height,
-        child: LayoutBuilder(
-          builder: (context, constraints) => Stack(
-            children: [
-              Positioned.fill(child: ColoredBox(color: Palette.surf2)),
-              Positioned(
-                left: 0,
-                top: 0,
-                bottom: 0,
-                width: constraints.maxWidth * fraction(rms),
-                child: ColoredBox(
-                  key: const ValueKey('analyzer-rms-fill'),
-                  color: color,
-                ),
-              ),
-              Positioned(
-                left:
-                    (constraints.maxWidth - 2).clamp(0, double.infinity) *
-                    fraction(peak),
-                top: 0,
-                bottom: 0,
-                width: 2,
-                child: ColoredBox(
-                  key: const ValueKey('analyzer-peak-marker'),
-                  color: clipped
-                      ? Palette.red
-                      : Color.lerp(color, Colors.white, 0.8)!,
-                ),
-              ),
-            ],
+      label: '${widget.channel == 0 ? 'L' : 'R'} · ${tr('Peak / RMS · dBFS')}',
+      child: ExcludeSemantics(
+        child: SizedBox(
+          width: double.infinity,
+          height: widget.compactRow
+              ? math.max(widget.height, label.height)
+              : widget.height,
+          child: CustomPaint(
+            key: widget.compactRow
+                ? ValueKey('analyzer-compact-values-${widget.channel}')
+                : null,
+            painter: _LevelPainter(
+              widget,
+              AppSettings.instance.analyzerRange,
+              _values,
+              _label,
+            ),
           ),
         ),
       ),
     );
   }
+}
+
+/// Holds the native paragraph until its text/style actually changes. Each
+/// moving value has one entry, so long-running meters cannot grow a text cache.
+class _MeterText {
+  TextStyle? _style;
+  TextScaler? _scaler;
+  Locale? _locale;
+  String? _text;
+  Color? _color;
+  TextPainter? _painter;
+  void configure(TextStyle style, TextScaler scaler, Locale? locale) {
+    if (style == _style && scaler == _scaler && locale == _locale) return;
+    dispose();
+    _style = style;
+    _scaler = scaler;
+    _locale = locale;
+  }
+
+  TextPainter layout(String text, [Color? color]) {
+    if (_painter == null || text != _text || color != _color) {
+      _text = text;
+      _color = color;
+      final painter = _painter ??= TextPainter(
+        textDirection: TextDirection.ltr,
+        textScaler: _scaler!,
+        locale: _locale,
+      );
+      painter.text = TextSpan(
+        text: text,
+        style: color == null ? _style : _style!.copyWith(color: color),
+      );
+      painter.layout();
+    }
+    return _painter!;
+  }
+
+  void dispose() {
+    _painter?.dispose();
+    _painter = null;
+  }
+}
+
+class _LevelPainter extends CustomPainter {
+  _LevelPainter(this.bar, this.range, this.values, this.label)
+    : super(repaint: bar.controller);
+  final AnalyzerLevelBar bar;
+  final int range;
+  final _MeterText values, label;
+  TextStyle get textStyle => values._style!;
+  Rect trackRect(Size size) {
+    if (!bar.compactRow) return Offset.zero & size;
+    final text = _valueText();
+    return Rect.fromLTWH(
+      20,
+      (size.height - bar.height) / 2,
+      math.max(0, size.width - 26 - text.width),
+      bar.height,
+    );
+  }
+
+  double _fraction(double db) => ((db + range) / range).clamp(0, 1);
+  Rect rmsRect(Size size) => _rmsRect(trackRect(size));
+  Rect peakRect(Size size) => _peakRect(trackRect(size));
+  Rect _rmsRect(Rect track) => Rect.fromLTWH(
+    track.left,
+    track.top,
+    track.width * _fraction(bar.rms),
+    track.height,
+  );
+  Rect _peakRect(Rect track) => Rect.fromLTWH(
+    track.left + math.max(0, track.width - 2) * _fraction(bar.peak),
+    track.top,
+    2,
+    track.height,
+  );
+  Color get peakColor =>
+      bar.clipped ? Palette.red : Color.lerp(bar.color, Colors.white, 0.8)!;
+  TextPainter _valueText() => values.layout(
+    '${bar.peak.toStringAsFixed(1)} / ${bar.rms.toStringAsFixed(1)}',
+    bar.clipped ? Palette.red : Palette.text,
+  );
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Preserve Row paint order: large channel glyphs may extend into the track.
+    if (bar.compactRow) {
+      final channel = label.layout(bar.channel == 0 ? 'L' : 'R');
+      channel.paint(canvas, Offset(0, (size.height - channel.height) / 2));
+    }
+    final track = trackRect(size);
+    canvas.drawRect(track, Paint()..color = Palette.surf2);
+    canvas.drawRect(_rmsRect(track), Paint()..color = bar.color);
+    canvas.drawRect(_peakRect(track), Paint()..color = peakColor);
+    if (bar.compactRow) {
+      final text = _valueText();
+      text.paint(
+        canvas,
+        Offset(size.width - text.width, (size.height - text.height) / 2),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_LevelPainter oldDelegate) =>
+      bar != oldDelegate.bar || range != oldDelegate.range;
+  @override
+  bool shouldRebuildSemantics(_LevelPainter oldDelegate) => false;
+}
+
+class _AnalyzerNumber extends StatefulWidget {
+  const _AnalyzerNumber({
+    super.key,
+    required this.controller,
+    required this.channel,
+    required this.metric,
+  });
+  final AnalyzerController controller;
+  final int channel, metric;
+  @override
+  State<_AnalyzerNumber> createState() => _AnalyzerNumberState();
+}
+
+class _AnalyzerNumberState extends State<_AnalyzerNumber> {
+  final _text = _MeterText();
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _text.configure(
+      DefaultTextStyle.of(context).style.merge(ts(18)),
+      MediaQuery.textScalerOf(context),
+      Localizations.maybeLocaleOf(context),
+    );
+    final height = _text.layout('0').height;
+    return ExcludeSemantics(
+      child: SizedBox(
+        height: height,
+        child: CustomPaint(painter: _NumberPainter(widget, _text)),
+      ),
+    );
+  }
+}
+
+class _NumberPainter extends CustomPainter {
+  _NumberPainter(this.number, this.text) : super(repaint: number.controller);
+  final _AnalyzerNumber number;
+  final _MeterText text;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final frame = number.controller.frame;
+    if (frame == null) return;
+    final value = number.metric == 0
+        ? frame.displayPeak[number.channel]
+        : frame.displayRms[number.channel];
+    final paragraph = text.layout(
+      value.toStringAsFixed(1),
+      frame.clipped[number.channel] ? Palette.red : Palette.text,
+    );
+    final scale = math.min(
+      1.0,
+      math.min(size.width / paragraph.width, size.height / paragraph.height),
+    );
+    canvas.save();
+    canvas.translate(
+      size.width - paragraph.width * scale,
+      (size.height - paragraph.height * scale) / 2,
+    );
+    canvas.scale(scale);
+    paragraph.paint(canvas, Offset.zero);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_NumberPainter oldDelegate) =>
+      number != oldDelegate.number;
+  @override
+  bool shouldRebuildSemantics(_NumberPainter oldDelegate) => false;
 }
 
 /// Kleiner Symbolknopf für die Infozeile unter dem Graphen.

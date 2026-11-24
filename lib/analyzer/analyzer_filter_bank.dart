@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'analyzer_dsp.dart';
 
@@ -42,27 +43,33 @@ class AnalyzerBandFilter {
       gain *= 2 * math.sin(w).abs() / math.sqrt(re * re + im * im);
     }
     _gain = 1 / gain;
+    _a1a = _sections[0].a1;
+    _a2a = _sections[0].a2;
+    _a1b = _sections[1].a1;
+    _a2b = _sections[1].a2;
   }
   final List<_BandBiquad> _sections = [];
-  late final double _gain;
+  late final double _gain, _a1a, _a2a, _a1b, _a2b;
+  // Per channel: z1 and z2 of both sections, [channel * 4 + n].
+  final _state = Float64List(8);
+
+  /// Both biquad sections inlined (transposed direct form II, numerator
+  /// x[n] − x[n−2]); the per-sample hot path avoids calls and boxed doubles.
   double process(double value, int channel) {
-    for (final section in _sections) {
-      value = section.process(value, channel);
-    }
-    return value * _gain;
+    final z = channel * 4;
+    final a = value + _state[z];
+    _state[z] = -_a1a * a + _state[z + 1];
+    _state[z + 1] = -value - _a2a * a;
+    final b = a + _state[z + 2];
+    _state[z + 2] = -_a1b * b + _state[z + 3];
+    _state[z + 3] = -a - _a2b * b;
+    return b * _gain;
   }
 }
 
 class _BandBiquad {
   _BandBiquad(this.a1, this.a2);
   final double a1, a2;
-  final z1 = [0.0, 0.0], z2 = [0.0, 0.0];
-  double process(double input, int channel) {
-    final output = input + z1[channel];
-    z1[channel] = -a1 * output + z2[channel];
-    z2[channel] = -input - a2 * output;
-    return output;
-  }
 }
 
 /// Continuous stereo power detection with 5 ms integration. A unity-gain
@@ -80,34 +87,44 @@ class AnalyzerFilterBank {
           rate,
         ),
       ),
-      _power = List.generate(resolution.count, (_) => [0.0, 0.0]),
-      _quadrature = List.generate(resolution.count, (_) => [0.0, 0.0]),
-      _allpass = List.generate(resolution.count, (i) {
-        final t = math.tan(math.pi * resolution.centre(i) / rate);
-        return (t - 1) / (t + 1);
-      }),
+      _power = Float64List(resolution.count * 2),
+      _quadrature = Float64List(resolution.count * 2),
+      _allpass = Float64List.fromList(
+        List.generate(resolution.count, (i) {
+          final t = math.tan(math.pi * resolution.centre(i) / rate);
+          return (t - 1) / (t + 1);
+        }),
+      ),
       _alpha = 1 - math.exp(-1 / (rate * 0.005));
   final int rate;
   final AnalyzerBandResolution resolution;
   final List<AnalyzerBandFilter> filters;
-  final List<List<double>> _power, _quadrature;
-  final List<double> _allpass;
+  // Interleaved [band * 2 + channel].
+  final Float64List _power, _quadrature;
+  final Float64List _allpass;
   final double _alpha;
 
   void process(double left, double right) {
-    for (var band = 0; band < filters.length; band++) {
+    final count = filters.length;
+    for (var band = 0; band < count; band++) {
+      final filter = filters[band];
+      final allpass = _allpass[band];
       for (var ch = 0; ch < 2; ch++) {
-        final v = filters[band].process(ch == 0 ? left : right, ch);
-        final q = _allpass[band] * v + _quadrature[band][ch];
-        _quadrature[band][ch] = v - _allpass[band] * q;
-        _power[band][ch] += _alpha * ((v * v + q * q) / 2 - _power[band][ch]);
+        final i = band * 2 + ch;
+        final v = filter.process(ch == 0 ? left : right, ch);
+        final q = allpass * v + _quadrature[i];
+        _quadrature[i] = v - allpass * q;
+        _power[i] += _alpha * ((v * v + q * q) / 2 - _power[i]);
       }
     }
   }
 
-  List<double> get levels => _power
-      .map((p) => amplitudeDb(math.sqrt(2 * math.max(p[0], p[1]))))
-      .toList();
+  List<double> get levels => List.generate(
+    filters.length,
+    (band) => amplitudeDb(
+      math.sqrt(2 * math.max(_power[band * 2], _power[band * 2 + 1])),
+    ),
+  );
 }
 
 /// Meters run independently of either FFT window or display preset.
@@ -116,7 +133,7 @@ class AnalyzerMeters {
     : _alpha = 1 - math.exp(-1 / (rate * 0.3)),
       _peakFactor = math.pow(10, -(20 / 1.5) / (20 * rate)).toDouble();
   final double _alpha, _peakFactor;
-  final _power = [0.0, 0.0], _peak = [0.0, 0.0];
+  final _power = Float64List(2), _peak = Float64List(2);
   void process(double left, double right) {
     for (var ch = 0; ch < 2; ch++) {
       final value = ch == 0 ? left : right;

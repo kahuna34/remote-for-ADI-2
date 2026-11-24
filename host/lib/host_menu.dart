@@ -7,6 +7,9 @@ import 'package:tray_manager/legacy.dart';
 /// Erstellt nur die Menübeschreibung; ruft keine Plattformfunktionen auf.
 List<MenuItem> buildHostMenu({
   List<String> clientNames = const [],
+  bool linux = false,
+  bool hasInterface = false,
+  bool surfaceOpen = false,
   String? rmeDevice,
   String status = 'Bereit',
   String? error,
@@ -30,6 +33,13 @@ List<MenuItem> buildHostMenu({
       }),
   };
   return [
+    if (linux || hasInterface) ...[
+      MenuItem(
+        key: 'surface',
+        label: tr(surfaceOpen ? 'Oberfläche schließen' : 'Oberfläche öffnen'),
+      ),
+      MenuItem.separator(),
+    ],
     // Normale Einträge ohne Schlüssel/Aktion bleiben gut lesbar.
     MenuItem(
       label: trf('Client: {name}', {
@@ -39,7 +49,7 @@ List<MenuItem> buildHostMenu({
     MenuItem(label: trf('RME device: {name}', {'name': rmeDevice ?? '–'})),
     if (notices.isNotEmpty) MenuItem(label: notices.join(' · ')),
     MenuItem.separator(),
-    MenuItem(key: 'pair', label: tr('Smartphone koppeln…')),
+    MenuItem(key: 'pair', label: tr('Client koppeln…')),
     MenuItem(key: 'devices', label: tr('Gekoppelte Geräte…')),
     MenuItem.checkbox(
       key: 'autostart',

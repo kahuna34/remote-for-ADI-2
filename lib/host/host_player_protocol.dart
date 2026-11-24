@@ -5,6 +5,9 @@ import '../media/now_playing.dart';
 
 const hostPlayerVersion = 1;
 const hostPlayerArtworkLimit = 30000;
+
+/// Großes Cover nur für die eigene Oberfläche über 127.0.0.1.
+const hostPlayerLargeArtworkLimit = 600000;
 const hostPlayerCommands = {'play', 'pause', 'toggle', 'next', 'previous'};
 
 int negotiateHostPlayerVersion(Object? version) =>
@@ -28,16 +31,25 @@ NowPlayingInfo decodeHostPlayerState(
     final encoded = data['artwork'];
     art = null;
     if (encoded != null) {
-      if (encoded is! String || encoded.length > 40000) {
+      if (encoded is! String ||
+          encoded.length > (hostPlayerLargeArtworkLimit * 4 ~/ 3) + 4) {
         throw const FormatException('Invalid artwork');
       }
       art = base64Decode(encoded);
-      if (art.length > hostPlayerArtworkLimit ||
-          art.length < 3 ||
-          art[0] != 0xff ||
-          art[1] != 0xd8 ||
-          art[2] != 0xff) {
-        throw const FormatException('Invalid JPEG');
+      final png =
+          art.length >= 8 &&
+          art[0] == 0x89 &&
+          art[1] == 0x50 &&
+          art[2] == 0x4e &&
+          art[3] == 0x47 &&
+          art[4] == 13 &&
+          art[5] == 10 &&
+          art[6] == 26 &&
+          art[7] == 10;
+      final jpeg =
+          art.length >= 3 && art[0] == 0xff && art[1] == 0xd8 && art[2] == 0xff;
+      if (art.length > hostPlayerLargeArtworkLimit || (!jpeg && !png)) {
+        throw const FormatException('Invalid JPEG/PNG');
       }
     }
   }
@@ -50,10 +62,20 @@ NowPlayingInfo decodeHostPlayerState(
     app: text('app'),
     playing: data['playing'] == true,
     art: art,
+    album: text('album'),
+    position: data['positionUs'] is int && data['positionUs'] >= 0
+        ? Duration(microseconds: data['positionUs'] as int)
+        : null,
+    duration: data['durationUs'] is int && data['durationUs'] >= 0
+        ? Duration(microseconds: data['durationUs'] as int)
+        : null,
   );
 }
 
-Map<String, dynamic> encodeHostPlayerState(NowPlayingInfo info) => {
+Map<String, dynamic> encodeHostPlayerState(
+  NowPlayingInfo info, {
+  bool large = false,
+}) => {
   'title': (info.title ?? '').substring(
     0,
     (info.title ?? '').length.clamp(0, 1024),
@@ -64,7 +86,16 @@ Map<String, dynamic> encodeHostPlayerState(NowPlayingInfo info) => {
   ),
   'app': (info.app ?? '').substring(0, (info.app ?? '').length.clamp(0, 1024)),
   'playing': info.playing,
-  'artwork': info.art != null && info.art!.length <= hostPlayerArtworkLimit
+  if (info.album != null)
+    'album': info.album!.substring(0, info.album!.length.clamp(0, 1024)),
+  if (info.position != null) 'positionUs': info.position!.inMicroseconds,
+  if (info.duration != null) 'durationUs': info.duration!.inMicroseconds,
+  'artwork':
+      large &&
+          info.artLarge != null &&
+          info.artLarge!.length <= hostPlayerLargeArtworkLimit
+      ? base64Encode(info.artLarge!)
+      : info.art != null && info.art!.length <= hostPlayerArtworkLimit
       ? base64Encode(info.art!)
       : null,
 };

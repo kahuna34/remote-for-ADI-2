@@ -1,3 +1,5 @@
+import '../desktop/host_interface.dart';
+
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -28,6 +30,7 @@ class VolumeKeys {
   DateTime? _lastUp, _lastDown;
 
   bool get _enabled =>
+      !hostHasInterface &&
       !_disposed &&
       _foreground &&
       _current &&

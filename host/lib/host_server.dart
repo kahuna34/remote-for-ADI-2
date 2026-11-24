@@ -1,3 +1,5 @@
+import 'package:adi2_remote/desktop/host_interface.dart';
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -9,6 +11,7 @@ import 'package:flutter/foundation.dart';
 
 import 'host_log.dart';
 import 'host_analyzer.dart';
+import 'isolated_host_analyzer.dart';
 import 'host_player.dart';
 
 import 'package:adi2_remote/host/host_player_protocol.dart';
@@ -30,7 +33,8 @@ class HostUsbException implements Exception {
 }
 
 class _Peer {
-  _Peer(this.socket);
+  _Peer(this.socket, {this.loopback = false});
+  final bool loopback;
   final WebSocket socket;
   final challenge = randomToken();
   final created = DateTime.now();
@@ -57,10 +61,19 @@ class HostServer extends ChangeNotifier {
     HostAnalyzer? analyzer,
     HostPlayer? player,
     this.closeDelay = const Duration(seconds: 3),
-  }) : player = player ?? HostPlayer(source: NativeHostPlayerSource()),
+  }) : player =
+           player ??
+           HostPlayer(
+             source: Platform.isLinux
+                 ? LinuxHostPlayerSource()
+                 : NativeHostPlayerSource(),
+           ),
        filter = filter ?? HostVolumeFilter(),
        analyzer =
-           analyzer ?? HostAnalyzer(capture: NativeHostAnalyzerCapture());
+           analyzer ??
+           (Platform.isLinux
+               ? IsolatedHostAnalyzer()
+               : HostAnalyzer(capture: NativeHostAnalyzerCapture()));
   final HostAnalyzer analyzer;
   final HostPlayer player;
   final String id, name;
@@ -122,7 +135,9 @@ class HostServer extends ChangeNotifier {
   String status = 'Bereit';
   List<String> get connectedNames => List.unmodifiable([
     for (final peer in _sessions)
-      if (peer.envelope != null) peer.clientName!,
+      if (peer.envelope != null &&
+          pairing.devices[peer.deviceId]?.local != true)
+        peer.clientName!,
   ]);
   int get port => _server?.port ?? 0;
 
@@ -153,6 +168,7 @@ class HostServer extends ChangeNotifier {
         await request.response.close();
         return;
       }
+      final loopback = request.connectionInfo?.remoteAddress.isLoopback == true;
       try {
         accept(
           await WebSocketTransformer.upgrade(
@@ -163,6 +179,7 @@ class HostServer extends ChangeNotifier {
             // am Tablet zu Protokollfehlern (1002) und Abbrüchen.
             compression: CompressionOptions.compressionOff,
           ),
+          loopback: loopback,
         );
       } catch (_) {
         // Ein abgebrochener HTTP-Handshake beendet nur diesen Verbindungsversuch.
@@ -309,13 +326,13 @@ class HostServer extends ChangeNotifier {
   }
 
   /// Gemeinsamer Sitzungseinstieg für TCP-WebSockets und In-Memory-Tests.
-  void accept(WebSocket socket) {
+  void accept(WebSocket socket, {bool loopback = false}) {
     if (_stopping) {
       unawaited(socket.close());
       return;
     }
     _ensureSessionRuntime();
-    final peer = _Peer(socket);
+    final peer = _Peer(socket, loopback: loopback);
     // Keine WebSocket-Pings: dart:io trennte damit laufende Sitzungen am
     // Tablet (Code 1001), obwohl Lebenszeichen ankamen. Tote Verbindungen
     // erkennt sessionTimeout über die Lebenszeichen der App.
@@ -392,6 +409,7 @@ class HostServer extends ChangeNotifier {
             player.subscribe(
               peer,
               (type, payload) => _send(peer, type, payload),
+              large: peer.loopback,
             );
           case 'player_unsubscribe':
             player.unsubscribe(peer);
@@ -410,6 +428,12 @@ class HostServer extends ChangeNotifier {
                     ? 2
                     : 1,
                 bars: data['bars'] == true,
+                levelsOnly: data['levelsOnly'] == true,
+                fps:
+                    hostHasInterface &&
+                        pairing.devices[peer.deviceId]?.local == true
+                    ? (data['fps'] == 60 ? 60 : 30)
+                    : null,
               ),
             );
           case 'analyzer_stop':
@@ -464,7 +488,7 @@ class HostServer extends ChangeNotifier {
         return;
       }
       final device = pairing.devices[message['deviceId']];
-      if (device == null) {
+      if (device == null || (device.local && !peer.loopback)) {
         _send(peer, 'not_paired');
         _drop(peer);
         return;
@@ -483,7 +507,11 @@ class HostServer extends ChangeNotifier {
         _drop(peer);
         return;
       }
-      if (_sessions.length >= maxSessions) {
+      if (!device.local &&
+          _sessions
+                  .where((p) => pairing.devices[p.deviceId]?.local != true)
+                  .length >=
+              maxSessions) {
         _send(peer, 'busy');
         _drop(peer);
         return;

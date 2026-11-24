@@ -17,6 +17,45 @@ class AppUpdates extends ChangeNotifier {
   UpdateResult? _visibleResult;
   UpdateResult? get result => _visibleResult;
   Future<void>? _initializing;
+  Future<UpdateCheck>? _hostChecker;
+  Future<void> Function(bool)? _hostEnabledChanged;
+
+  /// A combined desktop host supplies its existing version/asset selection and
+  /// persistence. The surface must not start the standalone app's updater.
+  void useHostChecker(
+    Future<UpdateCheck> checker, {
+    required Future<void> Function(bool) onEnabledChanged,
+  }) {
+    _hostChecker = checker;
+    _hostEnabledChanged = onEnabledChanged;
+  }
+
+  bool get automaticEnabled => _hostChecker == null
+      ? AppSettings.instance.updateCheck
+      : checker?.enabled ?? false;
+
+  Future<void> setAutomaticEnabled(bool enabled) async {
+    if (_hostChecker != null) {
+      if (checker == null) await initialize();
+      checker!.enabled = enabled;
+      await _hostEnabledChanged!(enabled);
+      notifyListeners();
+      if (enabled) await checker!.check();
+    } else {
+      await AppSettings.instance.setUpdateCheck(enabled);
+      settingsChanged();
+    }
+  }
+
+  void hostResultChanged() {
+    final value = checker?.result;
+    if (value?.status != UpdateStatus.error ||
+        checker?.resultWasAutomatic != true) {
+      _visibleResult = value;
+    }
+    notifyListeners();
+  }
+
   Future<void> initialize() async {
     if (isPlayStoreBuild) return;
     await (_initializing ??= _initialize());
@@ -26,10 +65,17 @@ class AppUpdates extends ChangeNotifier {
     final settings = AppSettings.instance;
     await settings.load();
     if (isPlayStoreBuild) return;
+    if (_hostChecker != null) {
+      checker = await _hostChecker;
+      hostResultChanged();
+      return;
+    }
     checker = UpdateCheck(
       installedVersion: appVersion,
       platform: Platform.isAndroid
           ? UpdatePlatform.android
+          : Platform.isLinux
+          ? UpdatePlatform.linux
           : UpdatePlatform.other,
       enabled: settings.updateCheck,
       lastCheck: settings.lastUpdateCheck,

@@ -1,3 +1,5 @@
+import 'support/analyzer_meter_geometry.dart';
+
 import 'package:adi2_remote/analyzer/analyzer_controller.dart';
 import 'package:adi2_remote/analyzer/analyzer_dsp.dart';
 import 'package:adi2_remote/app_settings.dart';
@@ -438,32 +440,19 @@ void main() {
             .toList();
         expect(levels.first.color, analyzerColors[i]);
         expect(levels.last.clipped, isTrue);
-        final rms = tester.getRect(
-          find.byKey(const ValueKey('analyzer-rms-fill')).first,
-        );
+        final first = find.byType(AnalyzerLevelBar).first;
+        final last = find.byType(AnalyzerLevelBar).last;
+        final rms = meterRms(tester, first);
         expect(rms.width, 0);
-        final peak = tester.getRect(
-          find.byKey(const ValueKey('analyzer-peak-marker')).first,
-        );
+        final peak = meterPeak(tester, first);
         expect(peak.left, rms.left);
-        expect(
-          tester
-              .widget<ColoredBox>(
-                find.byKey(const ValueKey('analyzer-peak-marker')).last,
-              )
-              .color,
-          Palette.red,
-        );
+        expect(meterPainter(tester, last).peakColor, Palette.red);
       }
       await settings.setAnalyzerRange(100);
       await tester.pump();
       final bar = find.byType(AnalyzerLevelBar).first;
-      final rms = tester.getRect(
-        find.byKey(const ValueKey('analyzer-rms-fill')).first,
-      );
-      final peak = tester.getRect(
-        find.byKey(const ValueKey('analyzer-peak-marker')).first,
-      );
+      final rms = meterRms(tester, bar);
+      final peak = meterPeak(tester, bar);
       expect(rms.width / tester.getSize(bar).width, closeTo(0.25, 0.001));
       expect(
         (peak.left - rms.left) / (tester.getSize(bar).width - 2),

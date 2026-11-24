@@ -7,6 +7,32 @@ import 'package:adi2_remote/media/now_playing.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('large local cover fits the sealed player frame', () {
+    final large = Uint8List.fromList([
+      255,
+      216,
+      255,
+      ...List.filled(hostPlayerLargeArtworkLimit - 3, 7),
+    ]);
+    final state = encodeHostPlayerState(
+      NowPlayingInfo(title: 'Big', artLarge: large),
+      large: true,
+    );
+    final key = randomToken();
+    final wire = HostEnvelope(
+      key,
+      outgoing: 'server',
+      incoming: 'client',
+    ).seal('player_state', state);
+    expect(wire.length, lessThan(hostMaxPlayerFrameLength));
+    final data = HostEnvelope(
+      key,
+      outgoing: 'client',
+      incoming: 'server',
+    ).open(decodeHostMessage(wire));
+    expect(decodeHostPlayerState(data, null).art, large);
+  });
+
   test('capability negotiation handles old and future hosts', () {
     for (final old in [null, 0, -1, '1', true]) {
       expect(negotiateHostPlayerVersion(old), 0);

@@ -1,6 +1,14 @@
+import 'desktop/desktop_compact_scale.dart';
+import 'desktop/host_interface.dart';
+import 'desktop/desktop_host_selection.dart';
+
+import 'app_settings.dart';
+import 'desktop/desktop_windows.dart';
+
 import 'package:flutter/material.dart';
 
 import 'update/app_updates.dart';
+import 'host/host_client.dart';
 import 'device/adi2_controller.dart';
 import 'l10n/l10n.dart';
 import 'media/now_playing.dart';
@@ -23,15 +31,26 @@ void main() {
 }
 
 class Adi2RemoteApp extends StatefulWidget {
-  const Adi2RemoteApp({super.key});
+  const Adi2RemoteApp({
+    super.key,
+    this.localHost,
+    this.desktopWindows,
+    this.desktopSelection,
+  });
+  final HostCredentials? localHost;
+  final DesktopHostSelection? desktopSelection;
+  final DesktopWindows? desktopWindows;
 
   @override
   State<Adi2RemoteApp> createState() => _Adi2RemoteAppState();
 }
 
 class _Adi2RemoteAppState extends State<Adi2RemoteApp> {
-  final Adi2Controller _ctrl = Adi2Controller();
-  final NowPlaying _np = NowPlaying();
+  late final Adi2Controller _ctrl = Adi2Controller(
+    localHost: widget.localHost,
+    desktopSelection: widget.desktopSelection,
+  );
+  late final NowPlaying _np = NowPlaying(hostOnly: widget.localHost != null);
   late final AppLifecycleListener _life;
   bool _animationDone = false;
   bool _servicesStarted = false;
@@ -56,6 +75,9 @@ class _Adi2RemoteAppState extends State<Adi2RemoteApp> {
         if (_servicesStarted) _ctrl.setHostForeground(false);
       },
       onResume: () {
+        if (widget.localHost != null && hostHasInterface) {
+          AppSettings.instance.load(reload: true);
+        }
         if (_servicesStarted) _ctrl.setHostForeground(true);
       },
     );
@@ -72,13 +94,14 @@ class _Adi2RemoteAppState extends State<Adi2RemoteApp> {
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
+    final app = ListenableBuilder(
       listenable: AppLang.instance,
       builder: (context, _) => MaterialApp(
         title: 'Remote for ADI-2',
         debugShowCheckedModeBanner: false,
         theme: buildTheme(),
-        builder: (context, child) => TabletOrientation(child: child!),
+        builder: (context, child) =>
+            DesktopCompactScale(child: TabletOrientation(child: child!)),
         home: SafetyGate(
           onReady: () {
             _servicesStarted = true;
@@ -90,15 +113,22 @@ class _Adi2RemoteAppState extends State<Adi2RemoteApp> {
               if (mounted) setState(() => _animationDone = true);
             },
             child: _animationDone
-                ? SetupGate(
-                    ctrl: _ctrl,
-                    np: _np,
-                    child: HomePage(ctrl: _ctrl, np: _np),
-                  )
+                ? widget.localHost != null
+                      ? HomePage(ctrl: _ctrl, np: _np)
+                      : SetupGate(
+                          ctrl: _ctrl,
+                          np: _np,
+                          child: HomePage(ctrl: _ctrl, np: _np),
+                        )
                 : const Scaffold(),
           ),
         ),
       ),
     );
+    return widget.localHost != null &&
+            widget.desktopWindows != null &&
+            hostHasInterface
+        ? DesktopWindowScope(windows: widget.desktopWindows!, child: app)
+        : app;
   }
 }

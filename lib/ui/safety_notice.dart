@@ -93,9 +93,18 @@ class _SafetyNoticeState extends State<_SafetyNotice> {
 
 /// Builds setup and starts connection services only after saved acceptance.
 class SafetyGate extends StatefulWidget {
-  const SafetyGate({super.key, required this.child, required this.onReady});
+  const SafetyGate({
+    super.key,
+    required this.child,
+    required this.onReady,
+    this.requireNotice = false,
+  });
   final Widget child;
   final VoidCallback onReady;
+
+  /// Seit 24.11.2026 standardmäßig kein Hinweis beim Start (Wunsch des Nutzers);
+  /// der Hinweis bleibt in den App-Einstellungen unter „Sicherheit und Haftung“.
+  final bool requireNotice;
 
   @override
   State<SafetyGate> createState() => _SafetyGateState();
@@ -116,6 +125,11 @@ class _SafetyGateState extends State<SafetyGate> {
       // Erst die gespeicherte Sprache laden, sonst erscheint der Hinweis
       // beim Start in der Standardsprache Englisch.
       await AppLang.instance.load();
+      if (!widget.requireNotice) {
+        widget.onReady();
+        if (mounted) setState(() => _ready = true);
+        return;
+      }
       await AppSettings.instance.loadSafetyNotice();
       if (!mounted) return;
       if (AppSettings.instance.safetyNoticeAccepted <

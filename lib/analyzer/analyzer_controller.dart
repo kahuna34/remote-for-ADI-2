@@ -1,3 +1,5 @@
+import '../desktop/host_interface.dart';
+
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -7,6 +9,7 @@ import 'package:flutter/scheduler.dart';
 
 import 'analyzer_dsp.dart';
 import 'analyzer_calibration.dart';
+import 'linux_capture.dart';
 import '../dev/analyzer_selftest_diagnostics.dart';
 import '../app_settings.dart';
 import '../host/host_client.dart';
@@ -23,6 +26,31 @@ enum AnalyzerStatus {
 }
 
 class AnalyzerController extends ChangeNotifier {
+  bool get _isLinux => !kIsWeb && defaultTargetPlatform == TargetPlatform.linux;
+  LinuxAnalyzerCapture? _linux;
+  Future<T?> _invoke<T>(String method, [dynamic arguments]) async {
+    if (!_isLinux) return _method.invokeMethod<T>(method, arguments);
+    final capture = _linux ??= LinuxAnalyzerCapture();
+    switch (method) {
+      case 'permission':
+      case 'requestPermission':
+        return true as T;
+      case 'start':
+        await capture.start();
+      case 'stop':
+        await capture.stop();
+      case 'startCalibrationTone':
+        try {
+          await capture.startCalibrationTone();
+        } catch (error) {
+          throw PlatformException(code: 'toneFailed', message: '$error');
+        }
+      case 'stopCalibrationTone':
+        await capture.stopCalibrationTone();
+    }
+    return null;
+  }
+
   AnalyzerController({HostClient? host}) : _host = host, _requestedHost = host {
     _hostReady = host?.connected == true && host?.analyzerAvailable == true;
     _host?.addListener(_hostChanged);
@@ -34,6 +62,78 @@ class AnalyzerController extends ChangeNotifier {
   HostClient? _host, _requestedHost;
   bool _hostReady = false, _hostSuspended = false;
   bool get viaHost => _host != null;
+  bool get _localDesktop =>
+      hostHasInterface &&
+      const [
+        '127.0.0.1',
+        '::1',
+        'localhost',
+      ].contains(_host?.credentials?.host.address);
+  bool _spectrumRequired = true;
+  final _meterOnlyOwners = <Object>{};
+  int _linuxFps = AppSettings.instance.linuxAnalyzerFps;
+
+  void setMeterOnlyFor(Object owner, bool value) {
+    if (value) {
+      _meterOnlyOwners.add(owner);
+    } else {
+      _meterOnlyOwners.remove(owner);
+    }
+    _refreshDemand();
+  }
+
+  void _refreshDemand() {
+    if (_activeOwners.isEmpty) return;
+    final needed = _activeOwners.any(
+      (owner) => !_meterOnlyOwners.contains(owner),
+    );
+    if (needed == _spectrumRequired) return;
+    _spectrumRequired = needed;
+    _requestChanged();
+  }
+
+  void _requestChanged() {
+    if (_desired &&
+        _running &&
+        _host?.connected == true &&
+        _host?.reconnecting == false &&
+        (_host?.analyzerVersion ?? 0) >= 2) {
+      _host!.send('analyzer_start', _hostRequest);
+    }
+  }
+
+  /// Changes to layout/status only. Audio frames use this controller as the
+  /// painter's repaint signal and never rebuild the display or its ancestors.
+  final presentation = ChangeNotifier();
+  Object? _presentationState;
+  @override
+  void notifyListeners() {
+    final next = (
+      status,
+      frame == null,
+      frame?.sampleRate,
+      inputRejected,
+      inputErrorCode,
+      view,
+      bars,
+      peakHold,
+      bandResolution,
+      calibrationOffset,
+      phoneMicrophone,
+      device,
+      // Hidden diagnostics can change with capture frames, not presentation.
+      analyzerDeveloperMode.value ? diagnosticText : null,
+      hostPlatform,
+      viaHost,
+      inputErrorDetail,
+    );
+    if (next != _presentationState) {
+      _presentationState = next;
+      presentation.notifyListeners();
+    }
+    super.notifyListeners();
+  }
+
   String? get hostPlatform => _host?.analyzerPlatform;
 
   Future<void> setHostSource(HostClient? host) {
@@ -88,7 +188,10 @@ class AnalyzerController extends ChangeNotifier {
       return;
     }
     if (data['type'] == 'analyzer_error') {
-      _event({'status': data['code']});
+      _event({
+        'status': data['code'],
+        if (data['detail'] != null) 'detail': data['detail'],
+      });
       return;
     }
     if (data['type'] == 'analyzer_metadata') {
@@ -119,7 +222,7 @@ class AnalyzerController extends ChangeNotifier {
             ? _hostMetadata['calibrationIdentity']
             : data['calibrationIdentity'],
       };
-      if (data['v'] == 2) {
+      if (data['v'] == 2 && !_localDesktop) {
         // One latest frame, 20 ms playout delay. Never accumulate a WLAN backlog.
         _pendingHostEvent = event;
         _hostPlayout ??= Timer(const Duration(milliseconds: 20), () {
@@ -171,15 +274,21 @@ class AnalyzerController extends ChangeNotifier {
       _updateAnalysis(rawFrame!, seconds: dt, smoothMeters: true);
       _notify();
       // Keep rendering between arrivals; a stalled stream stops scheduling.
-      if (time < _displayUntil) _animateHost();
+      // Linux at 30 fps: draw only on arrival (halves the full-window redraws).
+      if (time < _displayUntil && !_drawOnArrivalOnly) _animateHost();
     });
   }
+
+  bool get _drawOnArrivalOnly =>
+      _localDesktop && AppSettings.instance.linuxAnalyzerFps < 60;
 
   Map<String, dynamic> get _hostRequest => {
     'bandResolution': bandResolution.bandsPerOctave,
     if ((_host?.analyzerVersion ?? 0) >= 2) ...{
       'analyzerVersion': 2,
       'bars': bars,
+      if (_localDesktop) 'fps': AppSettings.instance.linuxAnalyzerFps,
+      if (_localDesktop && !_spectrumRequired) 'levelsOnly': true,
     },
   };
 
@@ -196,14 +305,40 @@ class AnalyzerController extends ChangeNotifier {
     }
   }
 
+  int _preferencesRevision = AppSettings.instance.analyzerPreferencesRevision;
+
   void _settingsChanged() {
+    final settings = AppSettings.instance;
+    if (_linuxFps != settings.linuxAnalyzerFps) {
+      _linuxFps = settings.linuxAnalyzerFps;
+      if (_localDesktop) _requestChanged();
+    }
+    final reloaded =
+        _preferencesRevision != settings.analyzerPreferencesRevision;
+    if (reloaded) {
+      _preferencesRevision = settings.analyzerPreferencesRevision;
+      final barsChanged = bars != settings.analyzerBars;
+      bars = settings.analyzerBars;
+      peakHold = settings.analyzerPeakHold;
+      _applyBallistics(settings.analyzerBallistics);
+      if (barsChanged &&
+          _running &&
+          _host?.connected == true &&
+          _host?.reconnecting == false &&
+          (_host?.analyzerVersion ?? 0) >= 2) {
+        _host!.send('analyzer_start', _hostRequest);
+      }
+    }
     _applyPeakHoldDuration();
     final next = AppSettings.instance.analyzerBandResolution;
-    final offset = AppSettings.instance.analyzerCalibration(
-      calibrationIdentity?.key,
-    );
+    final offset = _linuxSource
+        ? 0.0
+        : AppSettings.instance.analyzerCalibration(calibrationIdentity?.key);
     final offsetChanged = offset != calibrationOffset;
-    if (next == _bandResolution && !offsetChanged) return;
+    if (next == _bandResolution && !offsetChanged) {
+      if (reloaded) _notify();
+      return;
+    }
     final bandsChanged = next != _bandResolution;
     _bandResolution = next;
     calibrationOffset = offset;
@@ -241,7 +376,7 @@ class AnalyzerController extends ChangeNotifier {
       return;
     }
     try {
-      await _method.invokeMethod<void>('setBandResolution', {
+      await _invoke<void>('setBandResolution', {
         'bandsPerOctave': next.bandsPerOctave,
       });
     } on PlatformException {
@@ -254,7 +389,7 @@ class AnalyzerController extends ChangeNotifier {
   Future<void> _diagnosticsChanged() async {
     if (_running && !viaHost) {
       try {
-        await _method.invokeMethod<void>('setDiagnostics', {
+        await _invoke<void>('setDiagnostics', {
           'enabled': analyzerDeveloperMode.value,
         });
       } on PlatformException {
@@ -290,7 +425,9 @@ class AnalyzerController extends ChangeNotifier {
       mediaVolume! < mediaVolumeMax!;
   int _calibrationGeneration = 0;
   AnalyzerCalibrationMeasurement? _measurement;
+  bool get _linuxSource => viaHost ? hostPlatform == 'linux' : _isLinux;
   bool get canCalibrate =>
+      !_linuxSource &&
       !_disposed &&
       _desired &&
       _running &&
@@ -341,7 +478,7 @@ class AnalyzerController extends ChangeNotifier {
       if (useTestTone) {
         guard();
         try {
-          await _method.invokeMethod<void>('startCalibrationTone');
+          await _invoke<void>('startCalibrationTone');
         } on PlatformException {
           throw AnalyzerCalibrationError.toneUnavailable;
         } on MissingPluginException {
@@ -361,7 +498,7 @@ class AnalyzerController extends ChangeNotifier {
       if (useTestTone) {
         _toneRunning = false;
         try {
-          await _method.invokeMethod<void>('stopCalibrationTone');
+          await _invoke<void>('stopCalibrationTone');
         } on PlatformException {
           /* Native stop is idempotent; the buffer also ends by itself. */
         } on MissingPluginException {
@@ -487,6 +624,7 @@ class AnalyzerController extends ChangeNotifier {
     } else {
       _activeOwners.remove(owner);
     }
+    _refreshDemand();
     if (_activeOwners.isNotEmpty) return setActive(true);
     // Verlässt die App den Vordergrund, sofort stoppen: Das System hält die
     // Aufnahme dort ohnehin an; ein Nachlauf ließe sie beim Zurückkehren als
@@ -495,8 +633,7 @@ class AnalyzerController extends ChangeNotifier {
     final leaving =
         life != null &&
         life != AppLifecycleState.resumed &&
-        !(life == AppLifecycleState.inactive &&
-            defaultTargetPlatform == TargetPlatform.macOS);
+        !(life == AppLifecycleState.inactive && hostHasInterface);
     if (leaving) return setActive(false);
     if (_desired) {
       // Lokale Aufnahme stellt die Audio-Sitzung um; jedes Starten und
@@ -508,6 +645,15 @@ class AnalyzerController extends ChangeNotifier {
       });
     }
     return _operations;
+  }
+
+  /// A detached Linux slot must release its subscription without the layout grace.
+  Future<void> detachForWindow(Object owner) {
+    _activeOwners.remove(owner);
+    _meterOnlyOwners.remove(owner);
+    return _activeOwners.isEmpty
+        ? setActive(false)
+        : setActiveFor(owner, false);
   }
 
   /// Explicit capture barriers (including shutdown) remain immediate.
@@ -543,8 +689,7 @@ class AnalyzerController extends ChangeNotifier {
         return;
       }
       final allowed =
-          host != null ||
-          (await _method.invokeMethod<bool>('permission') ?? false);
+          host != null || (await _invoke<bool>('permission') ?? false);
       if (!_desired || _disposed) return;
       if (!allowed) {
         status = AnalyzerStatus.permissionRequired;
@@ -553,19 +698,22 @@ class AnalyzerController extends ChangeNotifier {
       }
       _subscription = host != null
           ? host.analyzerEvents.stream.listen(_hostEvent)
-          : _events.receiveBroadcastStream().listen(
-              _event,
-              onError: (_) {
-                _calibrationGeneration++;
-                status = AnalyzerStatus.captureFailed;
-                _notify();
-              },
-              onDone: () {
-                _calibrationGeneration++;
-                status = AnalyzerStatus.captureFailed;
-                _notify();
-              },
-            );
+          : (_isLinux
+                    ? (_linux ??= LinuxAnalyzerCapture()).events
+                    : _events.receiveBroadcastStream())
+                .listen(
+                  _event,
+                  onError: (_) {
+                    _calibrationGeneration++;
+                    status = AnalyzerStatus.captureFailed;
+                    _notify();
+                  },
+                  onDone: () {
+                    _calibrationGeneration++;
+                    status = AnalyzerStatus.captureFailed;
+                    _notify();
+                  },
+                );
       _running = true;
       _frameAge
         ..reset()
@@ -588,7 +736,7 @@ class AnalyzerController extends ChangeNotifier {
       if (host != null) {
         host.send('analyzer_start', _hostRequest);
       } else {
-        await _method.invokeMethod<void>('start', {
+        await _invoke<void>('start', {
           'bandsPerOctave': bandResolution.bandsPerOctave,
           if (analyzerDeveloperMode.value) 'diagnostics': true,
         });
@@ -610,7 +758,7 @@ class AnalyzerController extends ChangeNotifier {
   /// iPhone: setzt die Medienlautstärke für die Kalibrierung auf 100 %.
   Future<void> setMediaVolumeMax() async {
     try {
-      await _method.invokeMethod<void>('setMediaVolumeMax');
+      await _invoke<void>('setMediaVolumeMax');
     } on PlatformException {
       // Ohne Regler bleibt der Hinweis stehen; der Nutzer stellt selbst ein.
     } on MissingPluginException {
@@ -624,7 +772,7 @@ class AnalyzerController extends ChangeNotifier {
       return;
     }
     try {
-      await _method.invokeMethod<bool>('requestPermission');
+      await _invoke<bool>('requestPermission');
     } on PlatformException {
       /* State is refreshed below. */
     } on MissingPluginException {
@@ -689,9 +837,9 @@ class AnalyzerController extends ChangeNotifier {
     if (identity?.key != calibrationIdentity?.key) {
       _calibrationGeneration++;
       calibrationIdentity = identity;
-      calibrationOffset = AppSettings.instance.analyzerCalibration(
-        identity?.key,
-      );
+      calibrationOffset = _linuxSource
+          ? 0
+          : AppSettings.instance.analyzerCalibration(identity?.key);
       spectrum.reset();
       bassSpectrum.reset();
       bands.reset();
@@ -731,7 +879,7 @@ class AnalyzerController extends ChangeNotifier {
       ..start();
     _silence = next.peak.every((v) => v < -95) ? _silence + next.seconds : 0;
     status = _silence > 1.5 ? AnalyzerStatus.silent : AnalyzerStatus.running;
-    if (viaHost && (_host?.analyzerVersion ?? 0) >= 2) {
+    if (viaHost && !_localDesktop && (_host?.analyzerVersion ?? 0) >= 2) {
       if (frame == null ||
           frame!.logSpectrum != next.logSpectrum ||
           spectrum.values.length != next.spectrum.length ||
@@ -813,7 +961,7 @@ class AnalyzerController extends ChangeNotifier {
         if (_host case final host?) {
           host.send('analyzer_stop');
         } else {
-          await _method.invokeMethod<void>('stop');
+          await _invoke<void>('stop');
         }
       } on PlatformException {
         /* Platform already stopped. */
@@ -853,7 +1001,11 @@ class AnalyzerController extends ChangeNotifier {
     _cancelHostDisplay();
     _disposed = true;
     _desired = false;
-    _operations = _operations.then((_) => _stop());
+    _operations = _operations.then((_) async {
+      await _stop();
+      await _linux?.dispose();
+    });
+    presentation.dispose();
     super.dispose();
   }
 }

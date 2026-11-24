@@ -28,7 +28,11 @@ class DesktopMidi implements HostMidiPort {
        ),
        _platform =
            platform ??
-           (Platform.isMacOS ? TargetPlatform.macOS : TargetPlatform.windows),
+           (Platform.isMacOS
+               ? TargetPlatform.macOS
+               : Platform.isLinux
+               ? TargetPlatform.linux
+               : TargetPlatform.windows),
        _windowsNameQuery = windowsNameQuery ?? windowsPresentDeviceNames,
        _macNameQuery = macNameQuery ?? macUsbProductNames;
 
@@ -85,6 +89,12 @@ class DesktopMidi implements HostMidiPort {
       return null;
     }
     final candidates = await _candidates();
+    if (_platform == TargetPlatform.linux &&
+        _device != null &&
+        !candidates.any((d) => d.id == _device!.id)) {
+      await close();
+      onLost?.call();
+    }
     if (candidates.isEmpty) return null;
     return displayName(await _resolveDeviceName(candidates));
   }
@@ -111,6 +121,7 @@ class DesktopMidi implements HostMidiPort {
 
   Future<String> _resolveDeviceName(List<MidiDevice> candidates) async {
     final name = candidates.first.name;
+    if (_platform == TargetPlatform.linux) return name.split(':').first.trim();
     if (_platform != TargetPlatform.windows) {
       return withUsbName(name, await _macNameQuery());
     }

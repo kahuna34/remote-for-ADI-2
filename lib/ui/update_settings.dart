@@ -39,10 +39,9 @@ class _UpdateSettingsState extends State<UpdateSettings> {
                       'Fragt einmal täglich bei GitHub nach einer neuen Version.',
                     ),
                   ),
-                  value: AppSettings.instance.updateCheck,
+                  value: AppUpdates.instance.automaticEnabled,
                   onChanged: (value) async {
-                    await AppSettings.instance.setUpdateCheck(value);
-                    AppUpdates.instance.settingsChanged();
+                    await AppUpdates.instance.setAutomaticEnabled(value);
                   },
                 ),
                 ListTile(

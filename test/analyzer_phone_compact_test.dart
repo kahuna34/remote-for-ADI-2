@@ -162,15 +162,17 @@ void main() {
           }
           for (var ch = 0; ch < 2; ch++) {
             final value = find.byKey(ValueKey('analyzer-compact-values-$ch'));
-            final text = tester.widget<Text>(value);
-            expect(text.style!.fontSize, greaterThanOrEqualTo(14));
+            final painter =
+                tester.widget<CustomPaint>(value).painter as dynamic;
+            final style = painter.textStyle as TextStyle;
+            expect(style.fontSize, greaterThanOrEqualTo(14));
             expect(
               find.ancestor(of: value, matching: find.byType(FittedBox)),
               findsNothing,
             );
             final transform = tester.renderObject(value).getTransformTo(null);
             expect(
-              text.style!.fontSize! * scale * transform.getMaxScaleOnAxis(),
+              style.fontSize! * scale * transform.getMaxScaleOnAxis(),
               greaterThanOrEqualTo(10),
             );
           }

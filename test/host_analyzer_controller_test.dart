@@ -3,6 +3,7 @@ import 'package:adi2_remote/analyzer/analyzer_dsp.dart';
 import 'package:adi2_remote/app_settings.dart';
 import 'package:adi2_remote/host/host_analyzer_protocol.dart';
 import 'package:adi2_remote/host/host_client.dart';
+import 'package:adi2_remote/host/host_protocol.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:adi2_remote/device/adi2_controller.dart';
@@ -69,6 +70,133 @@ void main() {
       null,
     );
   });
+
+  testWidgets(
+    'Local desktop requests 30/60 fps and only meters when all visible owners need meters',
+    (tester) async {
+      final host = AnalyzerTestHost()
+        ..analyzerVersion = 2
+        ..analyzerPlatform = 'linux'
+        ..credentials = const HostCredentials(
+          HostEndpoint(
+            id: 'local',
+            name: 'Local',
+            address: '127.0.0.1',
+            port: hostDefaultPort,
+          ),
+          'ui',
+          'key',
+        );
+      final c = AnalyzerController(host: host);
+      c.setMeterOnlyFor('header', true);
+      await c.setActiveFor('header', true);
+      expect(host.sent.last.$2['fps'], 30);
+      expect(host.sent.last.$2['levelsOnly'], true);
+      await c.setActiveFor('fullscreen', true);
+      expect(host.sent.last.$2.containsKey('levelsOnly'), false);
+      await c.setActiveFor('fullscreen', false);
+      expect(host.sent.last.$2['levelsOnly'], true);
+      await AppSettings.instance.setLinuxAnalyzerFps(60);
+      expect(host.sent.last.$2['fps'], 60);
+      await c.detachForWindow('header');
+      expect(host.sent.last.$1, 'analyzer_stop');
+      c.dispose();
+      host.dispose();
+    },
+    variant: TargetPlatformVariant({
+      TargetPlatform.linux,
+      TargetPlatform.macOS,
+      TargetPlatform.windows,
+    }),
+  );
+
+  testWidgets(
+    'Smartphone request keeps its existing protocol without Linux frame-rate or meter-only flags',
+    (tester) async {
+      final host = AnalyzerTestHost()..analyzerVersion = 2;
+      final c = AnalyzerController(host: host);
+      c.setMeterOnlyFor('header', true);
+      await c.setActiveFor('header', true);
+      expect(host.sent.last.$2.containsKey('fps'), false);
+      expect(host.sent.last.$2.containsKey('levelsOnly'), false);
+      await c.setActive(false);
+      c.dispose();
+      host.dispose();
+    },
+  );
+
+  testWidgets(
+    'Embedded analyzer stays on the host while its local session connects',
+    (tester) async {
+      final host = AnalyzerTestHost()..online = false;
+      final device = Adi2Controller(
+        host: host,
+        localHost: const HostCredentials(
+          HostEndpoint(
+            id: 'local',
+            name: 'Local',
+            address: '127.0.0.1',
+            port: hostDefaultPort,
+          ),
+          'ui',
+          'key',
+        ),
+      );
+      final c = AnalyzerController();
+      expect(device.viaHost, isFalse);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              height: 300,
+              child: AnalyzerPanel(controller: c, deviceController: device),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(c.viaHost, isTrue);
+      expect(c.inputErrorCode, 'analyzer_disconnected');
+      expect(host.sent, isEmpty);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await c.setActive(false);
+      c.dispose();
+      device.dispose();
+    },
+  );
+
+  testWidgets(
+    'Linux host ignores saved calibration on arrival and settings changes',
+    (tester) async {
+      final host = AnalyzerTestHost()..analyzerPlatform = 'linux';
+      final c = AnalyzerController(host: host);
+      await c.setActive(true);
+      void send() => host.analyzerEvents.add({
+        'type': 'analyzer_frame',
+        ...encodeHostAnalyzerFrame(transportFrame(48000, c.bandResolution)),
+        'device': 'ADI-2 DAC',
+        'calibrationIdentity': {
+          'hostManufacturer': 'Linux',
+          'hostModel': 'PC',
+          'usbName': 'ADI-2 DAC',
+        },
+      });
+      send();
+      final key = c.calibrationIdentity!.key;
+      await AppSettings.instance.setAnalyzerCalibration(key, 12);
+      expect(c.calibrationOffset, 0);
+      expect(c.frame!.peak, c.rawFrame!.peak);
+      expect(c.canCalibrate, isFalse);
+      await c.setActive(false);
+      await c.setActive(true);
+      send();
+      expect(c.calibrationOffset, 0);
+      expect(c.frame!.peak, c.rawFrame!.peak);
+      await c.setActive(false);
+      c.dispose();
+      host.dispose();
+    },
+  );
 
   testWidgets(
     'Host frames use calibration, envelopes and peak reset; ownership controls start/stop',

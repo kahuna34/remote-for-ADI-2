@@ -1,3 +1,7 @@
+import '../desktop/host_interface.dart';
+import 'test_signals_page.dart';
+import '../desktop/desktop_windows.dart';
+
 import '../eq/eq_library_feature.dart';
 
 import 'package:flutter/material.dart';
@@ -89,18 +93,76 @@ class AppSettingsPage extends StatelessWidget {
                     listenable: AppSettings.instance,
                     builder: (context, _) => Column(
                       children: [
+                        if (ctrl?.embeddedHost == true &&
+                            DesktopWindowScope.maybeOf(context) != null)
+                          SwitchListTile(
+                            key: const ValueKey(
+                              'linux-landscape-extra-setting',
+                            ),
+                            title: Text(
+                              tr('Zusatzbereich im Querformat anzeigen'),
+                            ),
+                            subtitle: Text(
+                              tr(
+                                'Ausgeschaltet: Nur Gerät mit EQ und Status in der Navigation.',
+                              ),
+                            ),
+                            value: AppSettings.instance.linuxLandscapeExtra,
+                            onChanged:
+                                AppSettings.instance.setLinuxLandscapeExtra,
+                          ),
+                        if (ctrl?.embeddedHost == true &&
+                            DesktopWindowScope.maybeOf(context) != null)
+                          SwitchListTile(
+                            key: const ValueKey('linux-compact-setting'),
+                            title: Text(tr('Kompakte Ansicht')),
+                            subtitle: Text(
+                              tr(
+                                'Bedienung wie am Smartphone, auch im breiten Fenster.',
+                              ),
+                            ),
+                            value: AppSettings.instance.linuxCompact,
+                            onChanged: AppSettings.instance.setLinuxCompact,
+                          ),
+                        if (ctrl?.embeddedHost == true &&
+                            DesktopWindowScope.maybeOf(context) != null)
+                          ListTile(
+                            key: const ValueKey('linux-analyzer-fps-setting'),
+                            title: Text(tr('Analyzer-Bildrate')),
+                            trailing: DropdownButton<int>(
+                              value: AppSettings.instance.linuxAnalyzerFps,
+                              items: [
+                                for (final fps in [30, 60])
+                                  DropdownMenuItem(
+                                    value: fps,
+                                    child: Text('$fps fps'),
+                                  ),
+                              ],
+                              onChanged: (value) {
+                                if (value != null) {
+                                  AppSettings.instance.setLinuxAnalyzerFps(
+                                    value,
+                                  );
+                                }
+                              },
+                            ),
+                          ),
+                        TestSignalsTile(ctrl: ctrl),
                         HeaderContentPicker(
                           value: AppSettings.instance.headerContent,
                           onChanged: AppSettings.instance.setHeaderContent,
                         ),
-                        SwitchListTile(
-                          title: Text(tr('Lautstärketasten steuern den ADI-2')),
-                          subtitle: Text(
-                            tr('Nur solange die App im Vordergrund ist.'),
+                        if (!hostHasInterface)
+                          SwitchListTile(
+                            title: Text(
+                              tr('Lautstärketasten steuern den ADI-2'),
+                            ),
+                            subtitle: Text(
+                              tr('Nur solange die App im Vordergrund ist.'),
+                            ),
+                            value: AppSettings.instance.volumeKeys,
+                            onChanged: AppSettings.instance.setVolumeKeys,
                           ),
-                          value: AppSettings.instance.volumeKeys,
-                          onChanged: AppSettings.instance.setVolumeKeys,
-                        ),
                         if (eqLibraryAvailable)
                           SwitchListTile(
                             title: Text(tr('EQ-Bibliothek (oratory1990)')),

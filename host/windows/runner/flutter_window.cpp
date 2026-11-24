@@ -4,8 +4,8 @@
 
 #include "flutter/generated_plugin_registrant.h"
 
-FlutterWindow::FlutterWindow(const flutter::DartProject& project)
-    : project_(project) {}
+FlutterWindow::FlutterWindow(const flutter::DartProject& project, bool auxiliary)
+    : project_(project), auxiliary_(auxiliary) {}
 
 FlutterWindow::~FlutterWindow() {}
 
@@ -25,13 +25,15 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
-  analyzer_capture_ = std::make_unique<AnalyzerCapture>(
-      flutter_controller_->engine()->messenger(), GetHandle());
-  host_player_ = std::make_unique<HostPlayer>(
-      flutter_controller_->engine()->messenger(), GetHandle());
+  if (!auxiliary_) {
+    analyzer_capture_ = std::make_unique<AnalyzerCapture>(
+        flutter_controller_->engine()->messenger(), GetHandle());
+    host_player_ = std::make_unique<HostPlayer>(
+        flutter_controller_->engine()->messenger(), GetHandle());
+  }
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
-  // Der Host startet unsichtbar. Nur das Tray-Menü öffnet ein Fenster.
+  // Dart selects manual, autostart or auxiliary window visibility.
 
   // Auch ohne sichtbares Hauptfenster den Dart-Einstieg starten.
   flutter_controller_->ForceRedraw();

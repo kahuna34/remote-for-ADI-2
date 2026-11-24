@@ -108,15 +108,17 @@ void main() {
   late HostPairing pairing;
   late _Midi midi;
   late HostEndpoint endpoint;
+  bool loopback = false;
   Future<WebSocket> connectSocket(Uri uri) async {
     final client = _Socket(), host = _Socket();
     client.peer = host;
     host.peer = client;
-    server.accept(host);
+    server.accept(host, loopback: loopback);
     return client;
   }
 
   setUp(() async {
+    loopback = false;
     midi = _Midi();
     capture = FakeAnalyzerCapture();
     pairing = HostPairing();
@@ -149,6 +151,100 @@ void main() {
     pairing.issue(),
     name,
     connectSocket: connectSocket,
+  );
+
+  test(
+    'Local UI coexists with four remote sessions and is loopback-only',
+    () async {
+      final local = pairing.ensureLocal();
+      expect(pairing.externalDevices, isEmpty);
+      final credentials = HostCredentials(endpoint, local.id, local.key);
+      final rejected = HostClient(connectSocket: connectSocket);
+      addTearDown(rejected.dispose);
+      await expectLater(rejected.connect(credentials), throwsA(anything));
+      loopback = true;
+      final clients = <HostClient>[];
+      for (var i = 0; i < 4; i++) {
+        final client = HostClient(connectSocket: connectSocket);
+        addTearDown(client.dispose);
+        await client.connect(await pair('Phone $i'));
+        clients.add(client);
+      }
+      final ui = HostClient(connectSocket: connectSocket);
+      addTearDown(ui.dispose);
+      await ui.connect(credentials);
+      expect(ui.connected, isTrue);
+      expect(clients.every((c) => c.connected), isTrue);
+      final auxiliary = <HostClient>[];
+      for (var i = 0; i < 2; i++) {
+        final window = HostClient(connectSocket: connectSocket);
+        addTearDown(window.dispose);
+        await window.connect(credentials);
+        auxiliary.add(window);
+      }
+      expect(auxiliary.every((c) => c.connected), isTrue);
+      expect(server.connectedNames, [
+        'Phone 0',
+        'Phone 1',
+        'Phone 2',
+        'Phone 3',
+      ]);
+      expect(midi.opens, 1);
+      ui.disconnect();
+      await _until(() => !ui.connected);
+      expect(auxiliary.every((c) => c.connected), isTrue);
+      // A UI already present must not consume the fourth remote slot either.
+      clients.last.disconnect();
+      await _until(() => server.connectedNames.length == 3);
+      final replacement = HostClient(connectSocket: connectSocket);
+      addTearDown(replacement.dispose);
+      await replacement.connect(await pair('Replacement fourth'));
+      expect(replacement.connected, isTrue);
+      final fifth = HostClient(connectSocket: connectSocket);
+      addTearDown(fifth.dispose);
+      await expectLater(
+        fifth.connect(await pair('Fifth')),
+        throwsA(predicate((e) => e.toString().contains('busy'))),
+      );
+      expect(pairing.externalDevices.any((d) => d.id == local.id), isFalse);
+      final code = pairing.issue();
+      expect(pairing.redeem(code, local.id, 'Replacement'), isNull);
+      expect(pairing.devices[local.id]!.key, local.key);
+      final restored = HostPairing();
+      restored.devices[local.id] = PairedDevice.fromJson(local.toJson());
+      expect(restored.ensureLocal().key, local.key);
+      expect(restored.externalDevices, isEmpty);
+      expect(PairedDevice.fromJson(local.toJson()).local, isTrue);
+    },
+  );
+
+  test(
+    'Desktop B pairs by code and consumes a normal external device slot',
+    () async {
+      final desktop = await pair('Studio-PC B');
+      expect(pairing.devices[desktop.deviceId]!.local, false);
+      expect(pairing.externalDevices.single.name, 'Studio-PC B');
+      final client = HostClient(connectSocket: connectSocket);
+      addTearDown(client.dispose);
+      await client.connect(desktop);
+      for (var i = 0; i < 3; i++) {
+        final phone = HostClient(connectSocket: connectSocket);
+        addTearDown(phone.dispose);
+        await phone.connect(await pair('Phone $i'));
+      }
+      expect(server.connectedNames, [
+        'Studio-PC B',
+        'Phone 0',
+        'Phone 1',
+        'Phone 2',
+      ]);
+      final fifth = HostClient(connectSocket: connectSocket);
+      addTearDown(fifth.dispose);
+      await expectLater(
+        fifth.connect(await pair('Fifth')),
+        throwsA(predicate((e) => e.toString().contains('busy'))),
+      );
+    },
   );
 
   test('Host meldet sich regelmäßig; ruhige Sitzung bleibt über die Stille-Grenze verbunden', () async {

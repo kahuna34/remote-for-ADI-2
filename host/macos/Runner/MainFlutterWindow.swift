@@ -10,9 +10,12 @@ class MainFlutterWindow: NSWindow {
     self.contentViewController = flutterViewController
     self.setFrame(windowFrame, display: true)
 
+    (NSApp.delegate as? AppDelegate)?.installWindowChannel(flutterViewController, window: self)
     RegisterGeneratedPlugins(registry: flutterViewController)
-    analyzerCapture = AnalyzerCapture(messenger: flutterViewController.engine.binaryMessenger)
-    hostPlayer = HostPlayer(messenger: flutterViewController.engine.binaryMessenger)
+    if !CommandLine.arguments.contains(where: { $0.hasPrefix("--window=") }) {
+      analyzerCapture = AnalyzerCapture(messenger: flutterViewController.engine.binaryMessenger)
+      hostPlayer = HostPlayer(messenger: flutterViewController.engine.binaryMessenger)
+    }
 
     super.awakeFromNib()
 

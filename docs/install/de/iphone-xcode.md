@@ -4,7 +4,7 @@
 
 Für Mac-Nutzer mit Xcode: Ein Skript baut die App auf deinem Mac und installiert sie auf dem angeschlossenen iPhone. AltStore ist nicht nötig.
 
-**Datei:** `Remote-for-ADI-2-iPhone-Xcode-<Version>.zip` aus dem [iPhone-Downloadbereich](../../README.de.md#iphone).
+**Datei:** `Remote-for-ADI-2-iPhone-Xcode-1.3.0.zip` aus dem [iPhone-Downloadbereich](../../README.de.md#iphone).
 **Voraussetzung:** Mac mit Xcode (kostenlos im App Store) und etwa 5 GB freiem Speicher, eine Apple-ID (eine kostenlose genügt), iPhone mit iOS 15 oder neuer und ein USB-Kabel. Der erste Lauf dauert etwa 15–30 Minuten, spätere wenige Minuten.
 
 ## Einmalige Vorbereitung

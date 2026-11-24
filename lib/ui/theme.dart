@@ -16,6 +16,9 @@ abstract final class Palette {
   static const green = Color(0xFF8FCB6B);
   static const red = Color(0xFFE5484D);
 
+  /// Statusknopf „CLIENT“ (Blau aus den EQ-Bandfarben).
+  static const client = Color(0xFF6AA6F2);
+
   /// EQ-Bänder 1–5, Bass, Treble.
   static const bands = [
     Color(0xFFEF8E5B),

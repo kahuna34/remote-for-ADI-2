@@ -90,6 +90,7 @@ void main() {
       );
       analyzer.acknowledge('slow', 0);
       for (var i = 0; i < 40; i++) {
+        now += const Duration(milliseconds: 25);
         capture.input.add(pcm());
         await Future<void>.delayed(const Duration(milliseconds: 25));
       }

@@ -133,9 +133,10 @@ List<double> _unpack8(Object? value, int max) {
 Map<String, dynamic> encodeHostAnalyzerFrameV2(
   AnalyzerFrame f, {
   bool bars = false,
+  bool levelsOnly = false,
 }) {
   var line = <double>[];
-  if (!bars) {
+  if (!bars && !levelsOnly) {
     line = logSpectrumDb(
       analyzerLineDb(f.spectrum),
       f.binHz,
@@ -160,8 +161,9 @@ Map<String, dynamic> encodeHostAnalyzerFrameV2(
     'v': 2,
     'ms': (f.seconds * 1000).round().clamp(1, 2000),
     'r': f.bandResolution.bandsPerOctave,
-    if (!bars) 's': _pack8(line),
-    if (bars) 'b': _pack8(f.bandLevels),
+    if (levelsOnly) 'l': true,
+    if (!bars && !levelsOnly) 's': _pack8(line),
+    if (bars && !levelsOnly) 'b': _pack8(f.bandLevels),
     'm': _pack8([...f.peak, ...f.rms, ...f.displayPeak, ...f.displayRms]),
     'c': (f.clipped[0] ? 1 : 0) | (f.clipped[1] ? 2 : 0),
   };
@@ -185,7 +187,8 @@ AnalyzerFrame _decodeV2(Map<dynamic, dynamic> m) {
       clip < 0 ||
       clip > 3 ||
       meters.length != 8 ||
-      !(line.length == hostAnalyzerColumns && bands.isEmpty ||
+      !(m['l'] == true && line.isEmpty && bands.isEmpty ||
+          line.length == hostAnalyzerColumns && bands.isEmpty ||
           line.isEmpty && bands.length == resolution.count)) {
     throw const FormatException('Analyzer v2 shape');
   }

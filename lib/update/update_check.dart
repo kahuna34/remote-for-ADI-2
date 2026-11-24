@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-enum UpdatePlatform { android, macos, windows, other }
+enum UpdatePlatform { android, macos, windows, linux, other }
 
 enum UpdateStatus { available, current, error, skipped }
 
@@ -76,6 +76,7 @@ class UpdateCheck {
     ReleaseFetcher? fetcher,
     DateTime Function()? clock,
     this.enabled = true,
+    this.host = false,
     this.lastCheck,
     this.skippedVersion,
     this.onState,
@@ -84,6 +85,7 @@ class UpdateCheck {
        clock = clock ?? DateTime.now;
   final String installedVersion;
   final UpdatePlatform platform;
+  final bool host;
   final ReleaseFetcher fetcher;
   final DateTime Function() clock;
   final Future<void> Function()? onState;
@@ -143,6 +145,7 @@ class UpdateCheck {
           ('Remote-for-ADI-2-Host-Windows-Setup', '.exe'),
           ('Remote-for-ADI-2-Host-Windows', '.zip'),
         ],
+        UpdatePlatform.linux => [('Remote-for-ADI-2-Linux-', '.AppImage')],
         UpdatePlatform.other => <(String, String)>[],
       };
       final assets = [

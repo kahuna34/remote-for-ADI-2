@@ -27,7 +27,7 @@ auto Await(const Operation& operation) {
   return operation.GetResults();
 }
 
-std::string Cover(const IRandomAccessStreamReference& reference) {
+std::string Cover(const IRandomAccessStreamReference& reference, bool large = false) {
   if (!reference) return {};
   try {
     auto input = Await(reference.OpenReadAsync());
@@ -36,7 +36,7 @@ std::string Cover(const IRandomAccessStreamReference& reference) {
     auto decoder = Await(BitmapDecoder::CreateAsync(input));
     BitmapTransform transform;
     if (decoder.PixelWidth() == 0 || decoder.PixelHeight() == 0) return {};
-    const double scale = 160.0 / (std::max)(decoder.PixelWidth(), decoder.PixelHeight());
+    const double scale = (large ? 768.0 : 160.0) / (std::max)(decoder.PixelWidth(), decoder.PixelHeight());
     transform.ScaledWidth((std::max)(1u, static_cast<uint32_t>(decoder.PixelWidth() * scale)));
     transform.ScaledHeight((std::max)(1u, static_cast<uint32_t>(decoder.PixelHeight() * scale)));
     auto bitmap = Await(decoder.GetSoftwareBitmapAsync(
@@ -47,7 +47,7 @@ std::string Cover(const IRandomAccessStreamReference& reference) {
     auto encoder = Await(BitmapEncoder::CreateAsync(BitmapEncoder::JpegEncoderId(), output));
     encoder.SetSoftwareBitmap(bitmap);
     Await(encoder.FlushAsync());
-    if (output.Size() > 30000) return {};
+    if (output.Size() > (large ? 600000 : 30000)) return {};
     output.Seek(0);
     DataReader reader(output.GetInputStreamAt(0));
     const auto length = static_cast<uint32_t>(output.Size());
@@ -58,7 +58,7 @@ std::string Cover(const IRandomAccessStreamReference& reference) {
   }
 }
 
-EncodableValue State(const GlobalSystemMediaTransportControlsSessionManager& manager) {
+EncodableValue State(const GlobalSystemMediaTransportControlsSessionManager& manager, bool large) {
   EncodableMap state{{EncodableValue("playing"), EncodableValue(false)},
                      {EncodableValue("artwork"), EncodableValue()}};
   auto session = manager.GetCurrentSession();
@@ -75,6 +75,10 @@ EncodableValue State(const GlobalSystemMediaTransportControlsSessionManager& man
       session.GetPlaybackInfo().PlaybackStatus() == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing);
   auto cover = Cover(properties.Thumbnail());
   if (!cover.empty()) state[EncodableValue("artwork")] = EncodableValue(cover);
+  if (large) {
+    auto large_cover = Cover(properties.Thumbnail(), true);
+    if (!large_cover.empty()) state[EncodableValue("artworkLarge")] = EncodableValue(large_cover);
+  }
   return EncodableValue(state);
 }
 
@@ -97,15 +101,24 @@ HostPlayer::HostPlayer(flutter::BinaryMessenger* messenger, HWND window) : windo
     const auto method = call.method_name();
     const auto* argument = call.arguments() ? std::get_if<std::string>(call.arguments()) : nullptr;
     const std::string command = argument ? *argument : "";
+    const auto* options = call.arguments() ? std::get_if<EncodableMap>(call.arguments()) : nullptr;
+    bool large = false;
+    if (options) {
+      const auto it = options->find(EncodableValue("large"));
+      if (it != options->end()) {
+        const auto* flag = std::get_if<bool>(&it->second);
+        large = flag && *flag;
+      }
+    }
     {
       std::lock_guard<std::mutex> lock(mutex_);
       // Dart serializes requests; also bound work if an unexpected caller floods us.
       if (jobs_.size() >= 8) { result->Error("busy", "Player busy"); return; }
-      jobs_.push_back([this, result, method, command]() {
+      jobs_.push_back([this, result, method, command, large]() {
         EncodableValue value;
         try {
           auto manager = Await(GlobalSystemMediaTransportControlsSessionManager::RequestAsync());
-          if (method == "state") value = State(manager);
+          if (method == "state") value = State(manager, large);
           else if (method == "command") Command(manager, command);
         } catch (...) {
           value = EncodableValue(EncodableMap{

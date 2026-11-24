@@ -1,3 +1,3 @@
 /// App version from pubspec.yaml (version + build number).
 /// Keep in sync when releasing; app_info_test.dart verifies this value.
-const appVersion = '1.2.4 (9)';
+const appVersion = '1.3.0 (10)';

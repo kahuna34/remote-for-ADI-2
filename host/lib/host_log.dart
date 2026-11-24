@@ -20,6 +20,19 @@ class HostLog {
             ..createSync(recursive: true);
           _file = File('${dir.path}\\host.log');
         }
+      } else if (Platform.isLinux) {
+        final home = Platform.environment['HOME'];
+        final xdg = Platform.environment['XDG_STATE_HOME'];
+        final base = xdg != null && xdg.startsWith('/')
+            ? xdg
+            : home == null
+            ? null
+            : '$home/.local/state';
+        if (base != null) {
+          final dir = Directory('$base/remote-for-adi2-host')
+            ..createSync(recursive: true);
+          _file = File('${dir.path}/host.log');
+        }
       } else if (Platform.isMacOS) {
         final home = Platform.environment['HOME'];
         if (home != null) {

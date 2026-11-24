@@ -2,7 +2,7 @@
 
 [English](../android.md) · [Zurück zu den Downloads](../../README.de.md#download)
 
-**Datei:** `Remote-for-ADI-2-Android-<Version>.apk` aus dem [Downloadbereich](../../README.de.md#download).
+**Datei:** `Remote-for-ADI-2-Android-1.3.0.apk` aus dem [Downloadbereich](../../README.de.md#download).
 **Voraussetzung:** Android-Smartphone oder -Tablet mit USB-Host-Unterstützung (USB-OTG) oder ein Computer mit [Remote for ADI-2 Host](../../README.de.md#download) für die Steuerung per WLAN.
 
 ## 1. Herunterladen
@@ -24,7 +24,7 @@ Die APK direkt in **Chrome** herunterladen. Öffnet sich der Link in einer ander
    - ADI-2 Pro / ADI-2/4 Pro: **SETUP → Options → Device Mode / DSD → MIDI Control**
 3. App starten und die USB-Berechtigung bestätigen. Beim ersten Start führt ein Assistent durch die Einrichtung, auch durch die Player-Anzeige.
 
-Für die Steuerung per WLAN über einen Computer den Host für [Mac](host-mac.md) oder [Windows](host-windows.md) installieren.
+Für die Steuerung per WLAN über einen Computer den Host für [Mac](host-mac.md) oder [Windows](host-windows.md) bzw. [Remote for ADI-2 für Linux](linux.md) installieren.
 
 ## Updates
 

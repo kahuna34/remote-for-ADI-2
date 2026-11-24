@@ -1,3 +1,5 @@
+import '../desktop/host_interface.dart';
+
 import 'package:flutter/material.dart';
 
 import '../device/adi2_controller.dart';
@@ -115,6 +117,13 @@ class PlayerSourceView extends StatefulWidget {
   State<PlayerSourceView> createState() => _PlayerSourceViewState();
 }
 
+bool _playerForeground(AppLifecycleState? state, Adi2Controller? device) =>
+    state == null ||
+    state == AppLifecycleState.resumed ||
+    (state == AppLifecycleState.inactive &&
+        device?.embeddedHost == true &&
+        hostHasInterface);
+
 class _PlayerSourceViewState extends State<PlayerSourceView>
     with WidgetsBindingObserver {
   late PlayerSource source;
@@ -123,9 +132,10 @@ class _PlayerSourceViewState extends State<PlayerSourceView>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    foreground =
-        WidgetsBinding.instance.lifecycleState == null ||
-        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+    foreground = _playerForeground(
+      WidgetsBinding.instance.lifecycleState,
+      widget.deviceController,
+    );
     _create();
   }
 
@@ -148,8 +158,9 @@ class _PlayerSourceViewState extends State<PlayerSourceView>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed) source.setActive(false);
-    setState(() => foreground = state == AppLifecycleState.resumed);
+    final visible = _playerForeground(state, widget.deviceController);
+    if (!visible) source.setActive(false);
+    setState(() => foreground = visible);
   }
 
   @override

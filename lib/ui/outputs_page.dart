@@ -24,6 +24,7 @@ import 'protection_page.dart';
 import 'signal_flow.dart';
 import 'signal_flow_data.dart';
 import 'theme.dart';
+import '../desktop/host_interface.dart';
 import 'volume_ring.dart';
 import 'responsive_layout.dart';
 
@@ -875,6 +876,9 @@ class _OutputsPageState extends State<OutputsPage> {
   }) {
     final address = output.address + 1;
     void step(int direction) => _stepTone(address, band, direction);
+    // Desktop: immer die kompakte Form (Wert oben bei der Bezeichnung). Beim
+    // Ziehen der Fenstergröße wechselte sonst der Aufbau von Bass/Treble.
+    final topValue = isTablet(context) && (compact || hostHasInterface);
     final label = Text(
       tr(band.label),
       maxLines: 1,
@@ -901,7 +905,7 @@ class _OutputsPageState extends State<OutputsPage> {
                   height: isTablet(context)
                       ? 48 * MediaQuery.textScalerOf(context).scale(1)
                       : (compact ? 20 : _controlHeight) + 10 * growth,
-                  child: isTablet(context) && compact
+                  child: topValue
                       ? Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
@@ -929,7 +933,7 @@ class _OutputsPageState extends State<OutputsPage> {
                 width: isTablet(context) ? 64 : (compact ? 56 : 64),
                 height: 48 + 6 * growth,
               ),
-              if (!isTablet(context) || !compact) ...[
+              if (!topValue) ...[
                 const Divider(height: 1),
                 SizedBox(
                   height: (compact ? 20 : _controlHeight) + 10 * growth,
@@ -1098,14 +1102,19 @@ class _OutputsPageState extends State<OutputsPage> {
           if (isTablet(context)) {
             // The parent has already removed the header, app navigation and
             // system insets. Only the ring receives the remaining flex space.
-            final compact = constraints.maxHeight < 720;
-            final output = _buildOutput(context, compact, compact ? 0 : 1);
+            // Stufenlos statt Sprung bei 720 px: Zwischen 600 und 720 px
+            // wachsen Tastenreihen und Abstände gleichmäßig, der Ring gibt
+            // entsprechend ab (vorher sprangen beim Ziehen am Desktop Ring
+            // und Tasten).
+            final fill = ((constraints.maxHeight - 600) / 120).clamp(0.0, 1.0);
+            final output = _buildOutput(context, fill <= 0, fill, fill: fill);
             final scale = MediaQuery.textScalerOf(context).scale(1);
-            // Large type on short tablet columns needs scrolling to preserve
-            // readable status text and the tone controls' touch targets.
-            final minHeight = 520 * scale;
+            // Short tablet columns (large type, or the desktop's compact view
+            // beneath the analyzer) scroll instead of overflowing; this keeps
+            // status text and the tone controls' touch targets usable.
+            final minHeight = scale > 1 ? 520 * scale : 440.0;
             return TabletContent(
-              child: scale > 1 && constraints.maxHeight < minHeight
+              child: constraints.maxHeight < minHeight
                   ? SingleChildScrollView(
                       child: SizedBox(height: minHeight, child: output),
                     )
@@ -1139,14 +1148,19 @@ class _OutputsPageState extends State<OutputsPage> {
     );
   }
 
-  Widget _buildOutput(BuildContext context, bool compact, double growth) {
+  Widget _buildOutput(
+    BuildContext context,
+    bool compact,
+    double growth, {
+    double fill = 1,
+  }) {
     final controlHeight = isTablet(context)
         ? 48.0
         : _controlHeight + 12 * growth;
     final rowHeight = math.max(
       // Die Kopfzeile braucht kompakt nur mindestens 48 px. Bis zu 16 px
       // bleiben im kurzen Tablet-Querformat für Bass/Treble mit 48-px-Tasten.
-      controlHeight + (isTablet(context) && compact ? 0 : 16),
+      controlHeight + (isTablet(context) ? 16 * fill : 16),
       MediaQuery.textScalerOf(context).scale(isTablet(context) ? 28 : 26) *
               1.2 +
           6,
@@ -1160,12 +1174,19 @@ class _OutputsPageState extends State<OutputsPage> {
         12 * growth;
     // Tablet hochkant: Funktionstasten und Kacheln exakt gleich hoch.
     final tabletRowHeight = 46 + 42 * MediaQuery.textScalerOf(context).scale(1);
-    Widget tabletKeyRow({required Widget child}) =>
-        isTablet(context) && !compact
-        ? SizedBox(height: tabletRowHeight, child: child)
-        : IntrinsicHeight(child: child);
+    Widget tabletKeyRow({required Widget child}) {
+      if (!isTablet(context)) return IntrinsicHeight(child: child);
+      if (fill >= 1) return SizedBox(height: tabletRowHeight, child: child);
+      // Mindestens die natürliche Höhe, darüber anteilig bis zur vollen.
+      return ConstrainedBox(
+        constraints: BoxConstraints(minHeight: tabletRowHeight * fill),
+        child: IntrinsicHeight(child: child),
+      );
+    }
+
     // Lock/Link und Bass/Treble gleich breit.
     final sideWidth = isTablet(context) ? 64.0 : (compact ? 56.0 : 64.0);
+    final double? tabletFill = isTablet(context) ? fill : null;
     final v = c.variant!;
     final outs = outputsFor(v);
     final colorPreview = MainViewColorScope.maybeOf(context) != null;
@@ -1554,6 +1575,7 @@ class _OutputsPageState extends State<OutputsPage> {
                               _Key(
                                 controlId: MainViewControl.mute,
                                 compact: compact,
+                                fill: tabletFill,
                                 icon: Icons.volume_off_outlined,
                                 label: tr('Mute'),
                                 tooltip: _muteCondition(a),
@@ -1568,6 +1590,7 @@ class _OutputsPageState extends State<OutputsPage> {
                               _Key(
                                 controlId: MainViewControl.dim,
                                 compact: compact,
+                                fill: tabletFill,
                                 icon: Icons.brightness_low_outlined,
                                 label: tr('Dim'),
                                 on: c.valueOr(a, OutIdx.dim, 0) != 0,
@@ -1585,6 +1608,7 @@ class _OutputsPageState extends State<OutputsPage> {
                               _Key(
                                 controlId: MainViewControl.loudness,
                                 compact: compact,
+                                fill: tabletFill,
                                 icon: Icons.graphic_eq,
                                 label: tr('Loudness'),
                                 on: c.valueOr(a, OutIdx.loudness, 0) != 0,
@@ -1613,6 +1637,7 @@ class _OutputsPageState extends State<OutputsPage> {
                               _Key(
                                 controlId: MainViewControl.crossfeed,
                                 compact: compact,
+                                fill: tabletFill,
                                 icon: Icons.spatial_audio_off,
                                 label: tr('Crossfeed'),
                                 caption: def(OutIdx.crossfeed)
@@ -1637,6 +1662,7 @@ class _OutputsPageState extends State<OutputsPage> {
                             _Key(
                               controlId: MainViewControl.recall,
                               compact: compact,
+                              fill: tabletFill,
                               icon: Icons.bookmark_outline,
                               label: tr('Recall'),
                               caption: recall == null
@@ -1679,6 +1705,7 @@ class _OutputsPageState extends State<OutputsPage> {
                       child: _Tile(
                         controlId: MainViewControl.source,
                         compact: compact,
+                        fill: tabletFill,
                         icon: Icons.input,
                         label: tr('Quelle'),
                         value: c.value(a, OutIdx.source) == null
@@ -1695,6 +1722,7 @@ class _OutputsPageState extends State<OutputsPage> {
                       child: _Tile(
                         controlId: MainViewControl.eq,
                         compact: compact,
+                        fill: tabletFill,
                         icon: Icons.tune,
                         label: tr('EQ'),
                         value: c.valueOr(a + 1, 2, 0) != 0
@@ -1715,6 +1743,7 @@ class _OutputsPageState extends State<OutputsPage> {
                       child: _Tile(
                         controlId: MainViewControl.limit,
                         compact: compact,
+                        fill: tabletFill,
                         icon: Icons.shield_outlined,
                         label: tr('Limit'),
                         value: c.opts.of(a).limitDbu == null
@@ -1734,6 +1763,7 @@ class _OutputsPageState extends State<OutputsPage> {
                       child: _Tile(
                         controlId: MainViewControl.settings,
                         compact: compact,
+                        fill: tabletFill,
                         icon: Icons.settings_outlined,
                         label: tr('Settings'),
                         value: o.name,
@@ -1931,6 +1961,7 @@ class _Key extends StatelessWidget {
   const _Key({
     this.controlId,
     this.compact = false,
+    this.fill,
     required this.icon,
     required this.label,
     required this.on,
@@ -1952,6 +1983,11 @@ class _Key extends StatelessWidget {
   final bool hasMenu; // gedrückt halten öffnet Einstellungen
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
+
+  /// Tablet/Desktop: stufenlos zwischen kompakt (0) und voll (1).
+  final double? fill;
+  double get _f => fill ?? (compact ? 0 : 1);
+  double _l(double a, double b) => a + (b - a) * _f;
 
   @override
   Widget build(BuildContext context) {
@@ -1985,12 +2021,7 @@ class _Key extends StatelessWidget {
                   ),
                 Positioned.fill(
                   child: Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      6,
-                      compact ? 1 : 7,
-                      6,
-                      compact ? 1 : 8,
-                    ),
+                    padding: EdgeInsets.fromLTRB(6, _l(1, 7), 6, _l(1, 8)),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.center,
@@ -1999,10 +2030,10 @@ class _Key extends StatelessWidget {
                         // Statuszeile.
                         Icon(
                           icon,
-                          size: compact ? 16 : 20,
+                          size: _l(16, 20),
                           color: on ? color : Palette.muted,
                         ),
-                        SizedBox(height: compact ? 0 : 5),
+                        SizedBox(height: _l(0, 5)),
                         FittedBox(
                           fit: BoxFit.scaleDown,
                           child: Text(
@@ -2025,15 +2056,10 @@ class _Key extends StatelessWidget {
                 Opacity(
                   opacity: 0,
                   child: Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      6,
-                      compact ? 1 : 7,
-                      6,
-                      compact ? 1 : 8,
-                    ),
+                    padding: EdgeInsets.fromLTRB(6, _l(1, 7), 6, _l(1, 8)),
                     child: Column(
                       children: [
-                        SizedBox(height: compact ? 3 + 16 : 3 + 7 + 20 + 5),
+                        SizedBox(height: _l(3 + 16, 3 + 7 + 20 + 5)),
                         Text('Ag', style: buttonLabelStyle(context)),
                         Text('Ag', style: buttonStatusStyle(context)),
                       ],
@@ -2054,6 +2080,7 @@ class _Tile extends StatelessWidget {
   const _Tile({
     this.controlId,
     this.compact = false,
+    this.fill,
     required this.icon,
     required this.label,
     required this.value,
@@ -2067,18 +2094,24 @@ class _Tile extends StatelessWidget {
   final bool highlight;
   final bool compact;
 
+  /// Tablet/Desktop: stufenlos statt Umschalten (Symbol bleibt oben).
+  final double? fill;
+
   @override
   Widget build(BuildContext context) {
+    // Bei kleinster Höhe (Füllung 0) die bisherige Kompakt-Form.
+    final f = fill != null && fill! > 0 ? fill : null;
     final details = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (!compact) ...[
+        // Tablet/Desktop: Symbol wächst mit der Füllung.
+        if (f != null || !compact) ...[
           Icon(
             icon,
-            size: 18,
+            size: f != null ? 18 * f : 18,
             color: highlight ? Palette.amber : Palette.muted,
           ),
-          const SizedBox(height: 3),
+          SizedBox(height: f != null ? 3 * f : 3),
         ],
         FittedBox(
           fit: BoxFit.scaleDown,
@@ -2103,10 +2136,10 @@ class _Tile extends StatelessWidget {
           constraints: isTablet(context) ? BoxConstraints(minHeight: 48) : null,
           padding: EdgeInsets.symmetric(
             horizontal: 4,
-            vertical: compact ? 2 : 8,
+            vertical: f != null ? 2 + 6 * f : (compact ? 2 : 8),
           ),
           child: Center(
-            child: compact
+            child: f == null && compact
                 ? Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [

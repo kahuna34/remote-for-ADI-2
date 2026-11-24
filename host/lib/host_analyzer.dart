@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:adi2_remote/analyzer/analyzer_dsp.dart';
+import 'package:adi2_remote/analyzer/linux_capture.dart';
 import 'package:adi2_remote/host/host_analyzer_protocol.dart';
 import 'package:flutter/services.dart';
 
@@ -10,6 +11,17 @@ abstract class HostAnalyzerCapture {
   Stream<dynamic> get events;
   Future<void> start();
   Future<void> stop();
+}
+
+class LinuxHostAnalyzerCapture implements HostAnalyzerCapture {
+  final _capture = LinuxAnalyzerCapture();
+  @override
+  Stream<dynamic> get events => _capture.events;
+  @override
+  Future<void> start() => _capture.start();
+  @override
+  Future<void> stop() => _capture.stop();
+  Future<void> dispose() => _capture.dispose();
 }
 
 class NativeHostAnalyzerCapture implements HostAnalyzerCapture {
@@ -35,14 +47,27 @@ typedef HostAnalyzerSend = void Function(
 );
 
 class _Client {
-  _Client(this.resolution, this.send, this.version, this.bars);
+  _Client(
+    this.resolution,
+    this.send,
+    this.version,
+    this.bars,
+    this.levelsOnly,
+    this.interval,
+  );
   final AnalyzerBandResolution resolution;
   final HostAnalyzerSend send;
   final int version;
-  final bool bars;
+  final bool bars, levelsOnly;
+  final Duration interval;
+  /// Clients at ≤30 fps share a half-rate analysis (less CPU).
+  bool get lowRate => interval >= const Duration(milliseconds: 33);
+  (AnalyzerBandResolution, bool, bool) get key =>
+      (resolution, levelsOnly, lowRate);
   String? metadata;
   Duration? sentAt;
   AnalyzerFrame? pending;
+  Timer? timer;
   // Flusskontrolle: gesendete und von der App bestätigte Bilder.
   int sent = 0;
   int? acked;
@@ -54,8 +79,11 @@ class _Client {
 const hostAnalyzerMaxInFlight = 25;
 
 class _Analysis {
-  _Analysis(AnalyzerBandResolution resolution)
-    : dsp = AnalyzerDsp()..bandResolution = resolution;
+  _Analysis(AnalyzerBandResolution resolution, bool levelsOnly, bool lowRate)
+    : dsp = AnalyzerDsp(
+        spectrumAnalysis: !levelsOnly,
+        frameRate: lowRate ? 30 : 60,
+      )..bandResolution = resolution;
   final AnalyzerDsp dsp;
   double seconds = 0;
   final peak = [-120.0, -120.0], squares = [0.0, 0.0];
@@ -83,7 +111,7 @@ class HostAnalyzer {
   final HostAnalyzerCapture capture;
   final Duration Function() _now;
   final _clients = <Object, _Client>{};
-  final _analyses = <AnalyzerBandResolution, _Analysis>{};
+  final _analyses = <(AnalyzerBandResolution, bool, bool), _Analysis>{};
   StreamSubscription<dynamic>? _subscription;
   Future<void> _work = Future.value();
   bool _running = false, _disposed = false, _restartRequired = false;
@@ -96,11 +124,24 @@ class HostAnalyzer {
     HostAnalyzerSend send, {
     int version = 1,
     bool bars = false,
+    bool levelsOnly = false,
+    int? fps,
   }) {
     if (_disposed) return Future.value();
     final previous = _clients[client];
-    _clients[client] = _Client(resolution, send, version, bars)
-      ..metadata = previous?.version == version ? previous?.metadata : null;
+    previous?.timer?.cancel();
+    levelsOnly = levelsOnly && version >= 2;
+    if (levelsOnly) resolution = AnalyzerBandResolution.third;
+    _clients[client] = _Client(
+      resolution,
+      send,
+      version,
+      bars,
+      levelsOnly,
+      fps == 30 || fps == 60
+          ? Duration(microseconds: (1000000 / fps!).ceil())
+          : hostAnalyzerInterval,
+    )..metadata = previous?.version == version ? previous?.metadata : null;
     _refreshAnalyses();
     return _queue();
   }
@@ -113,7 +154,7 @@ class HostAnalyzer {
   }
 
   Future<void> stop(Object client) {
-    _clients.remove(client);
+    _clients.remove(client)?.timer?.cancel();
     _refreshAnalyses();
     // Invalidate queued events immediately, before the platform stop barrier.
     if (_clients.isEmpty) {
@@ -124,14 +165,14 @@ class HostAnalyzer {
   }
 
   void _refreshAnalyses() {
-    final wanted = _clients.values.map((v) => v.resolution).toSet();
+    final wanted = _clients.values.map((v) => v.key).toSet();
     _analyses.removeWhere((r, a) {
       if (wanted.contains(r)) return false;
       a.timer?.cancel();
       return true;
     });
     for (final r in wanted) {
-      _analyses.putIfAbsent(r, () => _Analysis(r));
+      _analyses.putIfAbsent(r, () => _Analysis(r.$1, r.$2, r.$3));
     }
   }
 
@@ -189,11 +230,14 @@ class HostAnalyzer {
     }
   }
 
-  void _fail(String status) {
+  void _fail(String status, {String? detail}) {
     final code = status == 'permissionDenied' || status == 'analyzer_permission'
         ? 'analyzer_permission'
         : 'analyzer_no_input';
     final clients = _clients.values.toList();
+    for (final c in _clients.values) {
+      c.timer?.cancel();
+    }
     _clients.clear();
     for (final a in _analyses.values) {
       a.timer?.cancel();
@@ -202,7 +246,7 @@ class HostAnalyzer {
     _restartRequired = true;
     _generation++;
     for (final client in clients) {
-      client.send('analyzer_error', {'code': code});
+      client.send('analyzer_error', {'code': code, 'detail': ?detail});
     }
     unawaited(_queue());
   }
@@ -210,16 +254,20 @@ class HostAnalyzer {
   void _event(dynamic data) {
     if (data is! Map || _clients.isEmpty) return;
     if (data['status'] case final String status) {
-      _fail(status);
+      _fail(status, detail: data['detail'] as String?);
       return;
     }
     try {
       final rate = data['sampleRate'] as int;
-      final pcm = (data['pcm'] as List)
-          .cast<num>()
-          .map((v) => v.toDouble())
-          .toList();
-      if (pcm.length > rate || pcm.any((v) => !v.isFinite)) {
+      final input = data['pcm'] as List;
+      final pcm = input is List<double>
+          ? input
+          : input.map((v) => (v as num).toDouble()).toList();
+      if (rate < 40000 ||
+          pcm.length > rate ||
+          // Linux validates each Float32 while decoding; native events are untrusted.
+          (capture is! LinuxHostAnalyzerCapture &&
+              pcm.any((v) => !v.isFinite))) {
         throw const FormatException('Analyzer PCM');
       }
       for (final entry in _analyses.entries.toList()) {
@@ -247,7 +295,7 @@ class HostAnalyzer {
           };
           final remaining = a.sentAt == null
               ? Duration.zero
-              : hostAnalyzerInterval - (_now() - a.sentAt!);
+              : _interval(entry.key) - (_now() - a.sentAt!);
           if (remaining <= Duration.zero) {
             _emit(entry.key, a);
           } else {
@@ -263,7 +311,12 @@ class HostAnalyzer {
     }
   }
 
-  void _emit(AnalyzerBandResolution resolution, _Analysis a) {
+  Duration _interval((AnalyzerBandResolution, bool, bool) key) => _clients.values
+      .where((c) => c.key == key)
+      .map((c) => c.interval)
+      .reduce((a, b) => a < b ? a : b);
+
+  void _emit((AnalyzerBandResolution, bool, bool) resolution, _Analysis a) {
     final f = a.latest;
     if (f == null || a.seconds <= 0) return;
     a.timer?.cancel();
@@ -290,24 +343,15 @@ class HostAnalyzer {
     final metadata = a.metadata;
     final signature = jsonEncode(metadata);
     for (final client in _clients.values.toList()) {
-      if (client.resolution != resolution) continue;
+      if (client.key != resolution) continue;
       if (client.version >= 2) {
         if (client.metadata != signature) {
           client.send('analyzer_metadata', {'v': 2, ...metadata});
           client.metadata = signature;
         }
         // App hängt hinterher: zusammenfassen statt weiter stauen.
-        final out = coalesceAnalyzerFrames(client.pending, frame);
-        if (client.behind) {
-          client.pending = out;
-          continue;
-        }
-        client.pending = null;
-        client.send(
-          'analyzer_frame',
-          encodeHostAnalyzerFrameV2(out, bars: client.bars),
-        );
-        client.sent++;
+        client.pending = coalesceAnalyzerFrames(client.pending, frame);
+        _flushV2(client);
       } else {
         client.pending = coalesceAnalyzerFrames(client.pending, frame);
         if (client.sentAt != null &&
@@ -329,14 +373,46 @@ class HostAnalyzer {
     a.reset();
     // Anchor the next send to this deadline, rather than rounding the interval
     // from the next PCM arrival (60 Hz and 50 Hz do not divide evenly).
-    a.timer = Timer(hostAnalyzerInterval, () {
+    a.timer = Timer(_interval(resolution), () {
       a.timer = null;
       if (_running && _analyses[resolution] == a) _emit(resolution, a);
     });
   }
 
+  void _flushV2(_Client client) {
+    if (client.pending == null || client.behind) return;
+    final now = _now();
+    final remaining = client.sentAt == null
+        ? Duration.zero
+        : client.interval - (now - client.sentAt!);
+    if (remaining > Duration.zero) {
+      client.timer ??= Timer(remaining, () {
+        client.timer = null;
+        if (!_disposed && _clients.containsValue(client)) _flushV2(client);
+      });
+      return;
+    }
+    client.timer?.cancel();
+    client.timer = null;
+    final out = client.pending!;
+    client.pending = null;
+    client.sentAt = now;
+    client.send(
+      'analyzer_frame',
+      encodeHostAnalyzerFrameV2(
+        out,
+        bars: client.bars,
+        levelsOnly: client.levelsOnly,
+      ),
+    );
+    client.sent++;
+  }
+
   Future<void> dispose() async {
     _disposed = true;
+    for (final c in _clients.values) {
+      c.timer?.cancel();
+    }
     _clients.clear();
     for (final a in _analyses.values) {
       a.timer?.cancel();
@@ -344,6 +420,9 @@ class HostAnalyzer {
     _analyses.clear();
     _generation++;
     await _queue();
+    if (capture case final LinuxHostAnalyzerCapture linux) {
+      await linux.dispose();
+    }
   }
 }
 

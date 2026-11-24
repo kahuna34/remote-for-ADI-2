@@ -7,6 +7,7 @@ import 'dart:io';
 import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:bonsoir/bonsoir.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -15,22 +16,111 @@ import 'package:window_manager/legacy.dart';
 import 'package:adi2_remote/host/host_protocol.dart';
 import 'package:adi2_remote/host/host_pairing.dart';
 import 'package:adi2_remote/l10n/l10n.dart';
+import 'package:adi2_remote/ui/theme.dart' show buildTheme;
 
 import 'package:adi2_remote/update/update_check.dart';
 import 'package:adi2_remote/update/open_update.dart';
 
+import 'package:adi2_remote/analyzer/linux_test_signal.dart';
+import 'package:adi2_remote/main.dart' show Adi2RemoteApp;
+import 'package:adi2_remote/host/host_client.dart';
+import 'package:adi2_remote/app_info.dart';
+import 'package:adi2_remote/ui/eq_display_mode.dart';
+import 'package:adi2_remote/ui/responsive_layout.dart';
+
+import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
+
+import 'package:adi2_remote/app_settings.dart';
+
+import 'auxiliary_window_arguments.dart';
+
+import 'auxiliary_windows.dart';
+import 'window_preferences.dart';
+
+import 'host_preferences.dart';
+
+import 'package:adi2_remote/desktop/host_interface.dart';
+import 'package:adi2_remote/desktop/desktop_host_selection.dart';
+
+import 'desktop_activation.dart';
+import 'desktop_instance.dart';
+import 'host_startup.dart';
 import 'host_info.dart';
+
 import 'host_menu.dart';
 import 'host_update.dart';
+
+import 'package:adi2_remote/update/app_updates.dart';
+
 import 'autostart.dart';
 import 'desktop_midi.dart';
 import 'host_log.dart';
 import 'host_server.dart';
 
+final _hostAppKey = GlobalKey<_HostAppState>();
+final _windowReady = Completer<void>();
+final _appMounted = Completer<void>();
+DesktopInstance? _instance;
+final _surfaceUpdates = Completer<UpdateCheck>();
+bool get _usesHostUpdates => Platform.isMacOS || Platform.isWindows;
+final _hostSelection = Completer<DesktopHostSelection>();
+String get _releaseVersion => Platform.isLinux ? appVersion : hostVersion;
+Future<HostPreferences> _preferences() async => HostPreferences(
+  await SharedPreferences.getInstance(),
+  platform: Platform.operatingSystem,
+);
+
 Future<void> main(List<String> arguments) async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (hostHasInterface) {
+    AuxiliaryWindowArguments? window;
+    try {
+      window = AuxiliaryWindowArguments.parse(arguments);
+    } on FormatException {
+      stderr.writeln('Invalid auxiliary window arguments');
+      exit(64);
+    }
+    if (window != null) {
+      try {
+        await runAuxiliaryWindow(window);
+      } catch (_) {
+        // Do not leave an invisible Flutter process after a failed handshake,
+        // and never print socket responses or local credentials.
+        stderr.writeln('Local auxiliary window startup failed');
+        exit(1);
+      }
+      return;
+    }
+    final windowPreferences = WindowPreferenceService(
+      SharedPreferencesStorePlatform.instance,
+    );
+    _instance = await DesktopInstance.acquire(
+      runtimeDirectory: DesktopInstance.runtimeDirectory,
+      onWindowRequest: (kind, request) async {
+        if (request['method'] == 'credentials') {
+          final selection = await _hostSelection.future.timeout(
+            const Duration(seconds: 15),
+          );
+          return selection.windowCredentials();
+        }
+        return windowPreferences.handle(kind, request);
+      },
+      show: opensSurfaceAtStartup(arguments),
+      onShow: () async {
+        await _windowReady.future;
+        await _hostAppKey.currentState?._openSurface();
+      },
+    );
+    if (_instance == null) exit(0);
+    final view = WidgetsBinding.instance.platformDispatcher.views.first;
+    EqDisplayMode.setTablet(
+      view.physicalSize.shortestSide / view.devicePixelRatio >=
+          tabletBreakpoint,
+    );
+    EqDisplayMode.initialize();
+  }
   HostLog.write(
-    'Start $hostVersion ${Platform.operatingSystem} args=$arguments',
+    'Start $_releaseVersion ${Platform.operatingSystem} args=$arguments',
   );
   FlutterError.onError = (details) {
     HostLog.write('Flutter-Fehler: ${details.exceptionAsString()}');
@@ -41,7 +131,8 @@ Future<void> main(List<String> arguments) async {
     return false;
   };
   await AppLang.instance.load();
-  final prefs = await SharedPreferences.getInstance();
+  final prefs = await _preferences();
+  await prefs.migrate();
   var id = prefs.getString('host_id');
   if (id == null) {
     id = randomToken(16);
@@ -68,6 +159,17 @@ Future<void> main(List<String> arguments) async {
       }
     },
   );
+  HostCredentials? localHost;
+  if (hostHasInterface) {
+    final local = pairing.ensureLocal();
+    await server.persist();
+    // The actual (possibly fallback) TCP port is filled after server.start().
+    localHost = HostCredentials(
+      HostEndpoint(id: id, name: server.name, address: '127.0.0.1', port: 0),
+      local.id,
+      local.key,
+    );
+  }
   midi.onLost = server.usbLost;
   String? discoveryError;
   try {
@@ -92,13 +194,42 @@ Future<void> main(List<String> arguments) async {
       await broadcast.initialize().timeout(const Duration(seconds: 5));
       await broadcast.start().timeout(const Duration(seconds: 5));
     } catch (_) {
-      discoveryError = tr(
-        'Netzwerksuche fehlgeschlagen. Manuelle Adresse verwenden.',
-      );
+      discoveryError = Platform.isLinux
+          ? tr(
+              'Netzwerksuche fehlgeschlagen. avahi-daemon installieren und starten; manuelle Adresse verwenden.',
+            )
+          : tr('Netzwerksuche fehlgeschlagen. Manuelle Adresse verwenden.');
     }
+  }
+  if (localHost != null) {
+    localHost = HostCredentials(
+      HostEndpoint(
+        id: id,
+        name: server.name,
+        address: '127.0.0.1',
+        port: server.port,
+      ),
+      localHost.deviceId,
+      localHost.key,
+    );
+    final selection = DesktopHostSelection(localHost);
+    await selection.load();
+    _hostSelection.complete(selection);
+  }
+  if (_usesHostUpdates) {
+    AppUpdates.instance.useHostChecker(
+      _surfaceUpdates.future,
+      onEnabledChanged: (value) async {
+        await (await _preferences()).setBool('host_update_check', value);
+        await _hostAppKey.currentState?._menu();
+      },
+    );
   }
   runApp(
     HostApp(
+      key: _hostAppKey,
+      localHost: localHost,
+      desktopSelection: hostHasInterface ? await _hostSelection.future : null,
       server: server,
       midi: midi,
       broadcast: broadcast,
@@ -107,7 +238,14 @@ Future<void> main(List<String> arguments) async {
   );
   // Das Fenster erst nach dem Start des Servers einrichten: Auf macOS kann das
   // Fenster-Plugin vor dem ersten Frame warten.
-  unawaited(_setupWindow());
+  unawaited(() async {
+    await _setupWindow();
+    await _appMounted.future;
+    _windowReady.complete();
+    if (hostHasInterface && opensSurfaceAtStartup(arguments)) {
+      await _hostAppKey.currentState?._openSurface();
+    }
+  }());
 }
 
 Future<void> _setupWindow() async {
@@ -115,8 +253,39 @@ Future<void> _setupWindow() async {
     await windowManager.ensureInitialized();
     await windowManager.setPreventClose(true);
     await windowManager.setSkipTaskbar(true);
-    await windowManager.setTitle('Remote for ADI-2 Host');
-    await windowManager.setSize(const Size(440, 600));
+    await windowManager.setTitle('Remote for ADI-2');
+    if (hostHasInterface) {
+      // Mindesthöhe 560: Am Desktop gilt ab 600 px Breite immer die
+      // Tablet-Geometrie (kein Umschalten nach der Höhe); sie braucht in
+      // „Nur Gerät“ etwa 510 px Innenhöhe.
+      await windowManager.setMinimumSize(const Size(640, 560));
+      final prefs = await _preferences();
+      dynamic bounds;
+      try {
+        bounds = jsonDecode(prefs.getString('window_bounds') ?? 'null');
+      } on FormatException {
+        // Fall back to the default geometry after an interrupted preferences write.
+      }
+      if (bounds is List &&
+          bounds.length == 4 &&
+          bounds.every((v) => v is num && v.isFinite) &&
+          bounds[2] >= 640 &&
+          bounds[3] >= 560) {
+        await windowManager.setBounds(
+          Rect.fromLTWH(
+            (bounds[0] as num).toDouble(),
+            (bounds[1] as num).toDouble(),
+            (bounds[2] as num).toDouble(),
+            (bounds[3] as num).toDouble(),
+          ),
+        );
+      } else {
+        await windowManager.setSize(const Size(1200, 800));
+        await windowManager.center();
+      }
+    } else {
+      await windowManager.setSize(const Size(440, 600));
+    }
     await windowManager.hide();
   } catch (_) {
     // Ohne Fensterfunktionen bleibt der Host über das Menü erreichbar.
@@ -130,7 +299,11 @@ class HostApp extends StatefulWidget {
     required this.midi,
     required this.broadcast,
     this.discoveryError,
+    this.localHost,
+    this.desktopSelection,
   });
+  final HostCredentials? localHost;
+  final DesktopHostSelection? desktopSelection;
   final HostServer server;
   final DesktopMidi midi;
   final BonsoirBroadcast broadcast;
@@ -140,8 +313,91 @@ class HostApp extends StatefulWidget {
 }
 
 class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
+  late final DesktopAuxiliaryWindows? _desktopWindows =
+      hostHasInterface && widget.localHost != null
+      ? DesktopAuxiliaryWindows()
+      : null;
   late final HostAutostart _autostart;
   bool _automatic = false;
+  bool _surfaceCreated = false, _management = true, _windowVisible = false;
+  Timer? _geometrySave;
+
+  int _analyzerFps = AppSettings.instance.linuxAnalyzerFps;
+  void _analyzerSettingsChanged() {
+    final fps = AppSettings.instance.linuxAnalyzerFps;
+    if (_analyzerFps == fps) return;
+    _analyzerFps = fps;
+    unawaited(_desktopWindows?.refreshPreferences());
+  }
+
+  void _hostSelectionChanged() {
+    if (Platform.isLinux) unawaited(LinuxTestSignalPlayer.instance.stop());
+    unawaited(_desktopWindows?.refreshConnection());
+  }
+
+  Future<void> _openSurface() async {
+    if (!hostHasInterface || !mounted) return;
+    if (_surfaceCreated) await AppSettings.instance.load(reload: true);
+    if (!mounted) return;
+    setState(() {
+      _surfaceCreated = true;
+      _management = false;
+      _windowVisible = true;
+    });
+    _countdown?.cancel();
+    await windowManager.setSkipTaskbar(false);
+    if (await windowManager.isMinimized()) await windowManager.restore();
+    await windowManager.show();
+    await windowManager.focus();
+    await DesktopActivation.present();
+    await _menu();
+  }
+
+  Future<void> _hideWindow() async {
+    if (Platform.isLinux) await LinuxTestSignalPlayer.instance.stop();
+    if (hostHasInterface && mounted) setState(() => _windowVisible = false);
+    _countdown?.cancel();
+    await windowManager.hide();
+    await DesktopActivation.hide();
+    if (hostHasInterface) {
+      await windowManager.setSkipTaskbar(true);
+      await _menu();
+    }
+  }
+
+  void _rememberGeometry() {
+    if (!hostHasInterface) return;
+    _geometrySave?.cancel();
+    _geometrySave = Timer(const Duration(milliseconds: 300), () async {
+      try {
+        await _storeGeometry();
+      } catch (error) {
+        HostLog.write(
+          'Fensterposition konnte nicht gespeichert werden: $error',
+        );
+      }
+    });
+  }
+
+  Future<void> _storeGeometry() async {
+    if (!hostHasInterface ||
+        await windowManager.isMaximized() ||
+        await windowManager.isMinimized()) {
+      return;
+    }
+    final bounds = await windowManager.getBounds();
+    final prefs = await _preferences();
+    await prefs.setString(
+      'window_bounds',
+      jsonEncode([bounds.left, bounds.top, bounds.width, bounds.height]),
+    );
+  }
+
+  @override
+  void onWindowMoved() => _rememberGeometry();
+  @override
+  void onWindowResized() => _rememberGeometry();
+
   UpdateCheck? _updates;
   UpdateResult? _availableUpdate;
   String? _updateNotice;
@@ -160,10 +416,21 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
   @override
   void initState() {
     super.initState();
+    DesktopActivation.onReopen(() async {
+      await _windowReady.future;
+      await _openSurface();
+    });
+    AppSettings.instance.addListener(_analyzerSettingsChanged);
+    widget.desktopSelection?.addListener(_hostSelectionChanged);
+    if (!_appMounted.isCompleted) _appMounted.complete();
     _error = widget.discoveryError;
     _autostart = HostAutostart(
       platform: Platform.operatingSystem,
       executable: Platform.resolvedExecutable,
+      appImage: Platform.isLinux ? Platform.environment['APPIMAGE'] : null,
+      configHome: Platform.isLinux
+          ? Platform.environment['XDG_CONFIG_HOME']
+          : null,
       home: Platform.environment['HOME'] ?? '',
     );
     trayManager.addListener(this);
@@ -205,14 +472,16 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
             ? 'assets/host.ico'
             : Platform.isMacOS
             ? 'assets/host_tray.png'
-            : 'assets/host.png',
+            : 'assets/images/app_icon.png',
         isTemplate: Platform.isMacOS,
       );
-      await trayManager.setToolTip('Remote for ADI-2 Host');
+      await trayManager.setToolTip(
+        Platform.isLinux ? 'Remote for ADI-2' : 'Remote for ADI-2 Host',
+      );
       _automatic = await _autostart.refreshEnabledPath();
       // Windows: Autostart beim ersten Start einschalten (abschaltbar im Menü).
       if (Platform.isWindows && !_automatic) {
-        final prefs = await SharedPreferences.getInstance();
+        final prefs = await _preferences();
         if (!(prefs.getBool('autostart_default_applied') ?? false)) {
           try {
             await _autostart.setEnabled(true);
@@ -224,7 +493,7 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
           await prefs.setBool('autostart_default_applied', true);
         }
       } else if (Platform.isWindows) {
-        final prefs = await SharedPreferences.getInstance();
+        final prefs = await _preferences();
         await prefs.setBool('autostart_default_applied', true);
       }
       _addresses = (await NetworkInterface.list(type: InternetAddressType.IPv4))
@@ -242,11 +511,22 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
       if (mounted) setState(() {});
     } catch (e) {
       await _showError(trf('Host-Fehler {fehler}', {'fehler': e}));
+    } finally {
+      if (_usesHostUpdates && !_surfaceUpdates.isCompleted) {
+        _surfaceUpdates.complete(
+          UpdateCheck(
+            installedVersion: hostVersion,
+            platform: UpdatePlatform.other,
+            enabled: false,
+            fetcher: () async => throw StateError('Host updates unavailable'),
+          ),
+        );
+      }
     }
   }
 
   Future<void> _initializeUpdates() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _preferences();
     if (!mounted) return;
     final cachedVersion = prefs.getString('host_available_update_version');
     final cachedUrl = Uri.tryParse(
@@ -257,9 +537,12 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
         Platform.isWindows &&
         cachedVersion != null &&
         prefs.getInt('host_update_asset_format') != 1;
+    final refreshLinuxUrl =
+        Platform.isLinux && prefs.getInt('host_update_asset_format') != 2;
     if (!refreshWindowsUrl &&
+        !refreshLinuxUrl &&
         cachedVersion != null &&
-        isNewerVersion(hostVersion, cachedVersion) &&
+        isNewerVersion(_releaseVersion, cachedVersion) &&
         cachedUrl?.scheme == 'https' &&
         cachedUrl!.host.isNotEmpty) {
       _availableUpdate = UpdateResult(
@@ -269,11 +552,16 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
       );
     }
     _updates = UpdateCheck(
-      installedVersion: hostVersion,
-      platform: Platform.isMacOS ? UpdatePlatform.macos : UpdatePlatform.other,
+      installedVersion: _releaseVersion,
+      platform: Platform.isMacOS
+          ? UpdatePlatform.macos
+          : Platform.isLinux
+          ? UpdatePlatform.linux
+          : UpdatePlatform.other,
+      host: true,
       fetcher: Platform.isWindows ? fetchWindowsHostRelease : null,
       enabled: prefs.getBool('host_update_check') ?? true,
-      lastCheck: refreshWindowsUrl
+      lastCheck: refreshWindowsUrl || refreshLinuxUrl
           ? null
           : DateTime.tryParse(prefs.getString('host_last_update_check') ?? ''),
       onState: () async {
@@ -286,6 +574,7 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
         }
       },
       onResult: (result) {
+        if (_usesHostUpdates) AppUpdates.instance.hostResultChanged();
         if (!mounted) return;
         if (result.status == UpdateStatus.available) {
           _availableUpdate = result;
@@ -298,31 +587,39 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
     );
     await _menu();
     if (_availableUpdate != null) await _showUpdateNotice(_availableUpdate!);
+    if (_usesHostUpdates) {
+      _updates!.result = _availableUpdate;
+      _updates!.resultWasAutomatic = true;
+      _surfaceUpdates.complete(_updates!);
+    }
     _updates!.start();
   }
 
   Future<void> _clearUpdateNotice() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await _preferences();
       await prefs.remove('host_available_update_version');
       await prefs.remove('host_available_update_url');
       _updateNotice = null;
       await _menu();
-      await trayManager.setToolTip('Remote for ADI-2 Host');
+      await trayManager.setToolTip(
+        Platform.isLinux ? 'Remote for ADI-2' : 'Remote for ADI-2 Host',
+      );
     } catch (_) {}
   }
 
   Future<void> _showUpdateNotice(UpdateResult result) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await _preferences();
       await prefs.setString('host_available_update_version', result.version!);
       await prefs.setString('host_available_update_url', result.url.toString());
       if (Platform.isWindows) await prefs.setInt('host_update_asset_format', 1);
+      if (Platform.isLinux) await prefs.setInt('host_update_asset_format', 2);
       await _menu();
       if (_updateNotice != result.version) {
         _updateNotice = result.version;
         await trayManager.setToolTip(
-          'Remote for ADI-2 Host · ${trf('Version {version} verfügbar', {'version': result.version})}',
+          '${Platform.isLinux ? 'Remote for ADI-2' : 'Remote for ADI-2 Host'} · ${trf('Version {version} verfügbar', {'version': result.version})}',
         );
       }
     } catch (_) {
@@ -379,7 +676,9 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
                 status: server.status,
                 error: _error,
                 port: server.port,
-                version: hostVersion,
+                version: _releaseVersion,
+                hasInterface: hostHasInterface,
+                surfaceOpen: _windowVisible && !_management,
                 windows: Platform.isWindows,
                 autostart: _automatic,
                 updatesEnabled: _updates?.enabled ?? true,
@@ -393,38 +692,56 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
 
   Future<void> _show(bool pairing) async {
     if (pairing) server.pairing.issue();
-    setState(() => _pairing = pairing);
+    setState(() {
+      _pairing = pairing;
+      _management = true;
+      _windowVisible = true;
+    });
     _countdown?.cancel();
     _countdown = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
     try {
+      if (hostHasInterface) await windowManager.setSkipTaskbar(false);
+      if (await windowManager.isMinimized()) await windowManager.restore();
       await windowManager.show();
       await windowManager.focus();
+      await DesktopActivation.present();
     } catch (error) {
       HostLog.write('Fenster öffnen fehlgeschlagen: $error');
     }
   }
 
   Future<void> _showError(String error) async {
-    if (mounted) setState(() => _error = error);
+    if (mounted) {
+      setState(() {
+        _error = error;
+        _management = true;
+        _windowVisible = true;
+      });
+    }
     try {
       await _menu();
     } catch (_) {
       // Auch bei ausgefallenem Tray bleibt das Fehlerfenster erreichbar.
     }
+    if (await windowManager.isMinimized()) await windowManager.restore();
     await windowManager.show();
     await windowManager.focus();
+    await DesktopActivation.present();
   }
 
   @override
   void onWindowClose() {
-    windowManager.hide();
-    _countdown?.cancel();
+    unawaited(_hideWindow());
   }
 
   @override
-  void onTrayIconMouseDown() => unawaited(_popUpMenu());
+  void onTrayIconMouseDown() => unawaited(
+    trayLeftClickOpensSurface(defaultTargetPlatform)
+        ? _openSurface()
+        : _popUpMenu(),
+  );
   @override
   void onTrayIconRightMouseDown() => unawaited(_popUpMenu());
 
@@ -441,6 +758,12 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
   @override
   void onTrayMenuItemClick(MenuItem item) async {
     switch (item.key) {
+      case 'surface':
+        if (_windowVisible && !_management) {
+          await _hideWindow();
+        } else {
+          await _openSurface();
+        }
       case 'pair':
         await _show(true);
       case 'devices':
@@ -459,8 +782,9 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
         final updates = _updates;
         if (updates == null) return;
         updates.enabled = !updates.enabled;
-        final prefs = await SharedPreferences.getInstance();
+        final prefs = await _preferences();
         await prefs.setBool('host_update_check', updates.enabled);
+        if (_usesHostUpdates) AppUpdates.instance.hostResultChanged();
         await _menu();
         if (updates.enabled) await updates.check();
       case 'download-update':
@@ -485,6 +809,11 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
           } catch (_) {}
         }
 
+        if (Platform.isLinux) await step(LinuxTestSignalPlayer.instance.stop);
+        _geometrySave?.cancel();
+        await step(_storeGeometry);
+        if (_desktopWindows != null) await step(_desktopWindows.closeAll);
+        if (_instance != null) await step(_instance!.close);
         await step(server.stop);
         if (widget.broadcast.isReady) await step(widget.broadcast.stop);
         await step(trayManager.destroy);
@@ -495,6 +824,9 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
 
   @override
   void dispose() {
+    AppSettings.instance.removeListener(_analyzerSettingsChanged);
+    widget.desktopSelection?.removeListener(_hostSelectionChanged);
+    _geometrySave?.cancel();
     _updates?.stop();
     _countdown?.cancel();
     _detectTimer?.cancel();
@@ -520,13 +852,14 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
       'port': server.port,
       'code': server.pairing.code,
     });
-    return MaterialApp(
-      title: 'Remote for ADI-2 Host',
+    final management = MaterialApp(
+      title: 'Remote for ADI-2',
       debugShowCheckedModeBanner: false,
+      theme: buildTheme(),
       home: Scaffold(
         appBar: AppBar(
           title: Text(
-            _pairing ? tr('Smartphone koppeln…') : tr('Gekoppelte Geräte…'),
+            _pairing ? tr('Client koppeln…') : tr('Gekoppelte Geräte…'),
           ),
         ),
         body: ListView(
@@ -585,7 +918,7 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
                 ),
               ),
             ] else ...[
-              for (final device in server.pairing.devices.values)
+              for (final device in server.pairing.externalDevices)
                 ListTile(
                   title: Text(device.name),
                   trailing: TextButton(
@@ -603,11 +936,32 @@ class _HostAppState extends State<HostApp> with TrayListener, WindowListener {
                     child: Text(tr('Widerrufen')),
                   ),
                 ),
-              if (server.pairing.devices.isEmpty)
+              if (server.pairing.externalDevices.isEmpty)
                 Text(tr('Keine gekoppelten Geräte')),
             ],
           ],
         ),
+      ),
+    );
+    if (!hostHasInterface) return management;
+    return Directionality(
+      textDirection: TextDirection.ltr,
+      child: Stack(
+        children: [
+          if (_surfaceCreated)
+            Offstage(
+              offstage: _management,
+              child: TickerMode(
+                enabled: !_management && _windowVisible,
+                child: Adi2RemoteApp(
+                  localHost: widget.localHost,
+                  desktopSelection: widget.desktopSelection,
+                  desktopWindows: _desktopWindows,
+                ),
+              ),
+            ),
+          Offstage(offstage: !_management, child: management),
+        ],
       ),
     );
   }

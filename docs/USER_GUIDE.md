@@ -1,12 +1,14 @@
 # Remote for ADI-2 — User guide
 
-Version **1.2.4 (9)** · [Project overview](../README.md) · [Deutsch](BENUTZERHANDBUCH.md)
+Version **1.3.0 (10)** · [Project overview](../README.md) · [Deutsch](BENUTZERHANDBUCH.md)
 
-This guide describes the current app. Controls depend on the selected model and values reported by the device. Screenshots show Android devices and the English interface. The app has been tested with all supported ADI-2 models on an Android smartphone and an Android tablet, and with the ADI-2 DAC on a Mac, also through the host. The Player integration currently supports Android only.
+This guide describes the current app. Controls depend on the selected model and values reported by the device. Screenshots show Android devices and the English interface. The app has been tested with all supported ADI-2 models on an Android smartphone and an Android tablet, and with the ADI-2 DAC on a Mac, also through the host. Player integration uses the active media session on Android, Apple Music on iPhone and the computer player through a host.
 
 ## Contents
 
 - [First steps](#first-steps)
+- [Control through a computer (host)](#control-through-a-computer-host)
+- [Linux](#linux)
 - [Outputs](#outputs)
 - [Volume protection](#volume-protection)
 - [Player and status below the header](#player-and-status-below-the-header)
@@ -33,7 +35,7 @@ Use this chapter to connect the ADI-2, select the correct output and prepare for
 
 ### First launch
 
-Before anything else, a **notice about volume** appears: the app changes ADI-2 settings including the volume, and errors can cause suddenly high volume. It contains tips for safe use and the liability notice and must be confirmed once, also by existing users after the update. Read it again any time under **App settings → Safety and liability**.
+The **notice about volume** (the app changes ADI-2 settings including the volume, and errors can cause suddenly high volume), with tips for safe use and the liability notice, is under **App settings → Safety and liability**.
 
 After the startup animation, the setup wizard appears once, including on the first launch after this update. It guides you through USB OTG or **Connect via host**, optional Android player access and automatic update checks. Detected connections and granted access are confirmed with a checkmark. **Next** advances; **Skip** ends setup at any time. It does not change device values or volume protection. Camera and recording permissions are needed only for QR scanning and the analyzer respectively.
 
@@ -43,7 +45,7 @@ Open **App settings → Restart setup** to run it again. **Privacy** in settings
 
 The ADI-2 processes the audio; the app controls its settings over USB MIDI. Remote control does not require music to play on the mobile device. An audio source can remain connected to the ADI-2.
 
-1. Build and install using the [source instructions](../README.md#build-and-install-from-source).
+1. Install the app from the [download section](../README.md#download) using the appropriate installation guide.
 2. Power the ADI-2 and connect it directly to the mobile device with a data-capable USB cable. Android requires USB host/OTG support and, where needed, an OTG adapter.
 3. Set **MIDI Control → ON** on the ADI-2. For DAC, use **SETUP → Options → Remap Keys / Diag → MIDI Control**. For ADI-2 Pro and ADI-2/4 Pro, use **SETUP → Options → Device Mode / DSD → MIDI Control**.
 4. Accept the USB permission dialog. The app searches automatically. Use **Search again**, **Connection help**, or select the device under **MIDI devices** if necessary.
@@ -69,13 +71,13 @@ After connecting the same model, open **Setups → More → Transfer offline set
 
 ## Control through a computer (host)
 
-When the ADI-2 is connected by USB to a Mac or Windows PC, the smartphone can control it over Wi-Fi. The computer runs the small background program **Remote for ADI-2 Host**. It has no device controls of its own and only passes commands between smartphones/tablets and ADI-2. Control on the computer itself is left to the RME software; both can run at the same time.
+When the ADI-2 is connected by USB to a Mac or Windows PC, **Remote for ADI-2 Host** provides its own interface for controlling it on the computer. Smartphones and tablets can control it over Wi-Fi at the same time. On Linux, **Remote for ADI-2** combines these functions. A computer can also control the ADI-2 attached to another computer (host to host).
 
 ### Installing and starting the host
 
-On Windows, run **Remote-for-ADI-2-Host-Windows-Setup-1.2.3.exe**. The host installs for your user account only and needs no administrator rights. Start it at the end of setup or any time from the Start menu (**All apps → Remote for ADI-2 Host**). Remove it under **Settings → Apps → Installed apps**; the uninstaller asks whether settings and pairings should be deleted too. On a Mac, drag the app into Applications; remove it by deleting it from Applications.
+On Windows, run **Remote-for-ADI-2-Host-Windows-Setup-1.3.0.exe**. The host installs for your user account only and needs no administrator rights. Start it at the end of setup or any time from the Start menu (**All apps → Remote for ADI-2 Host**). Remove it under **Settings → Apps → Installed apps**; the uninstaller asks whether settings and pairings should be deleted too. On a Mac, drag the app into Applications; remove it by deleting it from Applications.
 
-On a Mac, open **Remote for ADI-2 Host** like any program. No window appears; an icon appears in the menu bar. On Windows the icon sits in the notification area of the taskbar; on Windows 11 it first appears in the hidden-icons area (^ arrow). Clicking the icon opens the menu:
+A normal start opens the interface. The icon appears in the Mac menu bar or the Windows notification area, possibly behind the ^ arrow. Left-click opens the interface; right-click opens the menu. Closing the window hides it; the host and existing smartphone connections keep running. Starting the program again brings the running interface forward. Autostart opens no window. **Exit** in the icon menu quits the program.
 
 | Host menu (Mac; the Windows menu looks similar) |
 | --- |
@@ -83,11 +85,12 @@ On a Mac, open **Remote for ADI-2 Host** like any program. No window appears; an
 
 | Item | Effect |
 | --- | --- |
+| Open / close interface | Shows or hides the device controls. |
 | Client | Names of all connected smartphones/tablets in connection order, **–** without a connection. |
-| RME device | Model and serial number of the connected ADI-2, such as **ADI-2 DAC** or **ADI-2 Pro EX**, **–** without a device. Detection only reads the device list and does not open the MIDI port. Errors such as “USB MIDI busy” appear in a line below when needed. |
-| Pair smartphone… | Shows a 6-digit code and a QR code. The code is valid for 2 minutes and only once. |
+| RME device | Model of the connected ADI-2, such as **ADI-2 DAC** or **ADI-2 Pro EX**, **–** without a device. Detection only reads the device list and does not open the MIDI port. Errors such as “USB MIDI busy” appear in a line below when needed. |
+| Pair client… | Shows a 6-digit code and a QR code. The code is valid for 2 minutes and only once. |
 | Paired devices… | Lists paired smartphones; **Revoke** removes a smartphone's access. |
-| Start at login / Start with Windows | Starts the host automatically after signing in to the computer. On Windows it is switched on at first start. |
+| Start at login / Start with Windows | Starts the host automatically after signing in to the computer, only in the background. On Windows it is switched on at first start. |
 | Info | Shows the installed host version. |
 | Exit | Quits the host. |
 
@@ -101,21 +104,37 @@ For **Remote for ADI-2 Host**, pairing and local network privacy, see the [priva
 
 ### Pairing and connecting
 
-1. Choose **Pair smartphone…** on the host.
+1. Choose **Pair client…** on the host.
 2. In the app, open **Connect via host** on the connection screen. Discovered hosts appear in the list; otherwise enter address and port manually.
 3. Scan the QR code or enter the code.
 
 Up to four smartphones/tablets can control the same host at the same time. Pair each device separately using a new code; pairing also works while other devices are connected. A fifth simultaneous connection is refused until a client disconnects.
 
-The app then connects to this host automatically on every start. A direct USB connection on the smartphone takes priority. Being on the same Wi-Fi is not enough: without pairing, the host forwards nothing. The header shows the green **HOST** field next to **Custom Mode**. A long press on **HOST** opens a menu with the computer's name, **Remove pairing** (disconnects; you need to pair again afterwards) and **Manage hosts…**.
+The app then connects to this host automatically on every start. A direct USB connection on the smartphone takes priority. Being on the same Wi-Fi is not enough: without pairing, the host forwards nothing. The header shows **HOST** in green when controlling through this computer. **CLIENT** in blue means a connection to another host, including on smartphones. On desktop, click to open host selection; on a smartphone, hold **CLIENT** for the computer name, **Remove pairing** and **Manage hosts…**. **Connect via host** shows the current connection and marks the active list entry as **Active**.
+
+### Desktop views and windows
+
+The header buttons switch the view:
+
+- **Desktop view** shows device controls with an **Additional panel** for EQ, analyzer, status or player.
+- **Device only** hides the additional panel. Outputs are tabs at the top; EQ and status remain accessible through navigation.
+- **Compact view** arranges controls like a smartphone. The interface scales uniformly with the window size.
+
+The choice is saved and can also be changed in App settings. The analyzer and player buttons in the header each open a separate window. When the analyzer is in its own window, the main window shows a placeholder. Window size and position are saved.
+
+**App settings → Analyzer frame rate** offers **30 / 60 fps**, default **30**. This applies to the local desktop analyzer on Mac, Windows and Linux, including its separate window. Connections to another host and smartphones retain their existing rate. 30 fps reduces processing load.
+
+### Control another computer
+
+Both computers must be on the same network. On the computer with the ADI-2 connected by USB, start the host and choose **Pair client…** in the icon menu. On the controlling computer, use **HOST** or **CLIENT** to open **Connect via host**, select the other computer and enter its code. The interface then controls that computer’s ADI-2; analyzer and player data also come from there. The badge changes to **CLIENT** in blue. **This computer** in host selection returns to the local host and marks its entry as active.
 
 ### Computer playback
 
 Enable **Analyzer settings → Player on graph tap** to control computer playback from the analyzer overlay when connected through the host. Windows supports players exposing a Windows media session, including browsers with media-session integration. Track, artist, app and available artwork come from the computer; the buttons control its current session. Without an active session the display is empty. Older hosts need an update for this feature.
 
-On macOS, **Music.app and Spotify** are supported through public Apple Events. On first access with the overlay open, allow **Remote for ADI-2 Host** to automate the respective player. Change this later under **System Settings → Privacy & Security → Automation**. Accessibility permission is not needed. Only running players are queried: a playing player takes priority, otherwise the last selected player or Music. Music can supply embedded artwork. Spotify exposes an internet artwork URL, which is not downloaded. Other Mac players and browsers are unsupported. Denied automation prevents metadata and control. No extra host menu item is added.
+On macOS, **Music.app and Spotify** are supported through public Apple Events. On first access with the overlay open, allow **Remote for ADI-2 Host** to automate the respective player. Change this later under **System Settings → Privacy & Security → Automation**. Accessibility permission is not needed. Only running players are queried: a playing player takes priority, otherwise the last selected player or Music. Music can supply embedded artwork. Other Mac players and browsers are unsupported. Denied automation prevents metadata and control. No extra host menu item is added.
 
-Player state and commands use the authenticated, encrypted local host connection. JPEG artwork is limited to 30 kB and sent to each client only when changed, without new external network requests. Only open overlays subscribe to playback. Multiple clients control the same current session.
+Player state and commands use the authenticated, encrypted local host connection. JPEG artwork is limited to 30 kB and sent to each client only when changed, without new external network requests. Only visible player views receive playback data. Multiple clients control the same current session.
 
 ### Behaviour through the host
 
@@ -127,7 +146,17 @@ The **analyzer through the host** is available in compact view, full screen and 
 
 On Mac, grant microphone access to **Remote for ADI-2 Host** when first using its analyzer. If denied, open **System Settings → Privacy & Security → Microphone → Allow Remote for ADI-2 Host**, then select **Try again** in the analyzer; restart the host if necessary. On Windows, enable **Settings → Privacy (or Privacy & security) → Microphone → Allow desktop apps to access your microphone**. Without an unambiguous ADI-2 capture input, the app shows an error. Windows uses the device’s shared capture format; channels 1/2 must be available and the sample rate must be at least 40 kHz.
 
-**The app’s calibration test tone and analyzer self-test require a direct USB connection.** An external reference tone and manual level calibration remain available through the host. Measurement takes about three seconds through the host; offsets belong to the capture computer and ADI-2. Ballistics, Peak hold including the long-press reset, and loopback selection remain available.
+**The app’s calibration test tone and analyzer self-test require a direct USB connection.** An external reference tone and manual level calibration remain available through a Mac or Windows host. A Linux host needs no calibration: capture is bit-perfect and calibration offsets are not applied. Measurement takes about three seconds through the host; offsets belong to the capture computer and ADI-2. Ballistics, Peak hold including the long-press reset, and loopback selection remain available.
+
+## Linux
+
+**Remote for ADI-2** on Linux combines device controls and host in one program. The AppImage is for **x86_64** Linux PCs, such as Linux Mint 22 / Ubuntu 24.04. Download it, make it executable and start it: [Linux installation](install/linux.md).
+
+Connect the ADI-2 by USB and enable **MIDI Control → ON**. A normal start opens the interface; closing the window keeps the program running in the tray. Right-click the icon for **Open interface**, **Pair client…**, autostart and **Exit**. Autostart runs only in the background. Smartphone pairing and host-to-host control work as described in the [host chapter](#control-through-a-computer-host).
+
+The analyzer captures ADI-2 USB channels **1/2** through **PipeWire/PulseAudio**. To compare with the device display, select **post FX** loopback, Bars and **1/3 octave**. **post −6 dB** reads 6 dB lower. Capture is bit-perfect; Linux needs no calibration and does not offer it. The local desktop frame rate can be set to **30 / 60 fps**. Player control uses **MPRIS** and requires a player supporting that interface, such as VLC.
+
+**App settings → Test signals** is available only in the Linux main window when connected to the local host. It provides **Sine**, **Third-octave steps**, **Logarithmic sweep**, **pink and white noise**, and **1 kHz level steps**. Choose signal, level and channel, check the displayed preparations and start playback; **Stop** ends it. Output goes over USB to the local ADI-2. Begin at a low listening volume; test signals can be loud. Leaving the page ends playback. This generator is unavailable through another host or on Mac, Windows or smartphones.
 
 ## Outputs
 
@@ -225,7 +254,7 @@ In **App settings → Display below the header**, choose **Player**, **Status**,
 
 On a phone you can also **swipe** this area left or right between **Status**, **Player** and **Analyzer**. The content follows your finger; it switches after about a third of the width or a quick flick, otherwise it springs back. Three dots show the current page. The choice is saved like the setting, in Custom Mode per page.
 
-**Player** uses the computer player when connected through a host, showing title, artist, app and artwork with previous/next and play/pause controls. Without a host, or without host player support, it uses the active Android media session; older hosts show **Update host**. The permissions below, Stop and opening the player app apply to the smartphone source. Grant notification access using the offered settings link. It can show media information and artwork, send previous/next, play/pause and stop commands, and open the player by tapping its information. Availability depends on the media app. It does not contain a music library. If no usable player content exists, the configured status fallback may appear or the bar collapses. Other smartphone platforms do not currently provide the local player integration; a current host can supply the computer player on those platforms too.
+**Player** uses the computer player when connected through a host, showing title, artist, app and artwork with previous/next and play/pause controls. Without a host, or without host player support, it uses the active Android media session; older hosts show **Update host**. The permissions below, Stop and opening the player app apply to the smartphone source. Grant notification access using the offered settings link. It can show media information and artwork, send previous/next, play/pause and stop commands, and open the player by tapping its information. Availability depends on the media app. It does not contain a music library. If no usable player content exists, the configured status fallback may appear or the bar collapses. On iPhone, the local player bar shows Apple Music; when connected through a current host, it shows that computer’s player.
 
 **Status** shows a compact view of digital input state and clock/sample-rate information. Tap it to open the full Status page.
 
@@ -728,7 +757,7 @@ The analyzer displays captured USB audio as a spectrum and as peak and RMS level
 
 Choose **Analyzer** under **Display below the header**, or use the tablet’s landscape **Extra panel**. Grant recording permission when requested. The app analyzes USB audio while the analyzer is visible. On Android, the app must also be in the foreground. On Mac, the analyzer continues in a visible window without focus. Capture stops when the analyzer is hidden or another page covers it. The app does not save the audio or use the smartphone microphone.
 
-**macOS:** Connect the ADI-2 directly to the Mac over USB and grant the app microphone permission. The analyzer explicitly selects the ADI-2 input and does not capture without it. Capture also refuses multiple matching ADI-2 inputs because the target would be ambiguous. The Mac's default audio devices stay unchanged. No audio files or monitoring are produced. The Mac analyzer has not yet been verified on real hardware.
+**macOS:** Connect the ADI-2 directly to the Mac over USB and grant the app microphone permission. The analyzer explicitly selects the ADI-2 input and does not capture without it. Capture also refuses multiple matching ADI-2 inputs because the target would be ambiguous. The Mac's default audio devices stay unchanged. No audio files or monitoring are produced. The Mac host analyzer has been checked with an ADI-2 Pro.
 
 ### Platforms and limitations
 
@@ -736,17 +765,17 @@ The **analyzer through the host** is available in compact view, full screen and 
 
 On Mac, grant microphone access to **Remote for ADI-2 Host** when first using its analyzer. If denied, open **System Settings → Privacy & Security → Microphone → Allow Remote for ADI-2 Host**, then select **Try again** in the analyzer; restart the host if necessary. On Windows, enable **Settings → Privacy (or Privacy & security) → Microphone → Allow desktop apps to access your microphone**. Without an unambiguous ADI-2 capture input, the app shows an error. Windows uses the device’s shared capture format; channels 1/2 must be available and the sample rate must be at least 40 kHz.
 
-**The app’s calibration test tone and analyzer self-test require a direct USB connection.** An external reference tone and manual level calibration remain available through the host. Measurement takes about three seconds through the host; offsets belong to the capture computer and ADI-2. Ballistics, Peak hold including the long-press reset, and loopback selection remain available.
+**The app’s calibration test tone and analyzer self-test require a direct USB connection.** An external reference tone and manual level calibration remain available through a Mac or Windows host. A Linux host needs no calibration: capture is bit-perfect and calibration offsets are not applied. Measurement takes about three seconds through the host; offsets belong to the capture computer and ADI-2. Ballistics, Peak hold including the long-press reset, and loopback selection remain available.
 
 On **Android**, the app processes USB audio and checks the recording route. A message about the smartphone microphone or another recording device means that a valid ADI-2 recording is unavailable; do not use those readings for calibration. **Grant permission** allows access; **Try again** restarts capture after resolving an interruption.
 
-On Mac, the analyzer has not yet been confirmed on real hardware.
+On Linux, capture uses PipeWire/PulseAudio; see the [Linux chapter](#linux).
 
 ### Source and loopback
 
 The capture pair is **USB 1/2**. On DAC, select only the shared **Loopback source**: **Off**, **pre FX**, **post FX** or **post −6 dB**. There is no output selector; changing outputs does not write a new loopback value. Which output supplies post FX has not yet been measured. On Pro / 2/4, choose **Automatic (active output)** or a particular output and the loopback source. Each USB pair can be assigned to only one output: a competing route is switched off first with a brief notification; other pairs are preserved. Loopback on USB 1/2 replaces analog input recording on that pair and requires confirmation on first use on Pro / 2/4. While visible, a confirmed automatic Pro/2/4 route follows the output selected in the app after about one second. Reopening the analyzer does not overwrite an existing route. The information line identifies routing and capture sample rate; on DAC, the shared source is shown without assigning it to an output.
 
-Use **post FX** for comparison with the device: the signal is after EQ/effects and before Volume. Loudness remains dependent on volume. pre FX excludes those effects; post −6 dB lowers the USB readings by 6 dB. The device's Post level meters are after Volume, so they are not the same measurement point.
+Use **post FX** for comparison with the analyzer on the device display: the display measures after EQ/effects. The loopback tap is before Volume; Loudness remains volume-dependent. **pre FX** excludes those effects; **post −6 dB** reads 6 dB lower in the app analyzer. Horizontal device level meters can use a different tap.
 
 ### Display and readings
 
@@ -807,7 +836,7 @@ Both channels must exceed −60 dBFS, differ by no more than 1 dB and remain sta
 
 For the **built-in test tone (Android and macOS)**, enable **Use built-in test tone** in the **Calibrate to 0 dB** dialog. The app plays 1 kHz at 0 dBFS through USB playback 1/2 during measurement, for at most 3.6 seconds. Automatic checks cover connection, muting of all outputs, a USB source at the measured output, post FX loopback on USB 1/2 without a conflicting route, SD Sharp, and disabled EQ, Loudness and Crossfeed. Bass/Treble blocks playback only when processing is enabled and Bass or Treble gain is nonzero. On Android, media volume must be available and at maximum. Fresh mute and volume values for every output are requested before starting and during playback. **Mute all outputs** mutes them for you. The manual preparations in the checklist remain required. On ADI-2/4 Pro EX, calibration with the built-in test tone is not yet confirmed.
 
-On macOS, the capturing ADI-2 is explicitly selected as the only output, and the route is verified before audible playback and throughout output. Disconnection or an invalid route stops the tone; it does not switch to the Mac speakers. The fixed buffer includes 250 ms of initial silence and 20 ms fades and ends by itself even if the app stops responding. Only the Android media-volume condition is omitted on macOS; all other checklist points and fresh confirmation of device values remain required. Calibration is stored separately by Mac, USB model and available serial number. The Mac test tone is available only at device sample rates of **44.1–192 kHz**. Outputs stay muted after the tone. Any output above −30 dB is lowered. Verification requires two consecutive queries with fresh mute and volume values for every output and confirmed volumes at or below −30 dB. Without sufficient device confirmation, the test tone remains blocked or is interrupted. Outputs stay muted. Check volume on the device.
+On macOS, the capturing ADI-2 is explicitly selected as the only output, and the route is verified before audible playback and throughout output. Disconnection or an invalid route stops the tone; it does not switch to the Mac speakers. The fixed buffer includes 250 ms of initial silence and 20 ms fades and ends by itself even if the app stops responding. Only the Android media-volume condition is omitted on macOS; all other checklist points and fresh confirmation of device values remain required. Calibration is stored per Mac/ADI-2 combination. The Mac test tone is available only at device sample rates of **44.1–192 kHz**. Outputs stay muted after the tone. Any output above −30 dB is lowered. Verification requires two consecutive queries with fresh mute and volume values for every output and confirmed volumes at or below −30 dB. Without sufficient device confirmation, the test tone remains blocked or is interrupted. Outputs stay muted. Check volume on the device.
 
 **Note:** Without the app's test tone, supply an externally generated, known full-scale sine. If the app detects low Android media volume during USB playback, it offers **Calibrate anyway** for explicit acknowledgement. That would include the attenuation in the offset; for the reference procedure described here, first set media volume to maximum. The built-in test tone does not allow bypassing this condition. If **Start measurement** is unavailable, check the displayed conditions and current recording route. A previous offset is not applied as a universal correction after changing the device combination.
 
@@ -893,13 +922,14 @@ Open the gear icon (**App**) in the header. **App settings** provides:
 - **Language**: English or Deutsch.
 - **Display below the header**: Player, Status, Analyzer or none.
 - **Band resolution**, **Analyzer color** and **Level range**.
+- On desktop: views and **Analyzer frame rate** (30/60 fps for the local analyzer); on Linux, also **Test signals** for the local ADI-2.
 - **Switch to active output automatically**: currently for ADI-2 DAC, for example when plugging in headphones.
 - **Automatically show EQ graph fullscreen in landscape**: on smartphones for the EQ graph and analyzer; on smartphones and tablets for Basic Mode signal diagrams.
 - **About the app**, version and **Trademarks and legal**, which also contains **Open-source licenses**.
 
 These are app preferences. The Device page controls the connected ADI-2 itself.
 
-The ADI-2 Pro EX is recognized by its serial number and shown accordingly in the app. The **Status** page also lists the installed AD and DA converters under **Device** once they are known.
+The ADI-2 Pro EX is detected automatically and shown accordingly in the app. The **Status** page also lists the installed AD and DA converters under **Device** once they are known.
 
 | Smartphone: App settings |
 | --- |
@@ -953,9 +983,9 @@ Use these checks to resolve connection, control and measurement problems.
 | Device confirmation for test tone missing | Keep outputs muted, check volume on the device, then check connection and fresh mute/volume reports from every output |
 | No analyzer signal | USB 1/2 routing, active source, loopback source, and actual source audio; pair 3/4 or 5/6 does not feed the analyzer |
 | USB recording interrupted or unavailable | Reconnect USB, close other recording users if needed, return to the analyzer and use Try again; check the reported recording route |
-| Analyzer differs from the device | Compare post FX, Bars, 1/3 octave; check calibration, media volume, Android effects and the position of device meters after Volume |
+| Analyzer differs from the device | Compare post FX, Bars, 1/3 octave; post −6 dB reads 6 dB lower; on Android check calibration, media volume and sound effects |
 | Calibration rejected | Stable equal-level signal on both channels, sufficient level and uninterrupted USB capture; read the displayed reason |
-| Player absent | Android only; notification access, active media session and Player header choice |
+| Player absent | Select Player below the header; Android: notification access and active media session; iPhone: Apple Music; host: supported computer player |
 | Diagram shows a different mode | The diagram is explanatory; check actual Basic Mode under Device and reported operating mode under Status |
 | USB target 5/6 has no signal | Set CC-Mode Multi-channel on the device with USB disconnected; app detection is available only on Android |
 | Preset editor does not change the sound | Check Listen, target channel and its EQ and Bass/Treble switches; storing alone does not activate a live preset |

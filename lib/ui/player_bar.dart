@@ -1,3 +1,5 @@
+import '../desktop/host_interface.dart';
+
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -15,8 +17,14 @@ import 'responsive_layout.dart';
 /// Feste Höhe des Player-Bereichs, damit die Ansicht darunter nicht springt.
 const double playerSlotHeight = 120;
 
+/// Kopfbereich im Desktop-Programm: so hoch, dass der Analyzer mit Pegeln,
+/// Peak hold/Zurücksetzen und Symbolen Platz hat (gemessen 128 + 8 Abstand,
+/// etwas Luft); Status und Player bekommen dieselbe Höhe.
+const double desktopHeaderHeight = 140;
+
 double headerSlotHeight(BuildContext context) {
-  if (isTablet(context)) return 180;
+  // Desktop: so hoch wie Status und Player (Analyzer mit Seitenspalte).
+  if (isTablet(context)) return hostHasInterface ? desktopHeaderHeight : 180;
   if (MediaQuery.orientationOf(context) != Orientation.portrait) {
     return playerSlotHeight;
   }
@@ -57,7 +65,8 @@ class PlayerBar extends StatelessWidget {
         if (collapseWhenEmpty && !visible && fallback == null) {
           return const SizedBox.shrink();
         }
-        if (isTablet(context) || source.needsHostUpdate) {
+        if ((isTablet(context) && !hostHasInterface) ||
+            source.needsHostUpdate) {
           // Der Tablet-Player ist nur so hoch wie sein Inhalt; die größere
           // Kopfzeilenhöhe braucht nur der Analyzer.
           return visible ? _content(source) : _empty();

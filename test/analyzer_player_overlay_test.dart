@@ -148,7 +148,10 @@ void main() {
             final plot = tester.getRect(
               find.byKey(const ValueKey('analyzer-plot')),
             );
-            expect(plot, scale.area.shift(spectrum.topLeft));
+            expect(
+              plot,
+              rectMoreOrLessEquals(scale.area.shift(spectrum.topLeft)),
+            );
             await tester.tap(find.byKey(const ValueKey('analyzer-plot')));
             await tester.pump();
             final overlay = tester.getRect(

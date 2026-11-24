@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../desktop/host_interface.dart';
 import 'eq_display_mode.dart';
 
 const double tabletBreakpoint = 600;
@@ -7,12 +8,22 @@ const double tabletContentWidth = 720;
 const double tabletColumnsBreakpoint = 760;
 const double tabletNavigationRailWidth = 88;
 
+/// Grundgröße der Ausgangsseite im Desktop-Programm (gleichmäßig skaliert).
+/// Bei 480 × 760 füllt der Ring die Breite zwischen Bass und Treble fast
+/// ganz aus, ohne dass Tasten oder Texte überlaufen.
+const Size desktopOutputSize = Size(480, 760);
+
 /// Width of either output column after the rail and central divider.
 double tabletOutputColumnWidth(double width) =>
     (width - tabletNavigationRailWidth - 1) / 2;
 
-bool isTablet(BuildContext context) =>
-    MediaQuery.sizeOf(context).shortestSide >= tabletBreakpoint;
+/// Telefon oder Tablet: am Handy/Tablet nach der kürzeren Seite. Im
+/// Desktop-Programm nur nach der Breite – sonst sprang die Ansicht beim
+/// Zusammenschieben unter 600 px Höhe auf Telefon-Geometrie (volle Breite)
+/// und beim Aufziehen zurück.
+bool isTablet(BuildContext context) => hostHasInterface
+    ? MediaQuery.sizeOf(context).width >= tabletBreakpoint
+    : MediaQuery.sizeOf(context).shortestSide >= tabletBreakpoint;
 
 bool isTabletLandscape(BuildContext context) =>
     isTablet(context) &&

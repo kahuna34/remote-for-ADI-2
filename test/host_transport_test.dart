@@ -118,6 +118,49 @@ void main() {
     if (!disposed) controller.dispose();
   });
 
+  test('Embedded UI defaults to loopback without direct MIDI access', () async {
+    final localHost = _Host();
+    final local = Adi2Controller(
+      host: localHost,
+      midi: midi,
+      localHost: credentials,
+    );
+    // An available USB port must never override the host's ownership.
+    midi.available = [
+      MidiDevice('usb', 'ADI-2 DAC', MidiDeviceType.serial, false),
+    ];
+    await local.start();
+    expect(local.hostAvailable, isTrue);
+    expect(local.viaHost, isTrue);
+    expect(localHost.credentials!.host.address, '127.0.0.1');
+    expect(midi.connected, isEmpty);
+    expect(local.devices, isEmpty);
+    expect(local.pairedHosts, isEmpty);
+    await local.refreshDevices();
+    await local.connect(midi.available.single);
+    expect(midi.connected, isEmpty);
+    local.dispose();
+  });
+
+  testWidgets('Embedded UI offers host choice and no local media service', (
+    tester,
+  ) async {
+    final local = Adi2Controller(
+      host: _Host(),
+      midi: midi,
+      localHost: credentials,
+    );
+    await tester.pumpWidget(MaterialApp(home: ConnectPage(ctrl: local)));
+    expect(find.text(tr('Über Host verbinden')), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    local.dispose();
+    final player = NowPlaying(hostOnly: true);
+    await player.start();
+    expect(player.supported, isFalse);
+    expect(player.info, isNull);
+    player.dispose();
+  });
+
   test(
     'Abriss erhält Anzeige, verwirft Rampe und Eingaben, Abgleich liest neu',
     () async {
@@ -426,6 +469,8 @@ void main() {
       expect(find.text('Verbinde neu …'), findsOneWidget);
       expect(find.byType(ConnectPage), findsNothing);
       expect(find.byKey(const ValueKey('host-badge-menu')), findsOneWidget);
+      expect(find.byKey(const ValueKey('client-badge')), findsOneWidget);
+      expect(find.text('CLIENT'), findsOneWidget);
       expect(
         find.byWidgetPredicate((w) => w is IgnorePointer && w.ignoring),
         findsWidgets,

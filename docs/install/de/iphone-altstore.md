@@ -4,7 +4,7 @@
 
 Die iPhone-App gibt es nicht im App Store. AltStore und SideStore installieren sie mit deiner eigenen Apple-ID und signieren sie regelmäßig neu. Eine kostenlose Apple-ID genügt.
 
-**Dateien:** `Remote-for-ADI-2-iPhone-<Version>.ipa` oder die AltStore-Quelle aus dem [iPhone-Downloadbereich](../../README.de.md#iphone).
+**Dateien:** `Remote-for-ADI-2-iPhone-1.3.0.ipa` oder die AltStore-Quelle aus dem [iPhone-Downloadbereich](../../README.de.md#iphone).
 **Voraussetzung:** iPhone mit iOS 15 oder neuer, eine Apple-ID, ein Mac oder Windows-PC für die einmalige Einrichtung.
 
 Gut zu wissen:
@@ -42,7 +42,7 @@ AltServer läuft wie Remote for ADI-2 Host im Hintergrund auf deinem Mac oder PC
 
 **Oder mit der IPA-Datei:**
 
-1. `Remote-for-ADI-2-iPhone-<Version>.ipa` in Safari auf dem iPhone herunterladen (landet in **Dateien → Downloads**).
+1. `Remote-for-ADI-2-iPhone-1.3.0.ipa` in Safari auf dem iPhone herunterladen (landet in **Dateien → Downloads**).
 2. AltStore → **My Apps** → **+** → die IPA wählen.
 
 ### 4. Laufend halten
@@ -57,6 +57,6 @@ SideStore funktioniert wie AltStore, erneuert die App aber direkt auf dem iPhone
 
 - **Direkt per USB:** iPhone mit USB-C: USB-C-Kabel zum ADI-2. iPhone mit Lightning: Apple **Lightning auf USB 3 Kamera-Adapter** (mit Stromversorgung) plus USB-Kabel.
 - Am ADI-2 **MIDI Control** einschalten (DAC: **SETUP → Options → Remap Keys / Diag → MIDI Control**; Pro-Modelle: **SETUP → Options → Device Mode / DSD → MIDI Control**).
-- **Per WLAN:** über Remote for ADI-2 Host auf [Mac](host-mac.md) oder [Windows](host-windows.md).
+- **Per WLAN:** über Remote for ADI-2 Host auf [Mac](host-mac.md) oder [Windows](host-windows.md) bzw. [Remote for ADI-2 auf Linux](linux.md).
 
 Besonderheiten am iPhone: Die Player-Leiste zeigt Apple Music, das auf dem iPhone läuft (bzw. den Player des Hosts bei Verbindung über den Host). Die Lautstärketasten des iPhones steuern den ADI-2 bei Verbindung über den Host.

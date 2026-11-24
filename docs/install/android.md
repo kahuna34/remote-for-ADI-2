@@ -2,7 +2,7 @@
 
 [Deutsch](de/android.md) · [Back to downloads](../../README.md#download)
 
-**File:** `Remote-for-ADI-2-Android-<version>.apk` from the [download section](../../README.md#download).
+**File:** `Remote-for-ADI-2-Android-1.3.0.apk` from the [download section](../../README.md#download).
 **Requires:** Android smartphone or tablet with USB host support (USB OTG), or a computer running [Remote for ADI-2 Host](../../README.md#download) for Wi-Fi control.
 
 ## 1. Download
@@ -24,7 +24,7 @@ Download the APK in **Chrome** itself. If the link opens inside another app (for
    - ADI-2 Pro / ADI-2/4 Pro: **SETUP → Options → Device Mode / DSD → MIDI Control**
 3. Start the app and confirm the USB permission dialog. On first launch, a wizard guides you through setup, including the player display.
 
-For Wi-Fi control through a computer, install the host for [Mac](host-mac.md) or [Windows](host-windows.md).
+For Wi-Fi control through a computer, install the host for [Mac](host-mac.md) or [Windows](host-windows.md), or [Remote for ADI-2 for Linux](linux.md).
 
 ## Updates
 

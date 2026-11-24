@@ -1,3 +1,5 @@
+import 'support/analyzer_meter_geometry.dart';
+
 import 'package:adi2_remote/analyzer/analyzer_controller.dart';
 import 'package:adi2_remote/analyzer/analyzer_dsp.dart';
 import 'package:adi2_remote/dev/analyzer_selftest_diagnostics.dart';
@@ -195,23 +197,13 @@ void main() {
       );
       await tester.pumpAndSettle();
       final bar = find.byType(AnalyzerLevelBar).last;
-      final rmsFinder = find.descendant(
-        of: bar,
-        matching: find.byKey(const ValueKey('analyzer-rms-fill')),
-      );
-      final peakFinder = find.descendant(
-        of: bar,
-        matching: find.byKey(const ValueKey('analyzer-peak-marker')),
-      );
-      final rms = tester.getRect(rmsFinder), peak = tester.getRect(peakFinder);
-      expect(rms.width / tester.getSize(bar).width, closeTo(0.7, 0.001));
+      final rms = meterRms(tester, bar), peak = meterPeak(tester, bar);
+      expect(rms.width / meterTrack(tester, bar).width, closeTo(0.7, 0.001));
       expect(rms.height, greaterThanOrEqualTo(7));
       expect(peak.left, greaterThan(rms.right));
-      expect(tester.widget<ColoredBox>(rmsFinder).color.a, 1);
-      expect(
-        tester.widget<ColoredBox>(peakFinder).color,
-        isNot(tester.widget<ColoredBox>(rmsFinder).color),
-      );
+      final widget = tester.widget<AnalyzerLevelBar>(bar);
+      expect(widget.color.a, 1);
+      expect(meterPainter(tester, bar).peakColor, isNot(widget.color));
       expect(tester.takeException(), isNull);
     });
   }
@@ -590,12 +582,9 @@ void main() {
                 expect(left.right, right.right);
               }
               expect(plot.height, greaterThan(size.height * 0.5));
-              final rms = tester.getRect(
-                find.byKey(const ValueKey('analyzer-rms-fill')).last,
-              );
-              final peak = tester.getRect(
-                find.byKey(const ValueKey('analyzer-peak-marker')).last,
-              );
+              final bar = find.byType(AnalyzerLevelBar).last;
+              final rms = meterRms(tester, bar);
+              final peak = meterPeak(tester, bar);
               expect(rms.height, 18);
               expect(rms.width, greaterThan(100));
               expect(peak.width, 2);

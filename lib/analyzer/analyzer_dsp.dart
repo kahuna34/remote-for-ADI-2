@@ -208,7 +208,12 @@ AnalyzerFrame coalesceAnalyzerFrames(AnalyzerFrame? old, AnalyzerFrame next) {
 /// Reference implementation and iOS groundwork. Android performs this in its
 /// recording worker. Periodic Hann, 75% overlap; independent 60 Hz filter/meter frames.
 class AnalyzerDsp {
-  AnalyzerDsp({this.size = 2048, this.bassAnalysis = true}) {
+  AnalyzerDsp({
+    this.size = 2048,
+    this.bassAnalysis = true,
+    this.spectrumAnalysis = true,
+    this.frameRate = 60,
+  }) {
     if (size < 4 || size & (size - 1) != 0) {
       throw ArgumentError.value(size, 'size', 'Must be a power of two');
     }
@@ -218,6 +223,14 @@ class AnalyzerDsp {
   }
   final int size;
   final bool bassAnalysis;
+
+  /// Meter-only clients skip both FFTs and the octave filter bank.
+  final bool spectrumAnalysis;
+
+  /// Analysis frames per second (60 default). Below 60 the FFTs use 50 %
+  /// instead of 75 % overlap; Hann at 50 % still covers every sample evenly.
+  /// For displays that show fewer frames (Linux desktop at 30 fps).
+  final int frameRate;
   AnalyzerDsp? _bassDsp, _fastDsp;
   int? _bassRate;
   AnalyzerBandResolution bandResolution = AnalyzerBandResolution.third;
@@ -246,7 +259,8 @@ class AnalyzerDsp {
       final frames = <AnalyzerFrame>[];
       while (_pending.length >= size * 2) {
         frames.add(analyze(_pending.sublist(0, size * 2), sampleRate));
-        _pending.removeRange(0, size ~/ 2); // 75% overlap, stereo
+        // 75 % overlap (stereo: size/2 values = size/4 frames), 50 % below 60 fps.
+        _pending.removeRange(0, frameRate < 60 ? size : size ~/ 2);
       }
       return frames;
     }
@@ -255,14 +269,18 @@ class AnalyzerDsp {
       _bass = [];
       _fast = [];
       _sinceFrame = 0;
-      _bassDsp = AnalyzerDsp(
-        size: analyzerBassSize(sampleRate),
-        bassAnalysis: false,
-      );
-      _fastDsp = AnalyzerDsp(
-        size: analyzerFastSize(sampleRate),
-        bassAnalysis: false,
-      );
+      if (spectrumAnalysis) {
+        _bassDsp = AnalyzerDsp(
+          size: analyzerBassSize(sampleRate),
+          bassAnalysis: false,
+          frameRate: frameRate,
+        );
+        _fastDsp = AnalyzerDsp(
+          size: analyzerFastSize(sampleRate),
+          bassAnalysis: false,
+          frameRate: frameRate,
+        );
+      }
       _bank = null;
       _meters = AnalyzerMeters(sampleRate);
       for (var ch = 0; ch < 2; ch++) {
@@ -271,24 +289,26 @@ class AnalyzerDsp {
         _clipped[ch] = false;
       }
     }
-    if (_bank?.resolution != bandResolution) {
+    if (spectrumAnalysis && _bank?.resolution != bandResolution) {
       _bank = AnalyzerFilterBank(sampleRate, bandResolution);
     }
     final result = <AnalyzerFrame>[];
     // Segment at display boundaries so an input block never leaks future
     // samples into earlier frames; arbitrary capture block sizes are supported.
-    final hop = (sampleRate / 60).round();
+    final hop = (sampleRate / frameRate).round();
     for (var offset = 0; offset < stereo.length;) {
       final count = math.min(hop - _sinceFrame, (stereo.length - offset) ~/ 2);
       final chunk = stereo.sublist(offset, offset + count * 2);
-      for (final f in _fastDsp!.add(chunk, sampleRate)) {
-        _fast = f.spectrum;
-      }
-      for (final f in _bassDsp!.add(chunk, sampleRate)) {
-        _bass = f.spectrum;
+      if (spectrumAnalysis) {
+        for (final f in _fastDsp!.add(chunk, sampleRate)) {
+          _fast = f.spectrum;
+        }
+        for (final f in _bassDsp!.add(chunk, sampleRate)) {
+          _bass = f.spectrum;
+        }
       }
       for (var i = 0; i < chunk.length; i += 2) {
-        _bank!.process(chunk[i], chunk[i + 1]);
+        if (spectrumAnalysis) _bank!.process(chunk[i], chunk[i + 1]);
         _meters!.process(chunk[i], chunk[i + 1]);
         for (var ch = 0; ch < 2; ch++) {
           final v = chunk[i + ch];
@@ -303,16 +323,18 @@ class AnalyzerDsp {
         result.add(
           AnalyzerFrame(
             sampleRate: sampleRate,
-            spectrum: _fast.isEmpty
+            spectrum: !spectrumAnalysis
+                ? const []
+                : _fast.isEmpty
                 ? List.filled(_fastDsp!.size ~/ 2 + 1, 0)
                 : _fast,
             bassSpectrum: _bass,
-            bassBinHz: sampleRate / _bassDsp!.size,
+            bassBinHz: spectrumAnalysis ? sampleRate / _bassDsp!.size : 0,
             peak: _peaks.map(amplitudeDb).toList(),
             rms: _squares.map((v) => amplitudeDb(math.sqrt(v / hop))).toList(),
             clipped: List.of(_clipped),
             seconds: hop / sampleRate,
-            bandLevels: _bank!.levels,
+            bandLevels: spectrumAnalysis ? _bank!.levels : const [],
             bandResolution: bandResolution,
             meterPeak: _meters!.peak,
             meterRms: _meters!.rms,

@@ -2,6 +2,7 @@
 #include <flutter/flutter_view_controller.h>
 #include <windows.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <memory>
 #include <string>
@@ -34,26 +35,8 @@ static void AppendLog(const char* message) {
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
   std::vector<std::string> command_line_arguments = GetCommandLineArguments();
-  // Ordinary second launches exit immediately.
-  HANDLE instance_mutex =
-      ::CreateMutexW(nullptr, FALSE, L"Local\\RemoteForAdi2Host.SingleInstance");
-  // Declared before the window so it is released after engine teardown.
-  std::unique_ptr<void, decltype(&::CloseHandle)> mutex_handle(instance_mutex,
-                                                            &::CloseHandle);
-  if (!mutex_handle) {
-    return EXIT_FAILURE;
-  }
-  const DWORD wait = ::WaitForSingleObject(instance_mutex, 0);
-  if (wait == WAIT_TIMEOUT) {
-    return EXIT_SUCCESS;
-  }
-  if (wait != WAIT_OBJECT_0 && wait != WAIT_ABANDONED) {
-    AppendLog("Einzelinstanz-Pruefung fehlgeschlagen");
-    return EXIT_FAILURE;
-  }
-  const auto release_mutex = [](void* handle) { ::ReleaseMutex(handle); };
-  std::unique_ptr<void, decltype(release_mutex)> ownership(instance_mutex,
-                                                         release_mutex);
+  // Dart owns the per-user instance lock and authenticated activation IPC.
+  // Auxiliary processes must reach Dart before any instance check.
   // Attach to console when present (e.g., 'flutter run') or create a
   // new console when running with a debugger.
   if (!::AttachConsole(ATTACH_PARENT_PROCESS) && ::IsDebuggerPresent()) {
@@ -65,13 +48,21 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   ::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
 
   flutter::DartProject project(L"data");
+  // Skia statt Impeller: Beim Ziehen der Fenstergröße wartete das Fenster je
+  // Schritt im Median ~13 ms (Impeller) statt ~8,5 ms (Skia, wie eine leere
+  // Flutter-App), gemessen 2026-11-23. Keine Shader in der App, Leerlauf-CPU
+  // gleich.
+  project.set_impeller_switch(flutter::ImpellerSwitch::Disabled);
 
+  const bool auxiliary_window = std::any_of(
+      command_line_arguments.begin(), command_line_arguments.end(),
+      [](const std::string& arg) { return arg.rfind("--window=", 0) == 0; });
   project.set_dart_entrypoint_arguments(std::move(command_line_arguments));
 
-  FlutterWindow window(project);
+  FlutterWindow window(project, auxiliary_window);
   Win32Window::Point origin(10, 10);
   Win32Window::Size size(1280, 720);
-  if (!window.Create(L"Remote for ADI-2 Host", origin, size)) {
+  if (!window.Create(L"Remote for ADI-2", origin, size)) {
     AppendLog("Fenster konnte nicht erstellt werden");
     ::CoUninitialize();
     return EXIT_FAILURE;

@@ -18,6 +18,21 @@ class _Midi implements MidiCommand {
 }
 
 void main() {
+  testWidgets('Standard: kein Hinweis beim Start', (tester) async {
+    var ready = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SafetyGate(
+          onReady: () => ready = true,
+          child: const Text('Start'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(ready, isTrue);
+    expect(find.text('Start'), findsOneWidget);
+  });
+
   setUp(() {
     SharedPreferences.setMockInitialValues({});
     AppLang.instance.language = AppLanguage.de;
@@ -29,7 +44,11 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: buildTheme(),
-        home: SafetyGate(onReady: () {}, child: const SizedBox()),
+        home: SafetyGate(
+          requireNotice: true,
+          onReady: () {},
+          child: const SizedBox(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -50,6 +69,7 @@ void main() {
       Widget launch() => MaterialApp(
         theme: buildTheme(),
         home: SafetyGate(
+          requireNotice: true,
           onReady: () => starts++,
           child: SetupGate(
             ctrl: ctrl,
@@ -100,6 +120,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: SafetyGate(
+          requireNotice: true,
           onReady: () => started = true,
           child: const Scaffold(body: Text('Verbindungsseite')),
         ),
@@ -160,7 +181,11 @@ void main() {
                 .copyWith(textScaler: const TextScaler.linear(1.3)),
             child: child!,
           ),
-          home: SafetyGate(onReady: () {}, child: const Scaffold()),
+          home: SafetyGate(
+            requireNotice: true,
+            onReady: () {},
+            child: const Scaffold(),
+          ),
         ),
       );
       await tester.pumpAndSettle();

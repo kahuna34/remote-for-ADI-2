@@ -11,6 +11,25 @@ void main() {
     addTearDown(() => AppLang.instance.language = previous);
   });
 
+  test('Linux puts surface toggle first and preserves pairing actions', () {
+    for (final open in [false, true]) {
+      final items = buildHostMenu(
+        linux: true,
+        surfaceOpen: open,
+        version: '1.2.4',
+        windows: false,
+        autostart: false,
+        updatesEnabled: true,
+      );
+      expect(items.first.key, 'surface');
+      expect(
+        items.first.label,
+        open ? 'Oberfläche schließen' : 'Oberfläche öffnen',
+      );
+      expect(items.map((i) => i.key), containsAll(['pair', 'devices', 'quit']));
+    }
+  });
+
   for (final windows in [true, false]) {
     for (final client in [null, 'Mein Smartphone']) {
       for (final device in [null, 'ADI-2 DAC FS (12345678)']) {

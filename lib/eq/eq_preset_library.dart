@@ -86,7 +86,7 @@ abstract final class EqPresetLibrary {
   static Future<List<EqLibraryEntry>>? _cached;
   static Future<List<EqLibraryEntry>> load() => _cached ??= rootBundle
       .loadString('assets/eq_library/oratory1990.json')
-      .then(parse);
+      .then(parse, onError: (Object _) => <EqLibraryEntry>[]);
 
   static List<EqLibraryEntry> parse(String source) {
     final json = jsonDecode(source);

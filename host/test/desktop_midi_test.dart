@@ -52,6 +52,32 @@ MidiDevice portDevice(String id, String name) =>
     MidiDevice(id, name, MidiDeviceType.serial, false);
 
 void main() {
+  test('Linux: ALSA-Namen, Öffnen und periodische Trennung ohne PnP', () async {
+    final command = _MidiCommand()
+      ..ports = [
+        portDevice(
+          '20:0',
+          'ADI-2 DAC (1234567):ADI-2 DAC (1234567) MIDI 1 20:0',
+        ),
+      ];
+    final midi = DesktopMidi(
+      command: command,
+      platform: TargetPlatform.linux,
+      windowsNameQuery: () => throw StateError('Keine Windows-Abfrage'),
+      macNameQuery: () => throw StateError('Keine macOS-Abfrage'),
+      processStarter: (_, _) => throw StateError('Kein Windows-Hilfsprozess'),
+    );
+    var lost = 0;
+    midi.onLost = () => lost++;
+    expect(await midi.detect(), 'ADI-2 DAC (1234567)');
+    expect(await midi.open(), 'ADI-2 DAC (1234567)');
+    expect(command.connections, 1);
+    command.ports = [];
+    expect(await midi.detect(), isNull);
+    expect(lost, 1);
+    expect(midi.portInUse, isFalse);
+    await midi.close();
+  });
   const port = 'ADI-2 DAC Midi Port 1';
   final dac = device('RME ADI-2 DAC', '99000001');
   final hexDac = {

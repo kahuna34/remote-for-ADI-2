@@ -2,6 +2,35 @@
 // Platzhalter wie {n} müssen in beiden Sprachen gleich heißen.
 
 const Map<String, String> stringsEn = {
+  'Dieser Rechner': 'This computer',
+  'Host wählen': 'Choose host',
+  'Rechnername': 'Computer name',
+  'Verbindungswahl konnte nicht gespeichert werden':
+      'Could not save connection choice',
+  'Gespeicherte Host-Kopplung fehlt. Bitte Host wählen oder zu „Dieser Rechner“ wechseln.': 'Saved host pairing is missing. Choose a host or switch to “This computer”.',
+  'Gewählter Netzwerk-Host nicht verbunden. Erneut versuchen oder zu „Dieser Rechner“ wechseln.': 'Selected network host is not connected. Try again or switch to “This computer”.',
+  'Adresse, Port, Rechnername und sechsstelligen Code eingeben':
+      'Enter address, port, computer name and six-digit code',
+  'Abspielen': 'Play',
+  'Fenster konnte nicht geöffnet werden': 'Could not open window',
+  'Player in eigenem Fenster öffnen': 'Open player in separate window',
+  'Analyzer in eigenem Fenster öffnen': 'Open analyzer in separate window',
+  'In eigenem Fenster öffnen': 'Open in separate window',
+  'Zusatzbereich anzeigen': 'Show extra area',
+  'Verbunden mit {name}': 'Connected to {name}',
+  'Gekoppelt · aktiv verbunden': 'Paired · active connection',
+  'Desktop-Ansicht': 'Desktop view',
+  'Analyzer-Bildrate': 'Analyzer frame rate',
+  'Analyzer im eigenen Fenster': 'Analyzer in separate window',
+  'Kompakte Ansicht': 'Compact view',
+  'Bedienung wie am Smartphone, auch im breiten Fenster.':
+      'Smartphone layout, even in a wide window.',
+  'Nur Gerät': 'Device only',
+  'Ausgeschaltet: Nur Gerät mit EQ und Status in der Navigation.':
+      'Off: Device only, with EQ and status in the navigation.',
+  'Zusatzbereich im Querformat anzeigen': 'Show extra area in landscape',
+  'Netzwerksuche fehlgeschlagen. avahi-daemon installieren und starten; manuelle Adresse verwenden.': 'Network discovery failed. Install and start avahi-daemon; use a manual address.',
+
   'Wichtiger Hinweis zur Lautstärke': 'Important notice about volume',
   'Diese App verändert Einstellungen deines ADI-2, auch die Lautstärke. Bedienfehler, Übertragungs- oder Softwarefehler sowie unerwartetes Verhalten von Gerät, Verbindung oder Host können zu plötzlich hoher Lautstärke führen. Zu hohe Lautstärke kann das Gehör dauerhaft schädigen und Kopfhörer, Lautsprecher, Verstärker oder andere Geräte beschädigen.\n\n• Beginne immer mit niedriger Lautstärke und nutze den Lautstärkeschutz mit einer passenden Obergrenze.\n• Setze Kopfhörer erst auf, wenn die Verbindung steht und die Lautstärke geprüft ist.\n• Prüfe wichtige Änderungen direkt am Gerät.\n\nDie App ist kostenlose Software und wird ohne Gewährleistung bereitgestellt (GPL-3.0). Die Nutzung erfolgt auf eigene Verantwortung. Soweit gesetzlich zulässig, ist die Haftung des Entwicklers für Schäden aus der Nutzung der App ausgeschlossen, insbesondere für Hör- und andere Gesundheitsschäden, Schäden an Geräten sowie Datenverlust. Unberührt bleibt die Haftung für Vorsatz und grobe Fahrlässigkeit sowie jede Haftung, die gesetzlich nicht ausgeschlossen werden kann, etwa für Schäden aus der Verletzung des Lebens, des Körpers oder der Gesundheit.': 'This app changes settings of your ADI-2, including the volume. Operating errors, transmission or software errors and unexpected behaviour of the device, the connection or the host can cause suddenly high volume. Excessive volume can permanently damage your hearing and damage headphones, speakers, amplifiers or other equipment.\n\n• Always start at a low volume and use volume protection with a suitable limit.\n• Put on headphones only after the connection is established and the volume has been checked.\n• Check important changes directly on the device.\n\nThe app is free software and is provided without any warranty (GPL-3.0). You use it at your own risk. To the extent permitted by law, the developer accepts no liability for damage resulting from the use of the app, in particular hearing or other health damage, damage to equipment, or loss of data. This does not affect liability for intent and gross negligence or any liability that cannot be excluded by law, such as for injury to life, body or health.',
   'Verstanden und akzeptiert': 'Understood and accepted',
@@ -145,8 +174,8 @@ const Map<String, String> stringsEn = {
   'Ungültiger Host-QR-Code': 'Invalid host QR code',
   'Adresse, Port, Smartphone-Name und sechsstelligen Code eingeben':
       'Enter address, port, smartphone name and six-digit code',
-  'Host am Computer starten und dort „Smartphone koppeln…“ öffnen.':
-      'Start the host on the computer and open “Pair smartphone…”.',
+  'Host am Computer starten und dort „Client koppeln…“ öffnen.':
+      'Start the host on the computer and open “Pair client…”.',
   'Stufe 1 überträgt im lokalen Netzwerk ohne Verschlüsselung.':
       'Stage 1 transfers data over the local network without encryption.',
   'Gekoppelt': 'Paired',
@@ -174,7 +203,10 @@ const Map<String, String> stringsEn = {
   'Netzwerksuche fehlgeschlagen. Manuelle Adresse verwenden.':
       'Network discovery failed. Use a manual address.',
   'Host-Fehler {fehler}': 'Host error {fehler}',
-  'Smartphone koppeln…': 'Pair smartphone…',
+  'Diese Oberfläche': 'This interface',
+  'Oberfläche öffnen': 'Open interface',
+  'Oberfläche schließen': 'Close interface',
+  'Client koppeln…': 'Pair client…',
   'Kein ADI-2 erkannt': 'No ADI-2 detected',
   'ADI-2 erkannt: {name}': 'Detected: {name}',
   'Gekoppelte Geräte…': 'Paired devices…',
@@ -1116,7 +1148,7 @@ const Map<String, String> stringsEn = {
   'Trennt die Verbindung. Danach muss neu gekoppelt werden.':
       'Disconnects. You will need to pair again afterwards.',
   'Kopplung entfernen?': 'Remove pairing?',
-  'Die Kopplung mit {name} wird gelöscht. Zum erneuten Verbinden im Host „Smartphone koppeln…“ öffnen.': 'The pairing with {name} will be deleted. To connect again, open “Pair smartphone…” in the host.',
+  'Die Kopplung mit {name} wird gelöscht. Zum erneuten Verbinden im Host „Client koppeln…“ öffnen.': 'The pairing with {name} will be deleted. To connect again, open “Pair client…” in the host.',
   'Hosts verwalten…': 'Manage hosts…',
   'Client: {name}': 'Client: {name}',
   'RME device: {name}': 'RME device: {name}',
@@ -1132,4 +1164,57 @@ const Map<String, String> stringsEn = {
   'Gedrückt halten öffnet das Host-Menü.':
       'Press and hold to open the host menu.',
   '{wert} dBu': '{wert} dBu',
+  'Testsignale': 'Test signals',
+  'Testsignale per USB an den ADI-2 ausgeben':
+      'Play test signals to the ADI-2 via USB',
+  'Sinus': 'Sine',
+  'Terz-Treppe': 'Third-octave steps',
+  'Gleitsinus (Sweep)': 'Logarithmic sweep',
+  'Rosa Rauschen': 'Pink noise',
+  'Weißes Rauschen': 'White noise',
+  'Pegeltreppe 1 kHz': '1 kHz level steps',
+  'Beide gegenphasig': 'Both, opposite polarity',
+  'Frequenz zwischen 20 und 20000 Hz eingeben.':
+      'Enter a frequency between 20 and 20000 Hz.',
+  'Testsignal per USB': 'Test signal via USB',
+  'Das Signal geht per USB an den ADI-2. Lautstärke vorher niedrig stellen und Kopfhörer abnehmen. Am ADI-2 muss der USB-Wiedergabe-Eingang aktiv sein (Quelle USB/Auto). Die Gerätelautstärke wird nicht verändert.': 'The signal is sent to the ADI-2 via USB. Lower the volume first and take off your headphones. USB playback must be active on the ADI-2 (source USB/Auto). Device volume will not be changed.',
+  'Hoher Testpegel': 'High test level',
+  'Dieses Signal überschreitet −6 dBFS. Die Pegeltreppe beginnt mit 0 dBFS. Lautstärke niedrig stellen und Kopfhörer abnehmen.': 'This signal exceeds −6 dBFS. The level steps start at 0 dBFS. Lower the volume and take off your headphones.',
+  'Hohen Pegel starten': 'Start high level',
+  'Für den Display-Vergleich: Loopback auf post FX stellen (nicht post −6 dB), Analyzer auf Balken und 1/3 Oktave, Peak hold aus. Sinus mit 0 dBFS: 0 dBFS Peak / −3 dBFS RMS.': 'To compare with the display: set loopback to post FX (not post −6 dB), use bars and 1/3 octave in the analyzer, and turn off peak hold. A 0 dBFS sine gives 0 dBFS peak / −3 dBFS RMS.',
+  'Signal': 'Signal',
+  'Frequenz (Hz)': 'Frequency (Hz)',
+  'Dauer je Terz': 'Duration per third octave',
+  'Sweep-Dauer (20 Hz → 20 kHz)': 'Sweep duration (20 Hz → 20 kHz)',
+  'Wiederholen': 'Repeat',
+  '1 kHz: 0, −6, −12, −20, −40 dBFS, jeweils 3 Sekunden.':
+      '1 kHz: 0, −6, −12, −20, −40 dBFS, 3 seconds each.',
+  'Signalpegel: {level} dBFS': 'Signal level: {level} dBFS',
+  'Bei Rauschen bezeichnet der Pegel die Spitzenobergrenze, nicht RMS. Rosa Rauschen: gleiche Energie je Terz.': 'For noise, the level is the peak ceiling, not RMS. Pink noise has equal energy per third octave.',
+  'Kanal': 'Channel',
+  'Testsignal wird vorbereitet…': 'Preparing test signal…',
+  'Testsignal gestoppt': 'Test signal stopped',
+  'Analyzer-Pegel einblenden': 'Show analyzer levels',
+  'PipeWire/PulseAudio ist nicht erreichbar.':
+      'PipeWire/PulseAudio is not reachable.',
+  'ADI-2-Ausgänge konnten nicht geprüft werden.':
+      'Could not check ADI-2 outputs.',
+  'Keine ADI-2-Senke gefunden. ADI-2 per USB anschließen und Audio-Ausgang prüfen.': 'No ADI-2 sink found. Connect the ADI-2 via USB and check the audio output.',
+  'Mehrere ADI-2-Senken gefunden. Für Testsignale genau einen ADI-2-Ausgang aktivieren.': 'Multiple ADI-2 sinks found. Enable exactly one ADI-2 output for test signals.',
+  'Die Abtastrate der ADI-2-Senke wird nicht unterstützt.':
+      'The ADI-2 sink sample rate is not supported.',
+  'Die Testsignal-Wiedergabe wurde unterbrochen. ADI-2-Ausgang prüfen.':
+      'Test signal playback was interrupted. Check the ADI-2 output.',
+  'ADI-2-Wiedergaberoute konnte nicht bestätigt werden.':
+      'Could not confirm the ADI-2 playback route.',
+  'Für Testsignale werden pactl und pacat benötigt (Paket pulseaudio-utils).':
+      'Test signals require pactl and pacat (pulseaudio-utils package).',
+  'Testsignal konnte nicht ausgegeben werden. ADI-2 und PipeWire/PulseAudio prüfen.': 'Could not play the test signal. Check the ADI-2 and PipeWire/PulseAudio.',
+  'Die ADI-2-Wiedergaberoute hat sich geändert. Testsignal gestoppt.':
+      'The ADI-2 playback route changed. Test signal stopped.',
+  'Die ADI-2-Senke wurde getrennt oder umgestellt. Testsignal gestoppt.':
+      'The ADI-2 sink was disconnected or reconfigured. Test signal stopped.',
+  'Starten': 'Start',
+  'Stopp': 'Stop',
+  'Verstanden': 'Understood',
 };

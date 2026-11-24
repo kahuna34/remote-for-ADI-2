@@ -117,6 +117,33 @@ class AppSettings extends ChangeNotifier {
   /// EQ-Seiten dürfen durch Drehen automatisch ins Vollbild wechseln.
   bool autoFullscreenEq = true;
 
+  bool linuxLandscapeExtra = true;
+
+  Future<void> setLinuxLandscapeExtra(bool value) {
+    linuxLandscapeExtra = value;
+    notifyListeners();
+    return _persistEasy(
+      (prefs) => prefs.setBool('linux_landscape_extra', value),
+    );
+  }
+
+  /// Linux-Programm: kompakte Ansicht wie am Handy (auch im breiten Fenster).
+  bool linuxCompact = false;
+  int linuxAnalyzerFps = 30;
+
+  Future<void> setLinuxAnalyzerFps(int value) async {
+    if (value != 30 && value != 60) return;
+    linuxAnalyzerFps = value;
+    await _persistEasy((prefs) => prefs.setInt('linux_analyzer_fps', value));
+    notifyListeners();
+  }
+
+  Future<void> setLinuxCompact(bool value) {
+    linuxCompact = value;
+    notifyListeners();
+    return _persistEasy((prefs) => prefs.setBool('linux_compact', value));
+  }
+
   TabletExtraContent tabletExtraContent = TabletExtraContent.eq;
 
   Future<void> setTabletExtraContent(TabletExtraContent content) {
@@ -529,8 +556,11 @@ class AppSettings extends ChangeNotifier {
     });
   }
 
-  Future<void> load() async {
+  int analyzerPreferencesRevision = 0;
+
+  Future<void> load({bool reload = false}) async {
     try {
+      if (reload) await (await SharedPreferences.getInstance()).reload();
       _daFilterLoad = null;
       await loadDaFilterSettings();
       final prefs = await SharedPreferences.getInstance();
@@ -572,6 +602,9 @@ class AppSettings extends ChangeNotifier {
       } on FormatException {
         // An unreadable calibration never leaks into another combination.
       }
+      linuxLandscapeExtra = prefs.getBool('linux_landscape_extra') ?? true;
+      linuxCompact = prefs.getBool('linux_compact') ?? false;
+      linuxAnalyzerFps = prefs.getInt('linux_analyzer_fps') == 60 ? 60 : 30;
       tabletExtraContent =
           TabletExtraContent.values
               .where(
@@ -677,6 +710,7 @@ class AppSettings extends ChangeNotifier {
       statusInDbu = prefs.getBool('status_in_dbu') ?? false;
       autoFullscreenEq = prefs.getBool('auto_fullscreen_eq') ?? true;
     } catch (_) {}
+    if (reload) analyzerPreferencesRevision++;
     notifyListeners();
   }
 

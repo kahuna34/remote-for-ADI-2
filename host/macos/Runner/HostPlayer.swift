@@ -8,6 +8,8 @@ final class HostPlayer {
   private var selected: String?
   private var artworkKey = ""
   private var artwork: String?
+  private var artworkLarge: String?
+  private var largeArtworkAttempted = false
   private let players = [("com.apple.Music", "Music"), ("com.spotify.client", "Spotify")]
 
   init(messenger: FlutterBinaryMessenger) {
@@ -17,7 +19,8 @@ final class HostPlayer {
       self.queue.async {
         let response: Any
         if call.method == "state" {
-          response = self.state()
+          let large = (call.arguments as? [String: Any])?["large"] as? Bool ?? false
+          response = self.state(large: large)
         } else if call.method == "command", let command = call.arguments as? String {
           self.command(command)
           response = NSNull()
@@ -41,7 +44,7 @@ final class HostPlayer {
     !NSRunningApplication.runningApplications(withBundleIdentifier: id).isEmpty
   }
 
-  private func state() -> [String: Any] {
+  private func state(large: Bool = false) -> [String: Any] {
     var candidates: [(String, String, NSAppleEventDescriptor)] = []
     for (id, name) in players where running(id) {
       if let value = script("""
@@ -58,6 +61,7 @@ final class HostPlayer {
       selected = nil
       artworkKey = ""
       artwork = nil
+      artworkLarge = nil
       return ["playing": false, "artwork": NSNull()]
     }
     let (id, app, value) = candidate
@@ -65,9 +69,15 @@ final class HostPlayer {
     let title = value.atIndex(1)?.stringValue ?? ""
     let track = value.atIndex(4)?.stringValue ?? ""
     let key = "\(id):\(track):\(title)"
-    if key != artworkKey {
+    let artworkChanged = key != artworkKey
+    if artworkChanged {
       artworkKey = key
       artwork = nil
+      artworkLarge = nil
+      largeArtworkAttempted = false
+    }
+    if artworkChanged || (large && !largeArtworkAttempted) {
+      if large { largeArtworkAttempted = true }
       // Music embeds local artwork. Spotify exposes an HTTPS URL only; do not fetch it.
       if id == "com.apple.Music", !title.isEmpty,
          let data = script("tell application id \"com.apple.Music\" to return raw data of artwork 1 of current track")?.data,
@@ -83,12 +93,27 @@ final class HostPlayer {
            jpeg.count <= 30_000 {
           artwork = jpeg.base64EncodedString()
         }
+        if large, image.size.width > 0, image.size.height > 0 {
+          let scale = min(1, 768 / max(image.size.width, image.size.height))
+          let largeSize = NSSize(width: image.size.width * scale, height: image.size.height * scale)
+          let cover = NSImage(size: largeSize)
+          cover.lockFocus()
+          image.draw(in: NSRect(origin: .zero, size: largeSize))
+          cover.unlockFocus()
+          if let tiff = cover.tiffRepresentation,
+             let bitmap = NSBitmapImageRep(data: tiff),
+             let jpeg = bitmap.representation(using: .jpeg, properties: [.compressionFactor: 0.85]),
+             jpeg.count <= 600_000 {
+            artworkLarge = jpeg.base64EncodedString()
+          }
+        }
       }
     }
     return ["title": String(title.prefix(1024)),
             "artist": String((value.atIndex(2)?.stringValue ?? "").prefix(1024)),
             "app": app, "playing": value.atIndex(3)?.stringValue == "playing",
-            "artwork": artwork as Any? ?? NSNull()]
+            "artwork": artwork as Any? ?? NSNull(),
+            "artworkLarge": large ? (artworkLarge as Any? ?? NSNull()) : NSNull()]
   }
 
   private func command(_ command: String) {

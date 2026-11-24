@@ -11,7 +11,10 @@ import 'host_analyzer_cipher.dart';
 const hostServiceType = '_adi2remote._tcp';
 const hostDefaultPort = 47321;
 // Two Base64 layers plus the maximum artwork and UTF-8 metadata.
-const hostMaxPlayerFrameLength = 73728;
+/// Player-Zustand mit Cover: 72 KiB für Smartphones (kleines Cover);
+/// die eigene Linux-Oberfläche über 127.0.0.1 bekommt das große Cover
+/// (bis 600 kB; Base64 im Zustand und erneut im Umschlag).
+const hostMaxPlayerFrameLength = 1150000;
 const hostHeartbeatInterval = Duration(milliseconds: 300);
 
 /// Der Host meldet sich in diesem Abstand ('alive'), wenn er es im
