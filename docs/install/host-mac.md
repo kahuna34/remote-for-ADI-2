@@ -35,6 +35,10 @@ On the other computer, start Remote for ADI-2 Host (Mac/Windows) or Remote for A
 
 Choose **Pair client…** in that computer’s icon menu. On the controlling computer, use **HOST** or **CLIENT** to open **Connect via host**, select the other computer and enter its code. **HOST** is green for this computer; **CLIENT** is blue when connected to another host. The active connection is marked. **This computer** switches back to the local ADI-2.
 
+## Intel Mac
+
+If the interface flickers or shows black or orange stripes on an Intel Mac (for example when pressing volume + or − quickly), use `Remote-for-ADI-2-Host-Intel-Mac-1.3.0.zip` instead. It is the same host with a different graphics renderer. Install it the same way and replace the existing app; settings and pairings are kept. It also runs on Apple silicon Macs, but the normal version is recommended there.
+
 ## Updates
 
 The host reports new versions (can be switched off). Install the new version the same way, replacing the old app in Applications. Pairings and settings are kept.

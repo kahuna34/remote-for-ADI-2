@@ -12,6 +12,7 @@ Remote for ADI-2 is a free Flutter app for controlling compatible ADI-2 audio in
 | --- | --- | --- | --- |
 | **App** | [Remote-for-ADI-2-Android-1.3.0.apk](https://github.com/kahuna34/remote-for-ADI-2/releases/download/v1.3.0/Remote-for-ADI-2-Android-1.3.0.apk) | Android smartphone or tablet | [Guide](docs/install/android.md) |
 | **Host for Mac** | [Remote-for-ADI-2-Host-macOS-1.3.0.zip](https://github.com/kahuna34/remote-for-ADI-2/releases/download/v1.3.0/Remote-for-ADI-2-Host-macOS-1.3.0.zip) | Mac with the ADI-2 connected by USB; includes controls on the computer | [Guide](docs/install/host-mac.md) |
+| **Host for Intel Mac** | [Remote-for-ADI-2-Host-Intel-Mac-1.3.0.zip](https://github.com/kahuna34/remote-for-ADI-2/releases/download/v1.3.0/Remote-for-ADI-2-Host-Intel-Mac-1.3.0.zip) | Alternative for Intel Macs that show flickering or stripes in the interface (different graphics renderer) | [Guide](docs/install/host-mac.md#intel-mac) |
 | **Host for Windows** | [Remote-for-ADI-2-Host-Windows-Setup-1.3.0.exe](https://github.com/kahuna34/remote-for-ADI-2/releases/download/v1.3.0/Remote-for-ADI-2-Host-Windows-Setup-1.3.0.exe) | Windows PC (64-bit) with the ADI-2 connected by USB; includes controls on the computer | [Guide](docs/install/host-windows.md) |
 | **Linux** | [Remote-for-ADI-2-Linux-1.3.0.AppImage](https://github.com/kahuna34/remote-for-ADI-2/releases/download/v1.3.0/Remote-for-ADI-2-Linux-1.3.0.AppImage) | Linux PC (x86_64), e.g. Linux Mint 22 / Ubuntu 24.04 | [Guide](docs/install/linux.md) |
 

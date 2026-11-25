@@ -35,6 +35,10 @@ Auf dem anderen Rechner Remote for ADI-2 Host (Mac/Windows) oder Remote for ADI-
 
 Dort **Client koppeln…** im Symbolmenü öffnen. Auf dem steuernden Rechner über **HOST** bzw. **CLIENT** die Seite **Über Host verbinden** öffnen, den anderen Rechner wählen und dessen Code eingeben. **HOST** ist grün für diesen Rechner; **CLIENT** ist blau bei Verbindung mit einem anderen Host. Die aktive Verbindung ist markiert. **Dieser Rechner** wechselt zurück zum eigenen ADI-2.
 
+## Intel-Mac
+
+Flackert die Oberfläche auf einem Intel-Mac oder zeigt schwarze bzw. orange Streifen (zum Beispiel beim schnellen Drücken von Lautstärke + oder −), stattdessen `Remote-for-ADI-2-Host-Intel-Mac-1.3.0.zip` verwenden. Es ist derselbe Host mit einem anderen Grafik-Renderer. Genauso installieren und die vorhandene App ersetzen; Einstellungen und Kopplungen bleiben erhalten. Er läuft auch auf Macs mit Apple-Chip, dort ist aber die normale Version empfohlen.
+
 ## Updates
 
 Der Host meldet neue Versionen (abschaltbar). Die neue Version genauso installieren und die alte App in Programme ersetzen. Kopplungen und Einstellungen bleiben erhalten.
